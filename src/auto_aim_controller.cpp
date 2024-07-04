@@ -1,15 +1,20 @@
 
 #include <chrono>
 #include <cstdint>
+#include <sensor_msgs/image_encodings.hpp>
+#include <std_msgs/msg/detail/header__struct.hpp>
 #include <string>
 #include <thread>
 
 #include <ament_index_cpp/get_package_share_directory.hpp>
+#include <cv_bridge/cv_bridge.h>
 #include <eigen3/Eigen/Dense>
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
+#include <rclcpp/publisher.hpp>
 #include <rclcpp/utilities.hpp>
+#include <sensor_msgs/msg/image.hpp>
 
 #include <fast_tf/impl/cast.hpp>
 #include <hikcamera/image_capturer.hpp>
@@ -53,6 +58,7 @@ public:
         gimbal_predict_duration_ = get_parameter("gimbal_predict_duration").as_int();
         armor_model_path_        = get_parameter("armor_model_path").as_string();
         buff_model_path_         = get_parameter("buff_model_path").as_string();
+        debug                    = get_parameter("debug").as_bool();
         fx                       = get_parameter("fx").as_double();
         fy                       = get_parameter("fy").as_double();
         cx                       = get_parameter("cx").as_double();
@@ -60,6 +66,8 @@ public:
         k1                       = get_parameter("k1").as_double();
         k2                       = get_parameter("k2").as_double();
         k3                       = get_parameter("k3").as_double();
+
+        img_pub_ = this->create_publisher<sensor_msgs::msg::Image>("/raw_img", 10);
     }
 
     ~Controller() {
@@ -98,6 +106,18 @@ public:
                 while (rclcpp::ok()) {
                     auto img       = img_capture.read();
                     auto timestamp = std::chrono::steady_clock::now();
+
+                    if (debug) {
+                        sensor_msgs::msg::Image msg;
+                        std_msgs::msg::Header header;
+                        cv_bridge::CvImage bridge;
+                        header.stamp = this->get_clock()->now();
+                        bridge =
+                            cv_bridge::CvImage(header, sensor_msgs::image_encodings::BGR8, img);
+                        bridge.toImageMsg(msg);
+
+                        img_pub_->publish(msg);
+                    }
 
                     if (!buff_enabled && buff_mode_) {
                         // if (!buff_enabled && *buff_mode_) {
@@ -170,6 +190,9 @@ public:
     }
 
 private:
+    bool debug;
+    rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr img_pub_;
+
     // InputInterface<rmcs_core::msgs::RoboticColor> color_;
     InputInterface<rmcs_description::Tf> tf_;
     InputInterface<size_t> update_count_;

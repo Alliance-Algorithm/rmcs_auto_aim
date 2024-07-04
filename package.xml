@@ -24,6 +24,8 @@
   <depend>rmcs_description</depend>
   <depend>rmcs_core</depend>
   <depend>fast_tf</depend>
+  <depend>sensor_msgs</depend>
+  <depend>cv_bridge</depend>
 
   <export>
     <build_type>ament_cmake</build_type>
