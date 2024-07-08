@@ -106,52 +106,53 @@ public:
                 while (rclcpp::ok()) {
                     auto img       = img_capture.read();
                     auto timestamp = std::chrono::steady_clock::now();
+                    do {
+                        if (debug) {
+                            sensor_msgs::msg::Image msg;
+                            std_msgs::msg::Header header;
+                            cv_bridge::CvImage bridge;
+                            header.stamp = this->get_clock()->now();
+                            bridge =
+                                cv_bridge::CvImage(header, sensor_msgs::image_encodings::BGR8, img);
+                            bridge.toImageMsg(msg);
 
-                    if (debug) {
-                        sensor_msgs::msg::Image msg;
-                        std_msgs::msg::Header header;
-                        cv_bridge::CvImage bridge;
-                        header.stamp = this->get_clock()->now();
-                        bridge =
-                            cv_bridge::CvImage(header, sensor_msgs::image_encodings::BGR8, img);
-                        bridge.toImageMsg(msg);
-
-                        img_pub_->publish(msg);
-                    }
-
-                    if (!buff_enabled && buff_mode_) {
-                        // if (!buff_enabled && *buff_mode_) {
-
-                        buff_tracker.ResetAll();
-                    }
-                    buff_enabled = buff_mode_;
-                    // buff_enabled = *buff_mode_;
-
-                    if (!buff_enabled) {
-                        auto armors = armor_identifier.Identify(img, color_);
-                        // auto armors = armor_identifier.Identify(img, *color_);
-
-                        auto armor3d =
-                            ArmorPnPSolver::SolveAll(armors, *tf_, fx, fy, cx, cy, k1, k2, k3);
-
-                        if (auto target = armor_tracker.Update(armor3d, timestamp)) {
-                            timestamp_ = timestamp;
-                            target_    = target.release();
-                            break;
+                            img_pub_->publish(msg);
                         }
 
-                    } else {
-                        if (auto buff = buff_identifier.Identify(img)) {
-                            if (auto buff3d =
-                                    BuffPnPSolver::Solve(*buff, *tf_, fx, fy, cx, cy, k1, k2, k3)) {
-                                if (auto target = buff_tracker.Update(*buff3d, timestamp)) {
-                                    timestamp_ = timestamp;
-                                    target_    = target.release();
-                                    break;
+                        if (!buff_enabled && buff_mode_) {
+                            // if (!buff_enabled && *buff_mode_) {
+
+                            buff_tracker.ResetAll();
+                        }
+                        buff_enabled = buff_mode_;
+                        // buff_enabled = *buff_mode_;
+
+                        if (!buff_enabled) {
+                            auto armors = armor_identifier.Identify(img, color_);
+                            // auto armors = armor_identifier.Identify(img, *color_);
+
+                            auto armor3d =
+                                ArmorPnPSolver::SolveAll(armors, *tf_, fx, fy, cx, cy, k1, k2, k3);
+
+                            if (auto target = armor_tracker.Update(armor3d, timestamp)) {
+                                timestamp_ = timestamp;
+                                target_    = target.release();
+                                break;
+                            }
+
+                        } else {
+                            if (auto buff = buff_identifier.Identify(img)) {
+                                if (auto buff3d = BuffPnPSolver::Solve(
+                                        *buff, *tf_, fx, fy, cx, cy, k1, k2, k3)) {
+                                    if (auto target = buff_tracker.Update(*buff3d, timestamp)) {
+                                        timestamp_ = timestamp;
+                                        target_    = target.release();
+                                        break;
+                                    }
                                 }
                             }
                         }
-                    }
+                    } while (false);
                 }
             }};
         }
