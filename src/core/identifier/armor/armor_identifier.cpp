@@ -3,7 +3,7 @@
 
 #include <opencv2/core/mat.hpp>
 
-#include <rmcs_core/msgs.hpp>
+#include <rmcs_msgs/robot_color.hpp>
 
 #include "core/identifier/armor/armor.hpp"
 #include "core/identifier/armor/color_identifier.hpp"
@@ -22,7 +22,7 @@ public:
         , _numberIdentifier(std::forward<Args>(args)...) {}
 
     std::vector<ArmorPlate>
-        Identify(const cv::Mat& img, const rmcs_core::msgs::RoboticColor& target_color) {
+        Identify(const cv::Mat& img, const rmcs_msgs::RobotColor& target_color) {
         cv::Mat imgThre, imgGray;
         cv::cvtColor(img, imgGray, cv::COLOR_BGR2GRAY);
         cv::threshold(imgGray, imgThre, 150, 255, cv::THRESH_BINARY);
@@ -107,7 +107,7 @@ private:
 
     std::optional<LightBar> _solveToLightbar(
         const cv::Mat& img, const std::vector<cv::Point>& contour,
-        const rmcs_core::msgs::RoboticColor& target_color) {
+        const rmcs_msgs::RobotColor& target_color) {
         auto&& contourSize = contour.size();
         if (contourSize >= 5) {
             float scoreMap[256];
@@ -120,7 +120,7 @@ private:
             scoreMap[static_cast<size_t>(ColorConfidence::CredibleThreeChannelOverexposure)] =
                 0.2f / (float)contourSize;
 
-            auto& colorIdentifier = target_color == rmcs_core::msgs::RoboticColor::Blue
+            auto& colorIdentifier = target_color == rmcs_msgs::RobotColor::BLUE
                                       ? _blueIdentifier
                                       : _redIdentifier;
             int maxPointY         = 0;
@@ -168,7 +168,7 @@ ArmorIdentifier::ArmorIdentifier(const std::string& model_path)
     : pImpl_(new Impl{model_path}) {}
 
 std::vector<ArmorPlate> ArmorIdentifier::Identify(
-    const cv::Mat& img, const rmcs_core::msgs::RoboticColor& target_color) {
+    const cv::Mat& img, const rmcs_msgs::RobotColor& target_color) {
     return pImpl_->Identify(img, target_color);
 }
 

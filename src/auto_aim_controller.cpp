@@ -19,9 +19,9 @@
 
 #include <fast_tf/impl/cast.hpp>
 #include <hikcamera/image_capturer.hpp>
-#include <rmcs_core/msgs.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
+#include <rmcs_msgs/robot_color.hpp>
 
 #include "core/identifier/armor/armor_identifier.hpp"
 #include "core/identifier/buff/buff_identifier.hpp"
@@ -150,7 +150,6 @@ public:
                                 pose_pub_->publish(message);
                             }
 
-
                             if (auto target = armor_tracker.Update(armor3d, timestamp)) {
                                 timestamp_ = timestamp;
                                 target_    = target.release();
@@ -212,15 +211,15 @@ private:
     rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr img_pub_;
     rclcpp::Publisher<geometry_msgs::msg::Pose>::SharedPtr pose_pub_;
 
-    // InputInterface<rmcs_core::msgs::RoboticColor> color_;
+    // InputInterface<rmcs_msgs::RobotColor> color_;
     InputInterface<rmcs_description::Tf> tf_;
     InputInterface<size_t> update_count_;
     // InputInterface<uint8_t> robot_id_;
     // InputInterface<bool> buff_mode_;
 
-    rmcs_core::msgs::RoboticColor color_ = rmcs_core::msgs::RoboticColor::Blue;
-    uint8_t robot_id_                    = 7;
-    bool buff_mode_                      = false;
+    rmcs_msgs::RobotColor color_ = rmcs_msgs::RobotColor::BLUE;
+    uint8_t robot_id_            = 7;
+    bool buff_mode_              = false;
 
     OutputInterface<Eigen::Vector3d> control_direction_;
 

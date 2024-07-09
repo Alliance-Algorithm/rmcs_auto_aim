@@ -5,7 +5,7 @@
 
 #include <opencv2/core/mat.hpp>
 
-#include <rmcs_core/msgs.hpp>
+#include <rmcs_msgs/robot_color.hpp>
 
 #include "core/identifier/armor/armor.hpp"
 #include "core/identifier/identifier.hpp"
@@ -17,7 +17,7 @@ public:
     explicit ArmorIdentifier(const std::string& model_path);
     ~ArmorIdentifier();
     std::vector<ArmorPlate>
-        Identify(const cv::Mat& img, const rmcs_core::msgs::RoboticColor& target_color);
+        Identify(const cv::Mat& img, const rmcs_msgs::RobotColor& target_color);
 
 private:
     class Impl;
