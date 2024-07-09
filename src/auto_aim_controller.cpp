@@ -1,14 +1,15 @@
 
 #include <chrono>
 #include <cstdint>
+#include <geometry_msgs/msg/detail/pose__struct.hpp>
 #include <sensor_msgs/image_encodings.hpp>
-#include <std_msgs/msg/detail/header__struct.hpp>
 #include <string>
 #include <thread>
 
 #include <ament_index_cpp/get_package_share_directory.hpp>
 #include <cv_bridge/cv_bridge.h>
 #include <eigen3/Eigen/Dense>
+#include <geometry_msgs/msg/pose.hpp>
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
@@ -67,7 +68,8 @@ public:
         k2                       = get_parameter("k2").as_double();
         k3                       = get_parameter("k3").as_double();
 
-        img_pub_ = this->create_publisher<sensor_msgs::msg::Image>("/raw_img", 10);
+        img_pub_  = this->create_publisher<sensor_msgs::msg::Image>("/raw_img", 10);
+        pose_pub_ = this->create_publisher<geometry_msgs::msg::Pose>("/armor_pose", 10);
     }
 
     ~Controller() {
@@ -134,6 +136,21 @@ public:
                             auto armor3d =
                                 ArmorPnPSolver::SolveAll(armors, *tf_, fx, fy, cx, cy, k1, k2, k3);
 
+                            if (debug && armor3d.size() > 0) {
+                                auto debug_sample = armor3d[0];
+                                auto message      = geometry_msgs::msg::Pose();
+
+                                message.position.x    = debug_sample.position->x();
+                                message.position.y    = debug_sample.position->y();
+                                message.position.z    = debug_sample.position->z();
+                                message.orientation.x = debug_sample.rotation->x();
+                                message.orientation.y = debug_sample.rotation->y();
+                                message.orientation.z = debug_sample.rotation->z();
+                                message.orientation.w = debug_sample.rotation->w();
+                                pose_pub_->publish(message);
+                            }
+
+
                             if (auto target = armor_tracker.Update(armor3d, timestamp)) {
                                 timestamp_ = timestamp;
                                 target_    = target.release();
@@ -193,6 +210,7 @@ public:
 private:
     bool debug;
     rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr img_pub_;
+    rclcpp::Publisher<geometry_msgs::msg::Pose>::SharedPtr pose_pub_;
 
     // InputInterface<rmcs_core::msgs::RoboticColor> color_;
     InputInterface<rmcs_description::Tf> tf_;
