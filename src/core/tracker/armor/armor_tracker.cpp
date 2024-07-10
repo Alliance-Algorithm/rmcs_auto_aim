@@ -6,7 +6,7 @@
 #include "armor_tracker.hpp"
 #include "core/tracker/target.hpp"
 
-using namespace auto_aim;
+using namespace rmcs_auto_aim;
 
 class EKF {
 public:

@@ -15,7 +15,7 @@
 
 #include <rmcs_description/tf_description.hpp>
 
-namespace auto_aim {
+namespace rmcs_auto_aim {
 struct BuffPlate3d {
     rmcs_description::OdomImu::Position position;
     rmcs_description::OdomImu::Rotation rotation;
@@ -24,4 +24,4 @@ struct BuffPlate3d {
         : position(std::move(position))
         , rotation(std::move(rotation)) {}
 };
-} // namespace auto_aim
+} // namespace rmcs_auto_aim

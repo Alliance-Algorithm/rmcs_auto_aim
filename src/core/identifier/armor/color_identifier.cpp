@@ -1,6 +1,6 @@
 #include "color_identifier.hpp"
 
-using namespace auto_aim;
+using namespace rmcs_auto_aim;
 
 ColorIdentifier::ColorIdentifier(float hue360) {
     if (hue360 > 180) // (temp) blue

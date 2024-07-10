@@ -26,5 +26,5 @@ public:
     ResultType Identify(Args... args);
 };
 
-typedef Identifier<std::vector<auto_aim::ArmorPlate>> ArmorIdentifierInterface;
-typedef Identifier<std::optional<auto_aim::BuffPlate>> BuffIdentifierInterface;
+typedef Identifier<std::vector<rmcs_auto_aim::ArmorPlate>> ArmorIdentifierInterface;
+typedef Identifier<std::optional<rmcs_auto_aim::BuffPlate>> BuffIdentifierInterface;

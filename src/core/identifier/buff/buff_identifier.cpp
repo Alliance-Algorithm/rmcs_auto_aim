@@ -2,7 +2,7 @@
 
 #include "buff_identifier.hpp"
 
-using namespace auto_aim;
+using namespace rmcs_auto_aim;
 
 class BuffIdentifier::Impl {
 public:

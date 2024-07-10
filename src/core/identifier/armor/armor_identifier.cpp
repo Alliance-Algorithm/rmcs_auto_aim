@@ -11,7 +11,7 @@
 
 #include "armor_identifier.hpp"
 
-using namespace auto_aim;
+using namespace rmcs_auto_aim;
 
 class ArmorIdentifier::Impl {
 public:
@@ -120,10 +120,9 @@ private:
             scoreMap[static_cast<size_t>(ColorConfidence::CredibleThreeChannelOverexposure)] =
                 0.2f / (float)contourSize;
 
-            auto& colorIdentifier = target_color == rmcs_msgs::RobotColor::BLUE
-                                      ? _blueIdentifier
-                                      : _redIdentifier;
-            int maxPointY         = 0;
+            auto& colorIdentifier =
+                target_color == rmcs_msgs::RobotColor::BLUE ? _blueIdentifier : _redIdentifier;
+            int maxPointY = 0;
             for (const auto& point : contour) {
                 maxPointY = std::max(maxPointY, point.y);
                 auto c    = reinterpret_cast<const uchar*>(&img.at<cv::Vec3b>(point));
@@ -167,8 +166,8 @@ private:
 ArmorIdentifier::ArmorIdentifier(const std::string& model_path)
     : pImpl_(new Impl{model_path}) {}
 
-std::vector<ArmorPlate> ArmorIdentifier::Identify(
-    const cv::Mat& img, const rmcs_msgs::RobotColor& target_color) {
+std::vector<ArmorPlate>
+    ArmorIdentifier::Identify(const cv::Mat& img, const rmcs_msgs::RobotColor& target_color) {
     return pImpl_->Identify(img, target_color);
 }
 

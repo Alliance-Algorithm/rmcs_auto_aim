@@ -15,7 +15,7 @@
 
 #include "core/identifier/armor/armor.hpp"
 
-namespace auto_aim {
+namespace rmcs_auto_aim {
 class NumberIdentifier {
 private:
     cv::dnn::Net _net;
@@ -27,4 +27,4 @@ public:
 
     bool Identify(const cv::Mat& imgGray, ArmorPlate& armor);
 };
-} // namespace auto_aim
+} // namespace rmcs_auto_aim

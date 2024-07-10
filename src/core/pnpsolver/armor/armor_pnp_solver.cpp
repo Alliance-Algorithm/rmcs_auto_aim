@@ -5,8 +5,9 @@
 #include <rmcs_description/tf_description.hpp>
 
 #include "armor_pnp_solver.hpp"
+#include "core/pnpsolver/armor/armor3d.hpp"
 
-using namespace auto_aim;
+using namespace rmcs_auto_aim;
 
 class ArmorPnPSolver::StaticImpl {
 public:
@@ -53,6 +54,38 @@ public:
         return armors3d;
     }
 
+    static ArmorPlate3dWithNoFrame Solve(
+        const ArmorPlate& armor, const double& fx, const double& fy, const double& cx,
+        const double& cy, const double& k1, const double& k2, const double& k3) {
+
+        cv::Mat rvec, tvec;
+        auto& objectPoints =
+            armor.is_large_armor ? LargeArmorObjectPoints : NormalArmorObjectPoints;
+        if (cv::solvePnP(
+                objectPoints, armor.points,
+                (cv::Mat)(cv::Mat_<double>(3, 3) << fx, 0, cx, 0, fy, cy, 0, 0, 1),
+                (cv::Mat)(cv::Mat_<double>(1, 5) << k1, k2, 0, 0, k3), rvec, tvec, false,
+                cv::SOLVEPNP_IPPE)) {
+
+            Eigen::Vector3d position = {
+                tvec.at<double>(2), -tvec.at<double>(0), -tvec.at<double>(1)};
+            position = position / 1000.0;
+            if (position.norm() > MaxArmorDistance) {
+                return {};
+            }
+
+            Eigen::Vector3d rvec_eigen = {
+                rvec.at<double>(2), -rvec.at<double>(0), -rvec.at<double>(1)};
+            Eigen::Quaterniond rotation = Eigen::Quaterniond{
+                Eigen::AngleAxisd{rvec_eigen.norm(), rvec_eigen.normalized()}
+            };
+
+            return {armor.id, position, rotation};
+        }
+
+        return {};
+    }
+
 private:
     inline constexpr static const double MaxArmorDistance = 15.0;
 
@@ -75,4 +108,10 @@ std::vector<ArmorPlate3d> ArmorPnPSolver::SolveAll(
     const double& fy, const double& cx, const double& cy, const double& k1, const double& k2,
     const double& k3) {
     return ArmorPnPSolver::StaticImpl::SolveAll(armors, tf, fx, fy, cx, cy, k1, k2, k3);
+}
+
+ArmorPlate3dWithNoFrame ArmorPnPSolver::Solve(
+    const ArmorPlate& armor, const double& fx, const double& fy, const double& cx, const double& cy,
+    const double& k1, const double& k2, const double& k3) {
+    return ArmorPnPSolver::StaticImpl::Solve(armor, fx, fy, cx, cy, k1, k2, k3);
 }

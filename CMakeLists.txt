@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.12)
-project(auto_aim VERSION 1.0 LANGUAGES C CXX)
+project(rmcs_auto_aim VERSION 1.0 LANGUAGES C CXX)
 
 # Set compilation flags
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)

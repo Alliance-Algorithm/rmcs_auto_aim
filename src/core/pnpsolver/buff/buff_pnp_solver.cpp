@@ -2,7 +2,7 @@
 #include <fast_tf/impl/cast.hpp>
 #include <rmcs_description/tf_description.hpp>
 
-using namespace auto_aim;
+using namespace rmcs_auto_aim;
 
 class BuffPnPSolver::StaticImpl {
 public:

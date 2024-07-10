@@ -5,7 +5,7 @@
 
 #include "number_identifier.hpp"
 
-using namespace auto_aim;
+using namespace rmcs_auto_aim;
 
 NumberIdentifier::NumberIdentifier(const std::string& model_path) {
     _net = cv::dnn::readNetFromONNX(model_path);

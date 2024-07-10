@@ -16,7 +16,7 @@
 
 #include "buff3d.hpp"
 
-namespace auto_aim {
+namespace rmcs_auto_aim {
 
 class BuffPnPSolver {
 public:
@@ -27,4 +27,4 @@ public:
 private:
     class StaticImpl;
 };
-} // namespace auto_aim
+} // namespace rmcs_auto_aim

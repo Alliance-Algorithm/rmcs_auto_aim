@@ -15,7 +15,7 @@
 
 #include <opencv2/core/types.hpp>
 
-namespace auto_aim {
+namespace rmcs_auto_aim {
 
 struct LightBar {
     cv::Point2f top, bottom;
@@ -63,4 +63,4 @@ struct ArmorPlate {
     bool is_large_armor;
 };
 
-} // namespace auto_aim
+} // namespace rmcs_auto_aim

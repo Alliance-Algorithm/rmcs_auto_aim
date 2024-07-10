@@ -16,7 +16,7 @@
 #include "core/identifier/buff/buff.hpp"
 #include "core/identifier/identifier.hpp"
 
-namespace auto_aim {
+namespace rmcs_auto_aim {
 
 class BuffIdentifier : public BuffIdentifierInterface {
 public:
@@ -29,4 +29,4 @@ private:
     class Impl;
     std::unique_ptr<Impl> pImpl_;
 };
-} // namespace auto_aim
+} // namespace rmcs_auto_aim

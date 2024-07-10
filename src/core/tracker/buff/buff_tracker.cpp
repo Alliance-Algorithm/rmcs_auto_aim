@@ -5,7 +5,7 @@
 #include <ceres/ceres.h>
 #include <rmcs_description/tf_description.hpp>
 
-using namespace auto_aim;
+using namespace rmcs_auto_aim;
 
 class BuffTracker::Impl {
 public:

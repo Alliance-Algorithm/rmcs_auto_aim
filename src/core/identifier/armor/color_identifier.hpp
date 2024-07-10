@@ -14,7 +14,7 @@
 #include <opencv2/core/hal/interface.h>
 #include <opencv2/opencv.hpp>
 
-namespace auto_aim {
+namespace rmcs_auto_aim {
 
 enum class ColorConfidence : uchar {
     NotCredible                      = 0,
@@ -121,4 +121,4 @@ private:
     }
 };
 
-} // namespace auto_aim
+} // namespace rmcs_auto_aim

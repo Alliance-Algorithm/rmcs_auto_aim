@@ -14,7 +14,7 @@
 
 #include "core/tracker/target.hpp"
 
-namespace auto_aim {
+namespace rmcs_auto_aim {
 class TrackerInterface {
 public:
     virtual ~TrackerInterface() {}
@@ -22,4 +22,4 @@ public:
     template <class... Args>
     std::unique_ptr<TargetInterface> Update(Args... args);
 };
-} // namespace auto_aim
+} // namespace rmcs_auto_aim

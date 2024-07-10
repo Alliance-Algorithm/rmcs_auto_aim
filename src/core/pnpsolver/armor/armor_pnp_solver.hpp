@@ -14,7 +14,7 @@
 #include "core/identifier/armor/armor.hpp"
 #include "core/pnpsolver/armor/armor3d.hpp"
 
-namespace auto_aim {
+namespace rmcs_auto_aim {
 
 class ArmorPnPSolver {
 public:
@@ -23,7 +23,11 @@ public:
         const double& fy, const double& cx, const double& cy, const double& k1, const double& k2,
         const double& k3);
 
+    static ArmorPlate3dWithNoFrame Solve(
+        const ArmorPlate& armor, const double& fx, const double& fy, const double& cx,
+        const double& cy, const double& k1, const double& k2, const double& k3);
+
 private:
     class StaticImpl;
 };
-} // namespace auto_aim
+} // namespace rmcs_auto_aim

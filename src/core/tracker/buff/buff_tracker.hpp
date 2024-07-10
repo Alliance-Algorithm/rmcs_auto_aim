@@ -18,7 +18,7 @@
 #include "core/pnpsolver/buff/buff3d.hpp"
 #include "core/tracker/tracker.hpp"
 
-namespace auto_aim {
+namespace rmcs_auto_aim {
 class BuffTracker : public TrackerInterface {
 public:
     explicit BuffTracker(int64_t predict_duration);
@@ -33,4 +33,4 @@ private:
     class Impl;
     std::unique_ptr<Impl> pImpl_;
 };
-} // namespace auto_aim
+} // namespace rmcs_auto_aim
