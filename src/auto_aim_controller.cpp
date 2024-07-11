@@ -1,8 +1,6 @@
 
 #include <chrono>
 #include <cstdint>
-#include <geometry_msgs/msg/detail/pose__struct.hpp>
-#include <sensor_msgs/image_encodings.hpp>
 #include <string>
 #include <thread>
 
@@ -10,19 +8,26 @@
 #include <cv_bridge/cv_bridge.h>
 #include <eigen3/Eigen/Dense>
 #include <geometry_msgs/msg/pose.hpp>
+#include <opencv2/core/mat.hpp>
+#include <opencv2/highgui.hpp>
+#include <opencv2/videoio.hpp>
+#include <rclcpp/executors.hpp>
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 #include <rclcpp/publisher.hpp>
 #include <rclcpp/utilities.hpp>
+#include <sensor_msgs/image_encodings.hpp>
 #include <sensor_msgs/msg/image.hpp>
 
 #include <fast_tf/impl/cast.hpp>
 #include <hikcamera/image_capturer.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
+#include <rmcs_msgs/msg/robot_pose.hpp>
 #include <rmcs_msgs/robot_color.hpp>
 
+#include "core/debugger/debugger.hpp"
 #include "core/identifier/armor/armor_identifier.hpp"
 #include "core/identifier/buff/buff_identifier.hpp"
 #include "core/pnpsolver/armor/armor_pnp_solver.hpp"
@@ -32,7 +37,7 @@
 #include "core/tracker/target.hpp"
 #include "core/trajectory/trajectory_solvor.hpp"
 
-namespace auto_aim {
+namespace rmcs_auto_aim {
 
 class Controller
     : public rmcs_executor::Component
@@ -49,7 +54,7 @@ public:
         // register_input("/robot_id", robot_id_);
         // register_input("/auto_rune", buff_mode_);
         register_output(
-            "/gimbal/auto_aim/control_direction", control_direction_, Eigen::Vector3d::Zero());
+            "/gimbal/rmcs_auto_aim/control_direction", control_direction_, Eigen::Vector3d::Zero());
 
         exposure_time_           = get_parameter("exposure_time").as_int();
         armor_predict_duration_  = get_parameter("armor_predict_duration").as_int();
@@ -67,18 +72,79 @@ public:
         k1                       = get_parameter("k1").as_double();
         k2                       = get_parameter("k2").as_double();
         k3                       = get_parameter("k3").as_double();
+        omni_exposure_           = get_parameter("omni_exposure").as_double();
 
-        img_pub_  = this->create_publisher<sensor_msgs::msg::Image>("/raw_img", 10);
-        pose_pub_ = this->create_publisher<geometry_msgs::msg::Pose>("/armor_pose", 10);
+        pose_pub_ = this->create_publisher<rmcs_msgs::msg::RobotPose>("/armor_pose", 10);
     }
 
     ~Controller() {
         if (gimbal_thread_.joinable())
             gimbal_thread_.join();
+
+        // if (omni_dir_thread_.joinable()) {
+        //     omni_dir_thread_.join();
+        // }
+
+        if (false && debug_thread_.joinable()) {
+            debug_thread_.join();
+        }
     }
 
     void update() override {
         if (*update_count_ == 0) {
+            if (debug) {
+                debug_thread_ =
+                    std::thread{[]() { rclcpp::spin(Debugger::getInstance().getNode()); }};
+            }
+            omni_dir_thread_ = std::thread{[this]() {
+                // omni dir
+                cv::VideoCapture camera(2);
+                camera.set(cv::CAP_PROP_EXPOSURE, omni_exposure_);
+
+                if (camera.isOpened()) {
+                    RCLCPP_INFO(
+                        get_logger(), "exposure of omni-direction camera = %f",
+                        camera.get(cv::CAP_PROP_EXPOSURE));
+                } else {
+                    RCLCPP_INFO(get_logger(), "Failed to open omni-direction camera.");
+                }
+
+                auto package_share_directory =
+                    ament_index_cpp::get_package_share_directory("rmcs_auto_aim");
+
+                auto armor_identifier =
+                    ArmorIdentifier(package_share_directory + armor_model_path_);
+
+                cv::Mat img;
+                while (camera.isOpened()) {
+                    camera >> img;
+                    if (img.empty()) {
+                        continue;
+                    }
+
+                    auto armors = armor_identifier.Identify(img, color_);
+                    // auto armors = armor_identifier.Identify(img, *color_);
+                    if (armors.size() == 0) {
+                        continue;
+                    }
+
+                    auto sample = armors[0];
+
+                    auto pnp_result = ArmorPnPSolver::Solve(sample, fx, fy, cx, cy, k1, k2, k3);
+                    rmcs_msgs::msg::RobotPose msg;
+                    msg.id   = static_cast<int64_t>(pnp_result.id);
+                    msg.pose = pnp_result.pose;
+                    pose_pub_->publish(msg);
+
+                    cv::imshow("omni", img);
+                    if (cv::waitKey(100) == 27) {
+                        break;
+                    }
+                }
+                cv::destroyAllWindows();
+                camera.release();
+            }};
+
             gimbal_thread_ = std::thread{[this]() {
                 hikcamera::ImageCapturer::CameraProfile camera_profile;
                 camera_profile.exposure_time = std::chrono::milliseconds(exposure_time_);
@@ -94,7 +160,7 @@ public:
                 hikcamera::ImageCapturer img_capture(camera_profile);
 
                 auto package_share_directory =
-                    ament_index_cpp::get_package_share_directory("auto_aim");
+                    ament_index_cpp::get_package_share_directory("rmcs_auto_aim");
 
                 auto armor_identifier =
                     ArmorIdentifier(package_share_directory + armor_model_path_);
@@ -104,21 +170,14 @@ public:
                 auto buff_tracker  = BuffTracker(buff_predict_duration_);
 
                 auto buff_enabled = false;
+                auto& debugger    = Debugger::getInstance();
 
                 while (rclcpp::ok()) {
                     auto img       = img_capture.read();
                     auto timestamp = std::chrono::steady_clock::now();
                     do {
                         if (debug) {
-                            sensor_msgs::msg::Image msg;
-                            std_msgs::msg::Header header;
-                            cv_bridge::CvImage bridge;
-                            header.stamp = this->get_clock()->now();
-                            bridge =
-                                cv_bridge::CvImage(header, sensor_msgs::image_encodings::BGR8, img);
-                            bridge.toImageMsg(msg);
-
-                            img_pub_->publish(msg);
+                            debugger.publish_raw_image(img);
                         }
 
                         if (!buff_enabled && buff_mode_) {
@@ -135,21 +194,13 @@ public:
 
                             auto armor3d =
                                 ArmorPnPSolver::SolveAll(armors, *tf_, fx, fy, cx, cy, k1, k2, k3);
-
-                            if (debug && armor3d.size() > 0) {
-                                auto debug_sample = armor3d[0];
-                                auto message      = geometry_msgs::msg::Pose();
-
-                                message.position.x    = debug_sample.position->x();
-                                message.position.y    = debug_sample.position->y();
-                                message.position.z    = debug_sample.position->z();
-                                message.orientation.x = debug_sample.rotation->x();
-                                message.orientation.y = debug_sample.rotation->y();
-                                message.orientation.z = debug_sample.rotation->z();
-                                message.orientation.w = debug_sample.rotation->w();
-                                pose_pub_->publish(message);
+                            if (debug) {
+                                if (armor3d.size() > 0) {
+                                    auto sample = ArmorPnPSolver::Solve(
+                                        armors[0], fx, fy, cx, cy, k1, k2, k3);
+                                    debugger.publish_pnp_armor(sample);
+                                }
                             }
-
                             if (auto target = armor_tracker.Update(armor3d, timestamp)) {
                                 timestamp_ = timestamp;
                                 target_    = target.release();
@@ -207,9 +258,7 @@ public:
     }
 
 private:
-    bool debug;
-    rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr img_pub_;
-    rclcpp::Publisher<geometry_msgs::msg::Pose>::SharedPtr pose_pub_;
+    rclcpp::Publisher<rmcs_msgs::msg::RobotPose>::SharedPtr pose_pub_;
 
     // InputInterface<rmcs_msgs::RobotColor> color_;
     InputInterface<rmcs_description::Tf> tf_;
@@ -218,13 +267,15 @@ private:
     // InputInterface<bool> buff_mode_;
 
     rmcs_msgs::RobotColor color_ = rmcs_msgs::RobotColor::BLUE;
-    uint8_t robot_id_            = 7;
+    uint8_t robot_id_            = 4;
     bool buff_mode_              = false;
 
     OutputInterface<Eigen::Vector3d> control_direction_;
 
     std::chrono::steady_clock::time_point timestamp_;
     std::thread gimbal_thread_;
+    std::thread omni_dir_thread_;
+    std::thread debug_thread_;
 
     int64_t gimbal_predict_duration_;
     int64_t armor_predict_duration_;
@@ -237,14 +288,16 @@ private:
     std::string armor_model_path_;
     std::string buff_model_path_;
 
+    double omni_exposure_;
     double pitch_error_;
     double yaw_error_;
+    bool debug;
 
     double fx, fy, cx, cy, k1, k2, k3;
 };
 
-}; // namespace auto_aim
+}; // namespace rmcs_auto_aim
 
 #include <pluginlib/class_list_macros.hpp>
 
-PLUGINLIB_EXPORT_CLASS(auto_aim::Controller, rmcs_executor::Component)
+PLUGINLIB_EXPORT_CLASS(rmcs_auto_aim::Controller, rmcs_executor::Component)

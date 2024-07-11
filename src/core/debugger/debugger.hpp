@@ -10,21 +10,38 @@
  */
 
 #pragma once
-
-#include "core/identifier/armor/armor.hpp"
-#include "core/pnpsolver/armor/armor3d.hpp"
 #include <memory>
-#include <opencv2/core/mat.hpp>
-#include <vector>
 
+#include <opencv2/core/mat.hpp>
+#include <rclcpp/node.hpp>
+
+#include "core/pnpsolver/armor/armor3d.hpp"
+
+namespace rmcs_auto_aim {
 class Debugger {
 public:
+    Debugger(const Debugger&)            = delete;
+    Debugger& operator=(const Debugger&) = delete;
+
+    static Debugger& getInstance() {
+        static Debugger instance;
+        return instance;
+    }
+
+    rclcpp::Node::SharedPtr getNode();
+
     void publish_raw_image(const cv::Mat& img);
-    void publish_armors(const std::vector<auto_aim::ArmorPlate>& armors, const cv::Mat& img);
-    void publish_3d_armors(const std::vector<auto_aim::ArmorPlate3d>& armors);
-    void publish_raw_roi(const cv::Mat& img);
+    void publish_pnp_armor(const ArmorPlate3dWithNoFrame& armor);
+    // void publish_armors(const std::vector<rmcs_auto_aim::ArmorPlate>& armors, const cv::Mat&
+    // img); void publish_3d_armors(const std::vector<rmcs_auto_aim::ArmorPlate3d>& armors); void
+    // publish_raw_roi(const cv::Mat& img);
 
 private:
     class Impl;
-    std::unique_ptr<Impl> pImpl_;
+
+    Debugger();
+    ~Debugger() = default;
+
+    std::shared_ptr<Impl> pImpl_;
 };
+} // namespace rmcs_auto_aim
