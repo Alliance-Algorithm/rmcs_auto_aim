@@ -1,6 +1,7 @@
 
 #include <chrono>
 #include <cstdint>
+#include <cstdlib>
 #include <string>
 #include <thread>
 
@@ -9,6 +10,7 @@
 #include <eigen3/Eigen/Dense>
 #include <geometry_msgs/msg/pose.hpp>
 #include <opencv2/core/mat.hpp>
+#include <opencv2/core/types.hpp>
 #include <opencv2/highgui.hpp>
 #include <opencv2/videoio.hpp>
 #include <rclcpp/executors.hpp>
@@ -24,14 +26,18 @@
 #include <hikcamera/image_capturer.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
+#include <rmcs_msgs/game_stage.hpp>
+#include <rmcs_msgs/keyboard.hpp>
 #include <rmcs_msgs/msg/robot_pose.hpp>
 #include <rmcs_msgs/robot_color.hpp>
+#include <rmcs_msgs/robot_id.hpp>
 
 #include "core/debugger/debugger.hpp"
 #include "core/identifier/armor/armor_identifier.hpp"
 #include "core/identifier/buff/buff_identifier.hpp"
 #include "core/pnpsolver/armor/armor_pnp_solver.hpp"
 #include "core/pnpsolver/buff/buff_pnp_solver.hpp"
+#include "core/recorder/recorder.hpp"
 #include "core/tracker/armor/armor_tracker.hpp"
 #include "core/tracker/buff/buff_tracker.hpp"
 #include "core/tracker/target.hpp"
@@ -50,9 +56,10 @@ public:
 
         register_input("/predefined/update_count", update_count_);
         register_input("/tf", tf_);
-        // register_input("/robot_color", color_);
-        // register_input("/robot_id", robot_id_);
-        // register_input("/auto_rune", buff_mode_);
+        register_input("/referee/id", robot_msg_);
+        register_input("/remote/keyboard", keyboard_);
+        register_input("/referee/game/stage", stage_);
+
         register_output(
             "/gimbal/rmcs_auto_aim/control_direction", control_direction_, Eigen::Vector3d::Zero());
 
@@ -73,6 +80,10 @@ public:
         k2                       = get_parameter("k2").as_double();
         k3                       = get_parameter("k3").as_double();
         omni_exposure_           = get_parameter("omni_exposure").as_double();
+        fps_                     = get_parameter("fps").as_int();
+        debug_robot_id_          = get_parameter("debug_robot_id").as_int();
+        debug_buff_mode_         = get_parameter("debug_buff_mode").as_bool();
+        debug_color_             = get_parameter("debug_color").as_int();
 
         pose_pub_ = this->create_publisher<rmcs_msgs::msg::RobotPose>("/armor_pose", 10);
     }
@@ -96,6 +107,7 @@ public:
                 debug_thread_ =
                     std::thread{[]() { rclcpp::spin(Debugger::getInstance().getNode()); }};
             }
+
             omni_dir_thread_ = std::thread{[this]() {
                 // omni dir
                 cv::VideoCapture camera(2);
@@ -115,6 +127,11 @@ public:
                 auto armor_identifier =
                     ArmorIdentifier(package_share_directory + armor_model_path_);
 
+                auto my_color =
+                    debug ? static_cast<rmcs_msgs::RobotColor>(debug_color_) : robot_msg_->color();
+                auto target_color =
+                    static_cast<rmcs_msgs::RobotColor>(1 - static_cast<uint8_t>(my_color));
+
                 cv::Mat img;
                 while (camera.isOpened()) {
                     camera >> img;
@@ -122,8 +139,8 @@ public:
                         continue;
                     }
 
-                    auto armors = armor_identifier.Identify(img, color_);
-                    // auto armors = armor_identifier.Identify(img, *color_);
+                    auto armors = armor_identifier.Identify(img, target_color);
+
                     if (armors.size() == 0) {
                         continue;
                     }
@@ -149,8 +166,7 @@ public:
                 hikcamera::ImageCapturer::CameraProfile camera_profile;
                 camera_profile.exposure_time = std::chrono::milliseconds(exposure_time_);
                 camera_profile.gain          = 16.9807;
-                if (robot_id_ == 7) {
-                    // if (*robot_id_ == 7) {
+                if ((debug ? debug_robot_id_ : static_cast<uint8_t>(*robot_msg_)) == 7) {
 
                     camera_profile.invert_image = true;
                 } else {
@@ -172,25 +188,47 @@ public:
                 auto buff_enabled = false;
                 auto& debugger    = Debugger::getInstance();
 
+                auto my_color =
+                    debug ? static_cast<rmcs_msgs::RobotColor>(debug_color_) : robot_msg_->color();
+
+                auto target_color =
+                    static_cast<rmcs_msgs::RobotColor>(1 - static_cast<uint8_t>(my_color));
+
+                Recorder recorder(static_cast<double>(fps_), [&img_capture]() {
+                    auto img = img_capture.read();
+                    return cv::Size(img.cols, img.rows);
+                }());
+
+                if (!recorder.is_opened()) {
+                    RCLCPP_WARN(get_logger(), "Failed to create an VideoWriter().");
+                }
+
                 while (rclcpp::ok()) {
+                    if (*stage_ == rmcs_msgs::GameStage::SETTLING) {
+                        break;
+                    }
+
                     auto img       = img_capture.read();
                     auto timestamp = std::chrono::steady_clock::now();
+
+                    if (*stage_ == rmcs_msgs::GameStage::STARTED && recorder.is_opened()
+                        && !img.empty()) {
+                        recorder.record_frame(img);
+                    }
+
                     do {
                         if (debug) {
                             debugger.publish_raw_image(img);
                         }
 
-                        if (!buff_enabled && buff_mode_) {
-                            // if (!buff_enabled && *buff_mode_) {
+                        if (!buff_enabled && (debug ? debug_buff_mode_ : keyboard_->g == 1)) {
 
                             buff_tracker.ResetAll();
                         }
-                        buff_enabled = buff_mode_;
-                        // buff_enabled = *buff_mode_;
+                        buff_enabled = (debug ? debug_buff_mode_ : keyboard_->g == 1);
 
                         if (!buff_enabled) {
-                            auto armors = armor_identifier.Identify(img, color_);
-                            // auto armors = armor_identifier.Identify(img, *color_);
+                            auto armors = armor_identifier.Identify(img, target_color);
 
                             auto armor3d =
                                 ArmorPnPSolver::SolveAll(armors, *tf_, fx, fy, cx, cy, k1, k2, k3);
@@ -199,6 +237,9 @@ public:
                                     auto sample = ArmorPnPSolver::Solve(
                                         armors[0], fx, fy, cx, cy, k1, k2, k3);
                                     debugger.publish_pnp_armor(sample);
+                                    RCLCPP_INFO(
+                                        get_logger(), "Detected armor [%hu]",
+                                        static_cast<uint16_t>(sample.id));
                                 }
                             }
                             if (auto target = armor_tracker.Update(armor3d, timestamp)) {
@@ -220,8 +261,8 @@ public:
                             }
                         }
                     } while (false);
-                }
-            }};
+                } // while rclcpp::ok end
+            }}; // gimbal_thread end
         }
 
         auto target = target_;
@@ -260,15 +301,15 @@ public:
 private:
     rclcpp::Publisher<rmcs_msgs::msg::RobotPose>::SharedPtr pose_pub_;
 
-    // InputInterface<rmcs_msgs::RobotColor> color_;
     InputInterface<rmcs_description::Tf> tf_;
     InputInterface<size_t> update_count_;
-    // InputInterface<uint8_t> robot_id_;
-    // InputInterface<bool> buff_mode_;
+    InputInterface<rmcs_msgs::RobotId> robot_msg_;
+    InputInterface<rmcs_msgs::Keyboard> keyboard_;
+    InputInterface<rmcs_msgs::GameStage> stage_;
 
-    rmcs_msgs::RobotColor color_ = rmcs_msgs::RobotColor::BLUE;
-    uint8_t robot_id_            = 4;
-    bool buff_mode_              = false;
+    uint8_t debug_color_;
+    uint8_t debug_robot_id_;
+    bool debug_buff_mode_;
 
     OutputInterface<Eigen::Vector3d> control_direction_;
 
@@ -281,6 +322,7 @@ private:
     int64_t armor_predict_duration_;
     int64_t buff_predict_duration_;
     int64_t exposure_time_;
+    int64_t fps_;
 
     TrajectorySolver trajectory_{};
     TargetInterface* target_;
@@ -295,7 +337,6 @@ private:
 
     double fx, fy, cx, cy, k1, k2, k3;
 };
-
 }; // namespace rmcs_auto_aim
 
 #include <pluginlib/class_list_macros.hpp>
