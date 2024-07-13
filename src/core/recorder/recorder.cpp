@@ -20,9 +20,9 @@ public:
 
     ~Impl() { video_.release(); }
 
-    constexpr bool is_opened() const { return video_.isOpened(); }
+    bool is_opened() const { return video_.isOpened(); }
 
-    constexpr bool record_frame(const cv::Mat& frame) {
+    bool record_frame(const cv::Mat& frame) {
         if (frame.empty()) {
             return false;
         }
@@ -37,6 +37,8 @@ private:
 
 Recorder::Recorder(const double& fps, const cv::Size& size)
     : pImpl_(new Impl{fps, size}) {}
+
+Recorder::~Recorder() {}
 
 bool Recorder::record_frame(const cv::Mat& frame) { return pImpl_->record_frame(frame); }
 

@@ -19,7 +19,7 @@ namespace rmcs_auto_aim {
 class Recorder {
 public:
     explicit Recorder(const double& fps, const cv::Size& size);
-    ~Recorder() = default;
+    ~Recorder();
     bool record_frame(const cv::Mat& frame);
     bool is_opened() const;
 
