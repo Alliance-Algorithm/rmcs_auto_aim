@@ -11,6 +11,7 @@
 #pragma once
 
 #include <opencv2/opencv.hpp>
+
 #include <rmcs_description/tf_description.hpp>
 
 namespace rmcs_auto_aim {

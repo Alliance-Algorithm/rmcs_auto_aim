@@ -22,11 +22,12 @@
 namespace rmcs_auto_aim {
 class ArmorTracker : public TrackerInterface {
 public:
-    explicit ArmorTracker(int64_t predict_duration, const rmcs_description::Tf& tf);
+    explicit ArmorTracker(int64_t predict_duration);
     ~ArmorTracker();
 
     std::unique_ptr<TargetInterface> Update(
-        const std::vector<ArmorPlate3d>& armors, std::chrono::steady_clock::time_point timestamp);
+        const std::vector<ArmorPlate3d>& armors, std::chrono::steady_clock::time_point timestamp,
+        const rmcs_description::Tf& tf);
 
 private:
     class Impl;

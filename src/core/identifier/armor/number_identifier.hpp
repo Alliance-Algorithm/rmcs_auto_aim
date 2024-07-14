@@ -10,8 +10,9 @@
  */
 #pragma once
 
-#include <opencv2/opencv.hpp>
 #include <string>
+
+#include <opencv2/opencv.hpp>
 
 #include "core/identifier/armor/armor.hpp"
 

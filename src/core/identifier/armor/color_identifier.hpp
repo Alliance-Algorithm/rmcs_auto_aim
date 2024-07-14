@@ -11,6 +11,7 @@
 #pragma once
 
 #include <cmath>
+
 #include <opencv2/core/hal/interface.h>
 #include <opencv2/opencv.hpp>
 

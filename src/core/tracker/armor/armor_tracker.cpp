@@ -1,6 +1,8 @@
 #include <cstdint>
 #include <map>
 
+#include <visualization_msgs/msg/marker.hpp>
+
 #include <fast_tf/impl/cast.hpp>
 
 #include "armor_tracker.hpp"
@@ -32,10 +34,6 @@ public:
         Eigen::MatrixXd K = P_ * H.transpose() * (H * P_ * H.transpose() + R).inverse();
         x_                = x_ + K * (z - h(x_));
         P_                = (I - K * H) * P_;
-
-        /*std::cout << "ababab\n";
-        std::cout << K;
-        std::this_thread::sleep_for(std::chrono::seconds(100));*/
     }
 
     Eigen::Matrix<double, 9, 1> x_;
@@ -130,9 +128,8 @@ private:
 
 class ArmorTracker::Impl {
 public:
-    explicit Impl(int64_t predict_duration, const rmcs_description::Tf& tf)
-        : predict_duration_(predict_duration)
-        , tf_(tf) {
+    explicit Impl(int64_t predict_duration)
+        : predict_duration_(predict_duration) {
         tracker_map_[ArmorID::Hero]        = {};
         tracker_map_[ArmorID::Engineer]    = {};
         tracker_map_[ArmorID::InfantryIII] = {};
@@ -143,7 +140,8 @@ public:
     }
 
     std::unique_ptr<TargetInterface> Update(
-        const std::vector<ArmorPlate3d>& armors, std::chrono::steady_clock::time_point timestamp) {
+        const std::vector<ArmorPlate3d>& armors, std::chrono::steady_clock::time_point timestamp,
+        const rmcs_description::Tf& tf_) {
 
         // dt: interval between adjacent updates by seconds.
         double dt    = std::chrono::duration<double>(timestamp - last_update_).count();
@@ -379,15 +377,15 @@ private:
     // std::list<TrackerUnit> tracker_array_;
     std::map<ArmorID, std::vector<TrackerUnit>> tracker_map_;
     std::chrono::steady_clock::time_point last_update_;
-    const rmcs_description::Tf& tf_;
 };
 
-ArmorTracker::ArmorTracker(int64_t predict_duration, const rmcs_description::Tf& tf)
-    : pImpl_(new Impl{predict_duration, tf}) {}
+ArmorTracker::ArmorTracker(int64_t predict_duration)
+    : pImpl_(new Impl{predict_duration}) {}
 
 std::unique_ptr<TargetInterface> ArmorTracker::Update(
-    const std::vector<ArmorPlate3d>& armors, std::chrono::steady_clock::time_point timestamp) {
-    return pImpl_->Update(armors, timestamp);
+    const std::vector<ArmorPlate3d>& armors, std::chrono::steady_clock::time_point timestamp,
+    const rmcs_description::Tf& tf) {
+    return pImpl_->Update(armors, timestamp, tf);
 }
 
 ArmorTracker::~ArmorTracker() = default;
