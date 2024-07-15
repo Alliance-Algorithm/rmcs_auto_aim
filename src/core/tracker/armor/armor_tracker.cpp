@@ -350,9 +350,6 @@ private:
         const TrackerUnit& tracker_;
     };
 
-    int64_t predict_duration_;
-    static inline const double Pi = acos(-1);
-
     static double GetArmorYaw(const ArmorPlate3d& armor) {
         Eigen::Vector3d normal = (*armor.rotation) * Eigen::Vector3d{1, 0, 0};
         return atan2(normal.y(), normal.x());
@@ -375,6 +372,8 @@ private:
     }
 
     // std::list<TrackerUnit> tracker_array_;
+    int64_t predict_duration_;
+    static inline const double Pi = acos(-1);
     std::map<ArmorID, std::vector<TrackerUnit>> tracker_map_;
     std::chrono::steady_clock::time_point last_update_;
 };

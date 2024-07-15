@@ -211,20 +211,21 @@ public:
                     auto img       = img_capture.read();
                     auto timestamp = std::chrono::steady_clock::now();
 
+                    auto tf = *tf_;
                     // if (false && *stage_ == rmcs_msgs::GameStage::STARTED && recorder.is_opened()
                     //     && !img.empty()) {
                     //     recorder.record_frame(img);
                     // }
 
                     do {
-                        if (false) {
+                        if (debug) {
                             auto stamp = this->get_clock()->now();
                             debugger.publish_raw_image(img, stamp);
                         }
 
                         if (!buff_enabled && (debug ? debug_buff_mode_ : keyboard_->g == 1)) {
 
-                            buff_tracker.ResetAll();
+                            buff_tracker.ResetAll(tf);
                         }
                         buff_enabled = (debug ? debug_buff_mode_ : keyboard_->g == 1);
 
@@ -232,7 +233,7 @@ public:
                             auto armors = armor_identifier.Identify(img, target_color);
 
                             auto armor3d =
-                                ArmorPnPSolver::SolveAll(armors, *tf_, fx, fy, cx, cy, k1, k2, k3);
+                                ArmorPnPSolver::SolveAll(armors, tf, fx, fy, cx, cy, k1, k2, k3);
                             if (debug) {
                                 if (armor3d.size() > 0) {
                                     auto sample = ArmorPnPSolver::Solve(
@@ -243,7 +244,7 @@ public:
                                         armor3d[0].position->z()};
                                 }
                             }
-                            if (auto target = armor_tracker.Update(armor3d, timestamp, *tf_)) {
+                            if (auto target = armor_tracker.Update(armor3d, timestamp, tf)) {
                                 timestamp_ = timestamp;
                                 target_    = target.release();
                                 break;
@@ -252,7 +253,7 @@ public:
                         } else {
                             if (auto buff = buff_identifier.Identify(img)) {
                                 if (auto buff3d = BuffPnPSolver::Solve(
-                                        *buff, *tf_, fx, fy, cx, cy, k1, k2, k3)) {
+                                        *buff, tf, fx, fy, cx, cy, k1, k2, k3)) {
                                     if (auto target = buff_tracker.Update(*buff3d, timestamp)) {
                                         timestamp_ = timestamp;
                                         target_    = target.release();
