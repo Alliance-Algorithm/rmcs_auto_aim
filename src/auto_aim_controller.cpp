@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <string>
 #include <thread>
+#include <vector>
 
 #include <ament_index_cpp/get_package_share_directory.hpp>
 #include <cv_bridge/cv_bridge.h>
@@ -89,185 +90,23 @@ public:
     }
 
     ~Controller() {
-        if (gimbal_thread_.joinable())
-            gimbal_thread_.join();
-
-        // if (omni_dir_thread_.joinable()) {
-        //     omni_dir_thread_.join();
-        // }
-
-        if (false && debug_thread_.joinable()) {
-            debug_thread_.join();
+        for (auto& thread : threads_) {
+            if (thread.joinable()) {
+                thread.join();
+            }
         }
     }
 
     void update() override {
         if (*update_count_ == 0) {
             if (debug) {
-                debug_thread_ =
-                    std::thread{[]() { rclcpp::spin(Debugger::getInstance().getNode()); }};
+                threads_.emplace_back([]() { rclcpp::spin(Debugger::getInstance().getNode()); });
             }
 
-            omni_dir_thread_ = std::thread{[this]() {
-                // omni dir
-                cv::VideoCapture camera(2);
-                camera.set(cv::CAP_PROP_EXPOSURE, omni_exposure_);
-
-                if (camera.isOpened()) {
-                    RCLCPP_INFO(
-                        get_logger(), "exposure of omni-direction camera = %f",
-                        camera.get(cv::CAP_PROP_EXPOSURE));
-                } else {
-                    RCLCPP_INFO(get_logger(), "Failed to open omni-direction camera.");
-                }
-
-                auto package_share_directory =
-                    ament_index_cpp::get_package_share_directory("rmcs_auto_aim");
-
-                auto armor_identifier =
-                    ArmorIdentifier(package_share_directory + armor_model_path_);
-
-                auto my_color =
-                    debug ? static_cast<rmcs_msgs::RobotColor>(debug_color_) : robot_msg_->color();
-                auto target_color =
-                    static_cast<rmcs_msgs::RobotColor>(1 - static_cast<uint8_t>(my_color));
-
-                cv::Mat img;
-                while (camera.isOpened()) {
-                    camera >> img;
-                    if (img.empty()) {
-                        continue;
-                    }
-
-                    auto armors = armor_identifier.Identify(img, target_color);
-
-                    if (armors.size() == 0) {
-                        continue;
-                    }
-
-                    auto sample = armors[0];
-
-                    auto pnp_result = ArmorPnPSolver::Solve(sample, fx, fy, cx, cy, k1, k2, k3);
-                    rmcs_msgs::msg::RobotPose msg;
-                    msg.id   = static_cast<int64_t>(pnp_result.id);
-                    msg.pose = pnp_result.pose;
-                    pose_pub_->publish(msg);
-
-                    cv::imshow("omni", img);
-                    if (cv::waitKey(100) == 27) {
-                        break;
-                    }
-                }
-                cv::destroyAllWindows();
-                camera.release();
-            }};
-
-            gimbal_thread_ = std::thread{[this]() {
-                hikcamera::ImageCapturer::CameraProfile camera_profile;
-                camera_profile.exposure_time = std::chrono::milliseconds(exposure_time_);
-                camera_profile.gain          = 16.9807;
-                if ((debug ? debug_robot_id_ : static_cast<uint8_t>(*robot_msg_)) == 7) {
-
-                    camera_profile.invert_image = true;
-                } else {
-                    camera_profile.invert_image = false;
-                }
-
-                hikcamera::ImageCapturer img_capture(camera_profile);
-
-                auto package_share_directory =
-                    ament_index_cpp::get_package_share_directory("rmcs_auto_aim");
-
-                auto armor_identifier =
-                    ArmorIdentifier(package_share_directory + armor_model_path_);
-                auto buff_identifier = BuffIdentifier(package_share_directory + buff_model_path_);
-
-                auto armor_tracker = ArmorTracker(armor_predict_duration_);
-                auto buff_tracker  = BuffTracker(buff_predict_duration_);
-
-                auto buff_enabled = false;
-                auto& debugger    = Debugger::getInstance();
-
-                auto my_color =
-                    debug ? static_cast<rmcs_msgs::RobotColor>(debug_color_) : robot_msg_->color();
-
-                auto target_color =
-                    static_cast<rmcs_msgs::RobotColor>(1 - static_cast<uint8_t>(my_color));
-
-                // Recorder recorder(static_cast<double>(fps_), [&img_capture]() {
-                //     auto img = img_capture.read();
-                //     return cv::Size(img.cols, img.rows);
-                // }());
-
-                // if (!recorder.is_opened()) {
-                //     RCLCPP_WARN(get_logger(), "Failed to create an VideoWriter().");
-                // }
-
-                while (rclcpp::ok()) {
-                    if (*stage_ == rmcs_msgs::GameStage::SETTLING) {
-                        break;
-                    }
-
-                    auto img       = img_capture.read();
-                    auto timestamp = std::chrono::steady_clock::now();
-
-                    auto tf = *tf_;
-                    // if (false && *stage_ == rmcs_msgs::GameStage::STARTED && recorder.is_opened()
-                    //     && !img.empty()) {
-                    //     recorder.record_frame(img);
-                    // }
-
-                    do {
-                        if (debug) {
-                            auto stamp = this->get_clock()->now();
-                            debugger.publish_raw_image(img, stamp);
-                        }
-
-                        if (!buff_enabled && (debug ? debug_buff_mode_ : keyboard_->g == 1)) {
-
-                            buff_tracker.ResetAll(tf);
-                        }
-                        buff_enabled = (debug ? debug_buff_mode_ : keyboard_->g == 1);
-
-                        if (!buff_enabled) {
-                            auto armors = armor_identifier.Identify(img, target_color);
-
-                            auto armor3d =
-                                ArmorPnPSolver::SolveAll(armors, tf, fx, fy, cx, cy, k1, k2, k3);
-                            if (debug) {
-                                if (armor3d.size() > 0) {
-                                    auto sample = ArmorPnPSolver::Solve(
-                                        armors[0], fx, fy, cx, cy, k1, k2, k3);
-                                    debugger.publish_pnp_armor(sample);
-                                    pnp_result_ = rmcs_description::OdomImu::Position{
-                                        armor3d[0].position->x(), armor3d[0].position->y(),
-                                        armor3d[0].position->z()};
-                                }
-                            }
-                            if (auto target = armor_tracker.Update(armor3d, timestamp, tf)) {
-                                timestamp_ = timestamp;
-                                target_    = target.release();
-                                break;
-                            }
-
-                        } else {
-                            if (auto buff = buff_identifier.Identify(img)) {
-                                if (auto buff3d = BuffPnPSolver::Solve(
-                                        *buff, tf, fx, fy, cx, cy, k1, k2, k3)) {
-                                    if (auto target = buff_tracker.Update(*buff3d, timestamp)) {
-                                        timestamp_ = timestamp;
-                                        target_    = target.release();
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-                    } while (false);
-                } // while rclcpp::ok end
-            }}; // gimbal_thread end
+            threads_.emplace_back([this]() { gimbal_process(); }); // gimbal_thread end
         }
 
-        auto target = target_;
+        // auto target = target_;
         if (!target_) {
             return;
         }
@@ -307,6 +146,161 @@ public:
     }
 
 private:
+    void gimbal_process() {
+
+        hikcamera::ImageCapturer::CameraProfile camera_profile;
+        camera_profile.exposure_time = std::chrono::milliseconds(exposure_time_);
+        camera_profile.gain          = 16.9807;
+        if ((debug ? debug_robot_id_ : static_cast<uint8_t>(*robot_msg_)) == 7) {
+
+            camera_profile.invert_image = true;
+        } else {
+            camera_profile.invert_image = false;
+        }
+
+        hikcamera::ImageCapturer img_capture(camera_profile);
+
+        auto package_share_directory =
+            ament_index_cpp::get_package_share_directory("rmcs_auto_aim");
+
+        auto armor_identifier = ArmorIdentifier(package_share_directory + armor_model_path_);
+        auto buff_identifier  = BuffIdentifier(package_share_directory + buff_model_path_);
+
+        auto armor_tracker = ArmorTracker(armor_predict_duration_);
+        auto buff_tracker  = BuffTracker(buff_predict_duration_);
+
+        auto buff_enabled = false;
+        auto& debugger    = Debugger::getInstance();
+
+        auto my_color =
+            debug ? static_cast<rmcs_msgs::RobotColor>(debug_color_) : robot_msg_->color();
+
+        auto target_color = static_cast<rmcs_msgs::RobotColor>(1 - static_cast<uint8_t>(my_color));
+
+        // Recorder recorder(static_cast<double>(fps_), [&img_capture]() {
+        //     auto img = img_capture.read();
+        //     return cv::Size(img.cols, img.rows);
+        // }());
+
+        // if (!recorder.is_opened()) {
+        //     RCLCPP_WARN(get_logger(), "Failed to create an VideoWriter().");
+        // }
+
+        while (rclcpp::ok()) {
+            if (*stage_ == rmcs_msgs::GameStage::SETTLING) {
+                break;
+            }
+
+            auto img       = img_capture.read();
+            auto timestamp = std::chrono::steady_clock::now();
+
+            auto tf = *tf_;
+            // if (false && *stage_ == rmcs_msgs::GameStage::STARTED && recorder.is_opened()
+            //     && !img.empty()) {
+            //     recorder.record_frame(img);
+            // }
+
+            do {
+                if (debug) {
+                    auto stamp = this->get_clock()->now();
+                    debugger.publish_raw_image(img, stamp);
+                }
+
+                if (!buff_enabled && (debug ? debug_buff_mode_ : keyboard_->g == 1)) {
+
+                    buff_tracker.ResetAll(tf);
+                }
+                buff_enabled = (debug ? debug_buff_mode_ : keyboard_->g == 1);
+
+                if (!buff_enabled) {
+                    auto armors = armor_identifier.Identify(img, target_color);
+
+                    auto armor3d = ArmorPnPSolver::SolveAll(armors, tf, fx, fy, cx, cy, k1, k2, k3);
+                    if (debug) {
+                        if (armor3d.size() > 0) {
+                            auto sample =
+                                ArmorPnPSolver::Solve(armors[0], fx, fy, cx, cy, k1, k2, k3);
+                            debugger.publish_pnp_armor(sample);
+                            pnp_result_ = rmcs_description::OdomImu::Position{
+                                armor3d[0].position->x(), armor3d[0].position->y(),
+                                armor3d[0].position->z()};
+                        }
+                    }
+                    if (auto target = armor_tracker.Update(armor3d, timestamp, tf)) {
+                        timestamp_ = timestamp;
+                        target_    = target.release();
+                        break;
+                    }
+
+                } else {
+                    if (auto buff = buff_identifier.Identify(img)) {
+                        if (auto buff3d =
+                                BuffPnPSolver::Solve(*buff, tf, fx, fy, cx, cy, k1, k2, k3)) {
+                            if (auto target = buff_tracker.Update(*buff3d, timestamp)) {
+                                timestamp_ = timestamp;
+                                target_    = target.release();
+                                break;
+                            }
+                        }
+                    }
+                }
+            } while (false);
+        } // while rclcpp::ok end
+    }
+
+    void omni_perception_process() {
+
+        // omni dir
+        cv::VideoCapture camera(2);
+        camera.set(cv::CAP_PROP_EXPOSURE, omni_exposure_);
+
+        if (camera.isOpened()) {
+            RCLCPP_INFO(
+                get_logger(), "exposure of omni-direction camera = %f",
+                camera.get(cv::CAP_PROP_EXPOSURE));
+        } else {
+            RCLCPP_INFO(get_logger(), "Failed to open omni-direction camera.");
+        }
+
+        auto package_share_directory =
+            ament_index_cpp::get_package_share_directory("rmcs_auto_aim");
+
+        auto armor_identifier = ArmorIdentifier(package_share_directory + armor_model_path_);
+
+        auto my_color =
+            debug ? static_cast<rmcs_msgs::RobotColor>(debug_color_) : robot_msg_->color();
+        auto target_color = static_cast<rmcs_msgs::RobotColor>(1 - static_cast<uint8_t>(my_color));
+
+        cv::Mat img;
+        while (camera.isOpened()) {
+            camera >> img;
+            if (img.empty()) {
+                continue;
+            }
+
+            auto armors = armor_identifier.Identify(img, target_color);
+
+            if (armors.size() == 0) {
+                continue;
+            }
+
+            auto sample = armors[0];
+
+            auto pnp_result = ArmorPnPSolver::Solve(sample, fx, fy, cx, cy, k1, k2, k3);
+            rmcs_msgs::msg::RobotPose msg;
+            msg.id   = static_cast<int64_t>(pnp_result.id);
+            msg.pose = pnp_result.pose;
+            pose_pub_->publish(msg);
+
+            cv::imshow("omni", img);
+            if (cv::waitKey(100) == 27) {
+                break;
+            }
+        }
+        cv::destroyAllWindows();
+        camera.release();
+    }
+
     rclcpp::Publisher<rmcs_msgs::msg::RobotPose>::SharedPtr pose_pub_;
 
     InputInterface<rmcs_description::Tf> tf_;
@@ -322,9 +316,7 @@ private:
     OutputInterface<Eigen::Vector3d> control_direction_;
 
     std::chrono::steady_clock::time_point timestamp_;
-    std::thread gimbal_thread_;
-    std::thread omni_dir_thread_;
-    std::thread debug_thread_;
+    std::vector<std::thread> threads_;
 
     int64_t gimbal_predict_duration_;
     int64_t armor_predict_duration_;
@@ -347,7 +339,8 @@ private:
 
     double fx, fy, cx, cy, k1, k2, k3;
 };
-}; // namespace rmcs_auto_aim
+} // namespace rmcs_auto_aim
+  // namespace rmcs_auto_aim
 
 #include <pluginlib/class_list_macros.hpp>
 
