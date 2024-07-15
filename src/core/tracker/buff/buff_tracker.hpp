@@ -27,7 +27,7 @@ public:
     std::unique_ptr<TargetInterface>
         Update(const BuffPlate3d& buff, std::chrono::steady_clock::time_point timestamp);
 
-    void ResetAll();
+    void ResetAll(const rmcs_description::Tf& tf);
 
 private:
     class Impl;

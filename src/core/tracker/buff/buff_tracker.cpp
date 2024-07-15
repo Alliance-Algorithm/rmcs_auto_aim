@@ -3,6 +3,7 @@
 #include "core/tracker/target.hpp"
 
 #include <ceres/ceres.h>
+#include <fast_tf/impl/cast.hpp>
 #include <rmcs_description/tf_description.hpp>
 
 using namespace rmcs_auto_aim;
@@ -59,7 +60,14 @@ public:
         return nullptr;
     }
 
-    void ResetAll() {}
+    void ResetAll(const rmcs_description::Tf& tf) {
+        auto vec = fast_tf::cast<rmcs_description::OdomImu>(
+            rmcs_description::PitchLink::DirectionVector{1, 0, 0}, tf);
+        if (vec->x() * vec->x() + vec->y() * vec->y() > 0.1)
+            yaw_offset_ = -atan2(vec->y(), vec->x());
+        time_array_.clear();
+        angle_array_.clear();
+    }
 
 private:
     class Target : public TargetInterface {
@@ -219,6 +227,6 @@ std::unique_ptr<TargetInterface>
     return pImpl_->Update(buff, timestamp);
 }
 
-void BuffTracker::ResetAll() { return pImpl_->ResetAll(); }
+void BuffTracker::ResetAll(const rmcs_description::Tf& tf) { return pImpl_->ResetAll(tf); }
 
 BuffTracker::~BuffTracker() = default;
