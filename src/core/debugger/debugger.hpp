@@ -33,7 +33,7 @@ public:
 
     void publish_raw_image(const cv::Mat& img, const rclcpp::Time& stamp);
     void publish_pnp_armor(const ArmorPlate3dWithNoFrame& armor);
-    void publish_armors(const double& x, const double& y, const double& z, const double& yaw);
+    void publish_armors(const visualization_msgs::msg::MarkerArray& msg);
     // void publish_armors(const std::vector<rmcs_auto_aim::ArmorPlate>& armors, const cv::Mat&
     // img); void publish_3d_armors(const std::vector<rmcs_auto_aim::ArmorPlate3d>& armors); void
     // publish_raw_roi(const cv::Mat& img);

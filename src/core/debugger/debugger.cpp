@@ -8,8 +8,8 @@
 #include <rclcpp/parameter_event_handler.hpp>
 #include <rclcpp/publisher.hpp>
 #include <sensor_msgs/msg/image.hpp>
-#include <visualization_msgs/msg/detail/marker__struct.hpp>
 #include <visualization_msgs/msg/marker.hpp>
+#include <visualization_msgs/msg/marker_array.hpp>
 
 #include <rmcs_msgs/msg/robot_pose.hpp>
 
@@ -22,9 +22,11 @@ class Debugger::Impl : public rclcpp::Node {
 public:
     Impl()
         : rclcpp::Node("debugger") {
-        img_pub_    = this->create_publisher<sensor_msgs::msg::Image>("/raw_img", 10);
-        pose_pub_   = this->create_publisher<rmcs_msgs::msg::RobotPose>("/armor_pose", 10);
-        marker_pub_ = this->create_publisher<visualization_msgs::msg::Marker>("/marker", 10);
+        img_pub_        = this->create_publisher<sensor_msgs::msg::Image>("/raw_img", 10);
+        pose_pub_       = this->create_publisher<rmcs_msgs::msg::RobotPose>("/armor_pose", 10);
+        pnp_marker_pub_ = this->create_publisher<visualization_msgs::msg::Marker>("/marker", 10);
+        marker_pub_ =
+            this->create_publisher<visualization_msgs::msg::MarkerArray>("/armor_plate_array", 10);
 
         parameter_subscriber_ = std::make_unique<rclcpp::ParameterEventHandler>(this);
 
@@ -75,43 +77,18 @@ public:
         marker.color.g            = 1.0;
         marker.color.b            = 0.0;
 
-        marker_pub_->publish(marker);
+        pnp_marker_pub_->publish(marker);
     }
 
-    void publish_armors(const double& x, const double& y, const double& z, const double& yaw) {
-        visualization_msgs::msg::Marker msg;
-        msg.header.frame_id = "odom_imu";
-        // marker1.ns              = "armor_plate_array";
-        msg.id              = 0;
-        msg.type            = visualization_msgs::msg::Marker::CUBE;
-        msg.action          = visualization_msgs::msg::Marker::MODIFY;
-        msg.scale.x         = 0.02;
-        msg.scale.y         = 0.135;
-        msg.scale.z         = 0.125;
-        msg.color.r         = color_r;
-        msg.color.g         = color_g;
-        msg.color.b         = color_b;
-        msg.color.a         = 0.5;
-        msg.lifetime        = rclcpp::Duration::from_seconds(0.1);
-        msg.header.stamp    = this->now();
-        msg.pose.position.x = x;
-        msg.pose.position.y = y;
-        msg.pose.position.z = z;
-        auto rotation       = Eigen::Quaterniond{
-            Eigen::AngleAxisd{yaw, Eigen::Vector3d::UnitZ()}
-        };
-        msg.pose.orientation.w = rotation.w();
-        msg.pose.orientation.x = rotation.x();
-        msg.pose.orientation.y = rotation.y();
-        msg.pose.orientation.z = rotation.z();
-
+    void publish_armors(const visualization_msgs::msg::MarkerArray& msg) {
         marker_pub_->publish(msg);
     }
 
 private:
     rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr img_pub_;
     rclcpp::Publisher<rmcs_msgs::msg::RobotPose>::SharedPtr pose_pub_;
-    rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr marker_pub_;
+    rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr pnp_marker_pub_;
+    rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr marker_pub_;
 
     static inline int ros_marker_id_global_ = 0;
 
@@ -136,7 +113,6 @@ void Debugger::publish_pnp_armor(const ArmorPlate3dWithNoFrame& armor) {
     return pImpl_->publish_pnp_armor(armor);
 }
 
-void Debugger::publish_armors(
-    const double& x, const double& y, const double& z, const double& yaw) {
-    return pImpl_->publish_armors(x, y, z, yaw);
+void Debugger::publish_armors(const visualization_msgs::msg::MarkerArray& msg) {
+    return pImpl_->publish_armors(msg);
 }
