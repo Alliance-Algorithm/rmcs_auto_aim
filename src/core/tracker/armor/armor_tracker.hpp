@@ -20,9 +20,10 @@
 #include "core/tracker/tracker.hpp"
 
 namespace rmcs_auto_aim {
+
 class ArmorTracker : public TrackerInterface {
 public:
-    explicit ArmorTracker(int64_t predict_duration);
+    explicit ArmorTracker(const int64_t& predict_duration, const bool& debug);
     ~ArmorTracker();
 
     std::unique_ptr<TargetInterface> Update(

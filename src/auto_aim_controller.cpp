@@ -38,7 +38,7 @@
 #include "core/identifier/buff/buff_identifier.hpp"
 #include "core/pnpsolver/armor/armor_pnp_solver.hpp"
 #include "core/pnpsolver/buff/buff_pnp_solver.hpp"
-#include "core/recorder/recorder.hpp"
+// #include "core/recorder/recorder.hpp"
 #include "core/tracker/armor/armor_tracker.hpp"
 #include "core/tracker/buff/buff_tracker.hpp"
 #include "core/tracker/target.hpp"
@@ -106,7 +106,7 @@ public:
             threads_.emplace_back([this]() { gimbal_process(); }); // gimbal_thread end
         }
 
-        // auto target = target_;
+        auto target = target_;
         if (!target_) {
             return;
         }
@@ -118,17 +118,18 @@ public:
             return;
         }
 
-        auto offset = fast_tf::cast<rmcs_description::OdomImu>(
-            rmcs_description::MuzzleLink::Position{0, 0, 0}, *tf_);
+        // auto offset = fast_tf::cast<rmcs_description::OdomImu>(
+        //     rmcs_description::MuzzleLink::Position{0, 0, 0}, *tf_);
 
         double fly_time = 0;
         for (int i = 5; i-- > 0;) {
-            // auto pos = target->Predict(
-            //     static_cast<std::chrono::duration<double>>(diff).count() + fly_time + 0.05);
-            auto pos              = pnp_result_;
-            auto aiming_direction = *trajectory_.GetShotVector(
-                {pos->x() - offset->x(), pos->y() - offset->y(), pos->z() - offset->z()}, 27.0,
-                fly_time);
+            auto pos = target->Predict(
+                static_cast<std::chrono::duration<double>>(diff).count() + fly_time + 0.05);
+            // auto pos              = pnp_result_;
+            // auto aiming_direction = *trajectory_.GetShotVector(
+            //     {pos->x() - offset->x(), pos->y() - offset->y(), pos->z() - offset->z()}, 27.0,
+            //     fly_time);
+            auto aiming_direction = *trajectory_.GetShotVector(pos, 27.0, fly_time);
 
             auto yaw_axis = fast_tf::cast<rmcs_description::PitchLink>(
                                 rmcs_description::OdomImu::DirectionVector(0, 0, 1), *tf_)
@@ -166,7 +167,7 @@ private:
         auto armor_identifier = ArmorIdentifier(package_share_directory + armor_model_path_);
         auto buff_identifier  = BuffIdentifier(package_share_directory + buff_model_path_);
 
-        auto armor_tracker = ArmorTracker(armor_predict_duration_);
+        auto armor_tracker = ArmorTracker(armor_predict_duration_, debug);
         auto buff_tracker  = BuffTracker(buff_predict_duration_);
 
         auto buff_enabled = false;
