@@ -118,18 +118,18 @@ public:
             return;
         }
 
-        // auto offset = fast_tf::cast<rmcs_description::OdomImu>(
-        //     rmcs_description::MuzzleLink::Position{0, 0, 0}, *tf_);
+        auto offset = fast_tf::cast<rmcs_description::OdomImu>(
+            rmcs_description::MuzzleLink::Position{0, 0, 0}, *tf_);
 
         double fly_time = 0;
         for (int i = 5; i-- > 0;) {
             auto pos = target->Predict(
                 static_cast<std::chrono::duration<double>>(diff).count() + fly_time + 0.05);
             // auto pos              = pnp_result_;
-            // auto aiming_direction = *trajectory_.GetShotVector(
-            //     {pos->x() - offset->x(), pos->y() - offset->y(), pos->z() - offset->z()}, 27.0,
-            //     fly_time);
-            auto aiming_direction = *trajectory_.GetShotVector(pos, 27.0, fly_time);
+            auto aiming_direction = *trajectory_.GetShotVector(
+                {pos->x() - offset->x(), pos->y() - offset->y(), pos->z() - offset->z()}, 27.0,
+                fly_time);
+            // auto aiming_direction = *trajectory_.GetShotVector(pos, 27.0, fly_time);
 
             auto yaw_axis = fast_tf::cast<rmcs_description::PitchLink>(
                                 rmcs_description::OdomImu::DirectionVector(0, 0, 1), *tf_)
@@ -188,6 +188,7 @@ private:
         // }
 
         while (rclcpp::ok()) {
+            auto startTime = std::chrono::high_resolution_clock::now();
             if (*stage_ == rmcs_msgs::GameStage::SETTLING) {
                 break;
             }
@@ -202,10 +203,12 @@ private:
             // }
 
             do {
-                if (debug) {
-                    auto stamp = this->get_clock()->now();
-                    debugger.publish_raw_image(img, stamp);
-                }
+                // if (debug) {
+                //     auto stamp = this->get_clock()->now();
+                //     debugger.publish_raw_image(img, stamp);
+                // }
+                // cv::imshow("raw", img);
+                // cv::waitKey(1);
 
                 if (!buff_enabled && (debug ? debug_buff_mode_ : keyboard_->g == 1)) {
 
@@ -227,6 +230,7 @@ private:
                                 armor3d[0].position->z()};
                         }
                     }
+
                     if (auto target = armor_tracker.Update(armor3d, timestamp, tf)) {
                         timestamp_ = timestamp;
                         target_    = target.release();
@@ -246,6 +250,10 @@ private:
                     }
                 }
             } while (false);
+            auto endTime                                = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double> frameDuration = endTime - startTime;
+            double fps                                  = 1.0 / frameDuration.count();
+            RCLCPP_INFO(get_logger(), "fps: %f", fps);
         } // while rclcpp::ok end
     }
 
@@ -292,11 +300,6 @@ private:
             msg.id   = static_cast<int64_t>(pnp_result.id);
             msg.pose = pnp_result.pose;
             pose_pub_->publish(msg);
-
-            cv::imshow("omni", img);
-            if (cv::waitKey(100) == 27) {
-                break;
-            }
         }
         cv::destroyAllWindows();
         camera.release();
