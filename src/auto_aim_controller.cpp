@@ -42,7 +42,7 @@
 #include "core/identifier/buff/buff_identifier.hpp"
 #include "core/pnpsolver/armor/armor_pnp_solver.hpp"
 #include "core/pnpsolver/buff/buff_pnp_solver.hpp"
-// #include "core/recorder/recorder.hpp"
+#include "core/recorder/recorder.hpp"
 #include "core/tracker/armor/armor_tracker.hpp"
 #include "core/tracker/buff/buff_tracker.hpp"
 #include "core/tracker/target.hpp"
@@ -77,7 +77,7 @@ public:
         gimbal_predict_duration_ = get_parameter("gimbal_predict_duration").as_int();
         armor_model_path_        = get_parameter("armor_model_path").as_string();
         buff_model_path_         = get_parameter("buff_model_path").as_string();
-        debug                    = get_parameter("debug").as_bool();
+        debug_                   = get_parameter("debug").as_bool();
         fx                       = get_parameter("fx").as_double();
         fy                       = get_parameter("fy").as_double();
         cx                       = get_parameter("cx").as_double();
@@ -208,8 +208,7 @@ private:
         hikcamera::ImageCapturer::CameraProfile camera_profile;
         camera_profile.exposure_time = std::chrono::milliseconds(exposure_time_);
         camera_profile.gain          = 16.9807;
-        if ((debug ? debug_robot_id_ : static_cast<uint8_t>(*robot_msg_)) == 7) {
-
+        if ((debug_ ? debug_robot_id_ == 7 : robot_msg_->id() == rmcs_msgs::ArmorID::Sentry)) {
             camera_profile.invert_image = true;
         } else {
             camera_profile.invert_image = false;
@@ -268,13 +267,13 @@ private:
 
                     buff_tracker.ResetAll(tf);
                 }
-                buff_enabled = (debug ? debug_buff_mode_ : keyboard_->g == 1);
+                buff_enabled = (debug_ ? debug_buff_mode_ : keyboard_->g == 1);
 
                 if (!buff_enabled) {
                     auto armors = armor_identifier.Identify(img, target_color);
 
                     auto armor3d = ArmorPnPSolver::SolveAll(armors, tf, fx, fy, cx, cy, k1, k2, k3);
-                    if (debug) {
+                    if (debug_) {
                         if (armor3d.size() > 0) {
                             auto sample =
                                 ArmorPnPSolver::Solve(armors[0], fx, fy, cx, cy, k1, k2, k3);
@@ -329,7 +328,7 @@ private:
         auto armor_identifier = ArmorIdentifier(package_share_directory + armor_model_path_);
 
         auto my_color =
-            debug ? static_cast<rmcs_msgs::RobotColor>(debug_color_) : robot_msg_->color();
+            debug_ ? static_cast<rmcs_msgs::RobotColor>(debug_color_) : robot_msg_->color();
         auto target_color = static_cast<rmcs_msgs::RobotColor>(1 - static_cast<uint8_t>(my_color));
 
         cv::Mat img;
@@ -338,7 +337,6 @@ private:
             if (img.empty()) {
                 continue;
             }
-
             auto armors = armor_identifier.Identify(img, target_color);
 
             std::map<rmcs_msgs::ArmorID, typename Link::Position> targets_map;

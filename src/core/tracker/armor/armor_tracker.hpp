@@ -27,8 +27,8 @@ public:
     ~ArmorTracker();
 
     std::unique_ptr<TargetInterface> Update(
-        const std::vector<ArmorPlate3d>& armors, std::chrono::steady_clock::time_point timestamp,
-        const rmcs_description::Tf& tf);
+        const std::vector<ArmorPlate3d>& armors,
+        const std::chrono::steady_clock::time_point& timestamp, const rmcs_description::Tf& tf);
 
 private:
     class Impl;

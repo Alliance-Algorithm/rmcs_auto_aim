@@ -54,7 +54,7 @@ public:
         return armors3d;
     }
 
-    static ArmorPlate3dWithNoFrame Solve(
+    static ArmorPlate3dWithoutFrame Solve(
         const ArmorPlate& armor, const double& fx, const double& fy, const double& cx,
         const double& cy, const double& k1, const double& k2, const double& k3) {
 
@@ -110,7 +110,7 @@ std::vector<ArmorPlate3d> ArmorPnPSolver::SolveAll(
     return ArmorPnPSolver::StaticImpl::SolveAll(armors, tf, fx, fy, cx, cy, k1, k2, k3);
 }
 
-ArmorPlate3dWithNoFrame ArmorPnPSolver::Solve(
+ArmorPlate3dWithoutFrame ArmorPnPSolver::Solve(
     const ArmorPlate& armor, const double& fx, const double& fy, const double& cx, const double& cy,
     const double& k1, const double& k2, const double& k3) {
     return ArmorPnPSolver::StaticImpl::Solve(armor, fx, fy, cx, cy, k1, k2, k3);

@@ -49,7 +49,7 @@ public:
         img_pub_->publish(msg);
     }
 
-    void publish_pnp_armor(const ArmorPlate3dWithNoFrame& armor) {
+    void publish_pnp_armor(const ArmorPlate3dWithoutFrame& armor) {
         rmcs_msgs::msg::RobotPose msg;
         msg.id   = static_cast<int64_t>(armor.id);
         msg.pose = armor.pose;
@@ -109,7 +109,7 @@ void Debugger::publish_raw_image(const cv::Mat& img, const rclcpp::Time& stamp) 
     return pImpl_->publish_raw_image(img, stamp);
 }
 
-void Debugger::publish_pnp_armor(const ArmorPlate3dWithNoFrame& armor) {
+void Debugger::publish_pnp_armor(const ArmorPlate3dWithoutFrame& armor) {
     return pImpl_->publish_pnp_armor(armor);
 }
 
