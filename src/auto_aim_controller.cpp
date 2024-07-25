@@ -91,7 +91,7 @@ public:
             record_fps_      = get_parameter("record_fps").as_int();
             debug_robot_id_  = get_parameter("debug_robot_id").as_int();
             debug_buff_mode_ = get_parameter("debug_buff_mode").as_bool();
-        debug_color_     = get_parameter("debug_color").as_int();
+            debug_color_     = get_parameter("debug_color").as_int();
         } catch (rclcpp::exceptions::InvalidParametersException& e) {
             RCLCPP_WARN(get_logger(), "Failed to read parameter: %s", e.what());
         }
@@ -145,8 +145,8 @@ public:
                     }
                 });
             }
-if (robot_msg_->id() == rmcs_msgs::ArmorID::Sentry) {
-            threads_.emplace_back([this]() {
+            if (robot_msg_->id() == rmcs_msgs::ArmorID::Sentry) {
+                threads_.emplace_back([this]() {
                     omni_perception_process<rmcs_description::OmniLinkLeftFront>("/dev/leftfront");
                 });
                 threads_.emplace_back([this]() {
@@ -207,6 +207,30 @@ if (robot_msg_->id() == rmcs_msgs::ArmorID::Sentry) {
     }
 
 private:
+    class FPSCounter {
+    public:
+        bool Count() {
+            if (_count == 0) {
+                _count       = 1;
+                _timingStart = std::chrono::steady_clock::now();
+            } else {
+                ++_count;
+                if (std::chrono::steady_clock::now() - _timingStart >= std::chrono::seconds(1)) {
+                    _lastFPS = _count;
+                    _count   = 0;
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        int GetFPS() const { return _lastFPS; }
+
+    private:
+        int _count = 0, _lastFPS;
+        std::chrono::steady_clock::time_point _timingStart;
+    };
+
     void gimbal_process() {
 
         hikcamera::ImageCapturer::CameraProfile camera_profile;
@@ -241,9 +265,9 @@ private:
 
         if (record_) {
             recorder.setParam(static_cast<double>(record_fps_), [&img_capture, this]() {
-        auto i   = 0;
+                auto i   = 0;
                 auto img = img_capture.read();
-        while (i < 5) {
+                while (i < 5) {
                     if (!img.empty()) {
                         break;
                     }
@@ -254,11 +278,11 @@ private:
                     RCLCPP_FATAL(get_logger(), "Failed to sample image size.");
                 }
                 return cv::Size(img.cols, img.rows);
-        }());
+            }());
 
-        if (!recorder.is_opened()) {
-        RCLCPP_WARN(get_logger(), "Failed to open an VideoWriter.");
-        }
+            if (!recorder.is_opened()) {
+                RCLCPP_WARN(get_logger(), "Failed to open an VideoWriter.");
+            }
         }
         while (rclcpp::ok()) {
             if (!debug_ && *stage_ == rmcs_msgs::GameStage::SETTLING) {
@@ -321,10 +345,9 @@ private:
                     }
                 }
             } while (false);
-            auto endTime                                = std::chrono::high_resolution_clock::now();
-            std::chrono::duration<double> frameDuration = endTime - startTime;
-            double fps                                  = 1.0 / frameDuration.count();
-            RCLCPP_INFO(get_logger(), "fps: %f", fps);
+            if (fps.Count()) {
+                RCLCPP_INFO(get_logger(), "Fps:%d", fps.GetFPS());
+            }
         } // while rclcpp::ok end
     }
 
