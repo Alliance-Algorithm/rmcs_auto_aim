@@ -6,7 +6,7 @@ using namespace rmcs_auto_aim;
 
 class Recorder::Impl {
 public:
-    explicit Impl(const double& fps, const cv::Size& size) {
+    explicit Impl() {
 
         auto now       = std::chrono::system_clock::now();
         auto in_time_t = std::chrono::system_clock::to_time_t(now);
@@ -14,8 +14,12 @@ public:
         std::stringstream ss;
         ss << std::put_time(std::localtime(&in_time_t), "%Y-%m-%d_%H-%M-%S");
         filename_ = "output_" + ss.str() + ".avi";
+    }
 
-        video_ = cv::VideoWriter(filename_, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'), fps, size);
+    void setParam(const double& fps, const cv::Size& size) {
+        fps_ = fps;
+        video_ =
+            cv::VideoWriter(filename_, cv::VideoWriter::fourcc('M', 'P', '4', '2'), fps_, size);
     }
 
     ~Impl() { video_.release(); }
@@ -33,12 +37,17 @@ public:
 private:
     std::string filename_;
     cv::VideoWriter video_;
+    double fps_;
 };
 
-Recorder::Recorder(const double& fps, const cv::Size& size)
-    : pImpl_(new Impl{fps, size}) {}
+Recorder::Recorder()
+    : pImpl_(new Impl{}) {}
 
 Recorder::~Recorder() {}
+
+void Recorder::setParam(const double& fps, const cv::Size& size) {
+    return pImpl_->setParam(fps, size);
+}
 
 bool Recorder::record_frame(const cv::Mat& frame) { return pImpl_->record_frame(frame); }
 

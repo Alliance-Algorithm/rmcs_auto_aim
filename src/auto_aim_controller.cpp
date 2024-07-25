@@ -226,26 +226,40 @@ private:
         auto armor_identifier = ArmorIdentifier(package_share_directory + armor_model_path_);
         auto buff_identifier  = BuffIdentifier(package_share_directory + buff_model_path_);
 
-        auto armor_tracker = ArmorTracker(armor_predict_duration_, debug);
+        auto armor_tracker = ArmorTracker(armor_predict_duration_, debug_);
         auto buff_tracker  = BuffTracker(buff_predict_duration_);
 
         auto buff_enabled = false;
         auto& debugger    = Debugger::getInstance();
 
         auto my_color =
-            debug ? static_cast<rmcs_msgs::RobotColor>(debug_color_) : robot_msg_->color();
+            debug_ ? static_cast<rmcs_msgs::RobotColor>(debug_color_) : robot_msg_->color();
 
         auto target_color = static_cast<rmcs_msgs::RobotColor>(1 - static_cast<uint8_t>(my_color));
 
-        // Recorder recorder(static_cast<double>(fps_), [&img_capture]() {
-        //     auto img = img_capture.read();
-        //     return cv::Size(img.cols, img.rows);
-        // }());
+        FPSCounter fps;
 
-        // if (!recorder.is_opened()) {
-        //     RCLCPP_WARN(get_logger(), "Failed to create an VideoWriter().");
-        // }
+        if (record_) {
+            recorder.setParam(static_cast<double>(record_fps_), [&img_capture, this]() {
+        auto i   = 0;
+                auto img = img_capture.read();
+        while (i < 5) {
+                    if (!img.empty()) {
+                        break;
+                    }
+                    img = img_capture.read();
+                    i++;
+                }
+                if (i == 5) {
+                    RCLCPP_FATAL(get_logger(), "Failed to sample image size.");
+                }
+                return cv::Size(img.cols, img.rows);
+        }());
 
+        if (!recorder.is_opened()) {
+        RCLCPP_WARN(get_logger(), "Failed to open an VideoWriter.");
+        }
+        }
         while (rclcpp::ok()) {
             if (!debug_ && *stage_ == rmcs_msgs::GameStage::SETTLING) {
                 continue;
