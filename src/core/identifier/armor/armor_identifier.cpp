@@ -1,7 +1,7 @@
 #include <string>
 #include <vector>
 
-#include <opencv2/core/mat.hpp>
+#include <opencv2/opencv.hpp>
 
 #include <rmcs_msgs/robot_color.hpp>
 
@@ -62,10 +62,15 @@ public:
                 if (lightBarDis > bigArmorDis)
                     continue;
 
-                ArmorPlate armor(lightBars[i], lightBars[j], ArmorID::Unknown, lightBarDis > 3.5);
+                ArmorPlate armor(
+                    lightBars[i], lightBars[j], rmcs_msgs::ArmorID::Unknown, lightBarDis > 3.5);
 
-                if (_numberIdentifier.Identify(imgGray, armor))
+                if (_numberIdentifier.Identify(imgGray, armor)) {
                     result.push_back(armor);
+                    for (auto& point : armor.points) {
+                        cv::circle(img, point, 10, cv::Scalar(0, 255, 0), 2);
+                    }
+                }
             }
         }
         return result;
