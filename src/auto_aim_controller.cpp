@@ -65,7 +65,12 @@ public:
         register_input("/remote/keyboard", keyboard_);
         register_input("/referee/game/stage", stage_);
 
-        register_output("/omni", omni_perception_);
+        register_output("/referee/enemies/hero/position", enemies_hero_pose_);
+        register_output("/referee/enemies/engineer/position", enemies_engineer_pose_);
+        register_output("/referee/enemies/infantry_iii/position", enemies_infantry_iii_pose_);
+        register_output("/referee/enemies/infantry_iv/position", enemies_infantry_iv_pose_);
+        register_output("/referee/enemies/infantry_v/position", enemies_infantry_v_pose_);
+        register_output("/referee/enemies/sentry/position", enemies_sentry_pose_);
         register_output(
             "/gimbal/auto_aim/control_direction", control_direction_, Eigen::Vector3d::Zero());
 
@@ -394,57 +399,83 @@ private:
             for (auto& [id, target] : targets_map) {
                 auto pos = fast_tf::cast<rmcs_description::OdomImu>(target, *tf_);
                 Eigen::Vector2d plate_pos{pos->x(), pos->y()};
-                *omni_perception_ = std::make_pair(id, plate_pos);
+                switch (id) {
+                case rmcs_msgs::ArmorID::Hero: {
+                    *enemies_hero_pose_ = plate_pos;
+                    break;
+                }
+                case rmcs_msgs::ArmorID::Engineer: {
+                    *enemies_engineer_pose_ = plate_pos;
+                    break;
+                }
+                case rmcs_msgs::ArmorID::InfantryIII: {
+                    *enemies_infantry_iii_pose_ = plate_pos;
+                    break;
+                }
+                case rmcs_msgs::ArmorID::InfantryIV: {
+                    *enemies_infantry_iv_pose_ = plate_pos;
+                    break;
+                }
+                case rmcs_msgs::ArmorID::InfantryV: {
+                    *enemies_infantry_v_pose_ = plate_pos;
+                    break;
+                }
+                case rmcs_msgs::ArmorID::Sentry: {
+                    *enemies_sentry_pose_ = plate_pos;
+                    break;
+                }
+                default: break;
+                }
             }
         }
     }
-    Recorder recorder;
 
-    std::queue<std::shared_ptr<cv::Mat>> imageQueue;
-    std::mutex mtx;
-    std::condition_variable cv;
-
-    rclcpp::Publisher<rmcs_msgs::msg::RobotPose>::SharedPtr pose_pub_;
-
-    OutputInterface<std::pair<rmcs_msgs::ArmorID, Eigen::Vector2d>> omni_perception_;
-
-    InputInterface<rmcs_description::Tf> tf_;
-    InputInterface<size_t> update_count_;
-    InputInterface<rmcs_msgs::RobotId> robot_msg_;
-    InputInterface<rmcs_msgs::Keyboard> keyboard_;
-    InputInterface<rmcs_msgs::GameStage> stage_;
-
-    uint8_t debug_color_;
-    uint8_t debug_robot_id_;
-    bool debug_buff_mode_;
-
-    OutputInterface<Eigen::Vector3d> control_direction_;
-
-    std::chrono::steady_clock::time_point timestamp_;
-    std::vector<std::thread> threads_;
-
-    int64_t gimbal_predict_duration_;
-    int64_t armor_predict_duration_;
-    int64_t buff_predict_duration_;
-    int64_t exposure_time_;
-    int64_t record_fps_;
-
-    TrajectorySolver trajectory_{};
-    std::atomic<TargetInterface*> target_{nullptr};
-
-    rmcs_description::OdomImu::Position pnp_result_;
-
-    std::string armor_model_path_;
-    std::string buff_model_path_;
-
+    double omni_fx, omni_fy, omni_cx, omni_cy, omni_k1, omni_k2, omni_k3;
+    double fx, fy, cx, cy, k1, k2, k3;
     double omni_exposure_;
     double pitch_error_;
     double yaw_error_;
     bool debug_;
     bool record_;
 
-    double fx, fy, cx, cy, k1, k2, k3;
-    double omni_fx, omni_fy, omni_cx, omni_cy, omni_k1, omni_k2, omni_k3;
+    int64_t gimbal_predict_duration_;
+    int64_t armor_predict_duration_;
+    int64_t buff_predict_duration_;
+    uint8_t debug_robot_id_;
+    int64_t exposure_time_;
+    uint8_t debug_color_;
+    int64_t record_fps_;
+    bool debug_buff_mode_;
+
+    std::atomic<TargetInterface*> target_{nullptr};
+    std::chrono::steady_clock::time_point timestamp_;
+    std::queue<std::shared_ptr<cv::Mat>> imageQueue;
+    std::vector<std::thread> threads_;
+    std::string armor_model_path_;
+    std::string buff_model_path_;
+    std::condition_variable cv;
+    std::mutex mtx;
+
+    rclcpp::Publisher<rmcs_msgs::msg::RobotPose>::SharedPtr pose_pub_;
+
+    OutputInterface<Eigen::Vector2d> enemies_infantry_iii_pose_;
+    OutputInterface<Eigen::Vector2d> enemies_infantry_iv_pose_;
+    OutputInterface<Eigen::Vector2d> enemies_infantry_v_pose_;
+    OutputInterface<Eigen::Vector2d> enemies_engineer_pose_;
+    OutputInterface<Eigen::Vector2d> enemies_sentry_pose_;
+    OutputInterface<Eigen::Vector2d> enemies_hero_pose_;
+    OutputInterface<Eigen::Vector3d> control_direction_;
+
+    InputInterface<rmcs_msgs::RobotId> robot_msg_;
+    InputInterface<rmcs_msgs::Keyboard> keyboard_;
+    InputInterface<rmcs_msgs::GameStage> stage_;
+    InputInterface<rmcs_description::Tf> tf_;
+    InputInterface<size_t> update_count_;
+
+    rmcs_description::OdomImu::Position pnp_result_;
+
+    TrajectorySolver trajectory_{};
+    Recorder recorder;
 };
 } // namespace rmcs_auto_aim
   // namespace rmcs_auto_aim
