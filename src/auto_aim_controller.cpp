@@ -2,9 +2,13 @@
 #include <atomic>
 #include <chrono>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <map>
+#include <mutex>
+#include <pthread.h>
+#include <queue>
 #include <string>
 #include <thread>
 #include <utility>
@@ -209,7 +213,6 @@ public:
         }
 
         delete local_target;
-        local_target = nullptr;
         target_available_.store(false);
     }
 
@@ -271,7 +274,8 @@ private:
         FPSCounter fps;
 
         if (record_) {
-            recorder.setParam(static_cast<double>(record_fps_), [&img_capture, this]() {
+            auto flag = true;
+            recorder.setParam(static_cast<double>(record_fps_), [&img_capture, this, &flag]() {
                 auto i   = 0;
                 auto img = img_capture.read();
                 while (i < 5) {
@@ -283,30 +287,24 @@ private:
                 }
                 if (i == 5) {
                     RCLCPP_FATAL(get_logger(), "Failed to sample image size.");
+                    flag = false;
+                    return cv::Size(1, 1);
                 }
                 return cv::Size(img.cols, img.rows);
             }());
 
-            if (!recorder.is_opened()) {
+            if (!flag || !recorder.is_opened()) {
                 RCLCPP_WARN(get_logger(), "Failed to open an VideoWriter.");
+                record_ = false;
             }
         }
+
         while (rclcpp::ok()) {
             if (!debug_ && *stage_ == rmcs_msgs::GameStage::SETTLING) {
                 continue;
             }
 
-            auto img = img_capture.read();
-
-            if (record_ && (debug_ || *stage_ == rmcs_msgs::GameStage::STARTED)
-                && recorder.is_opened() && !img.empty()) {
-
-                std::shared_ptr<cv::Mat> imgPtr = std::make_shared<cv::Mat>(img);
-                std::unique_lock<std::mutex> lock(mtx);
-                imageQueue.push(imgPtr);
-                lock.unlock();
-                cv.notify_one();
-            }
+            auto img       = img_capture.read();
             auto timestamp = std::chrono::steady_clock::now();
 
             auto tf = *tf_;
@@ -335,7 +333,8 @@ private:
 
                     if (auto target = armor_tracker.Update(armor3d, timestamp, tf)) {
                         timestamp_ = timestamp;
-                        target_.exchange(target.release());
+                        target_.store(target.release());
+                        target_available_.store(true);
                         break;
                     }
 
@@ -345,13 +344,25 @@ private:
                                 BuffPnPSolver::Solve(*buff, tf, fx, fy, cx, cy, k1, k2, k3)) {
                             if (auto target = buff_tracker.Update(*buff3d, timestamp)) {
                                 timestamp_ = timestamp;
-                                target_.exchange(target.release());
+                                target_.store(target.release());
+                                target_available_.store(true);
                                 break;
                             }
                         }
                     }
                 }
             } while (false);
+
+            if (record_ && (debug_ || *stage_ == rmcs_msgs::GameStage::STARTED)
+                && recorder.is_opened() && !img.empty()) {
+
+                std::shared_ptr<cv::Mat> imgPtr = std::make_shared<cv::Mat>(img);
+                std::unique_lock<std::mutex> lock(mtx);
+                imageQueue.push(imgPtr);
+                lock.unlock();
+                cv.notify_one();
+            }
+
             if (fps.Count()) {
                 RCLCPP_INFO(get_logger(), "Fps:%d", fps.GetFPS());
             }
