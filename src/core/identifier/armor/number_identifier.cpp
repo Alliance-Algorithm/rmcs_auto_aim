@@ -44,47 +44,47 @@ bool NumberIdentifier::Identify(const cv::Mat& imgGray, ArmorPlate& armor) {
     switch (maxLoc.x) {
     case 0: return false;
     case 1:
-        armor.id             = ArmorID::Hero;
+        armor.id             = rmcs_msgs::ArmorID::Hero;
         armor.is_large_armor = true;
         break;
     case 2:
-        armor.id             = ArmorID::Engineer;
+        armor.id             = rmcs_msgs::ArmorID::Engineer;
         armor.is_large_armor = false;
         break;
     case 3:
-        armor.id             = ArmorID::InfantryIII;
+        armor.id             = rmcs_msgs::ArmorID::InfantryIII;
         armor.is_large_armor = false;
         break;
     case 4:
-        armor.id             = ArmorID::InfantryIV;
+        armor.id             = rmcs_msgs::ArmorID::InfantryIV;
         armor.is_large_armor = false;
         break;
     case 5:
-        armor.id             = ArmorID::InfantryV;
+        armor.id             = rmcs_msgs::ArmorID::InfantryV;
         armor.is_large_armor = false;
         break;
     case 6:
-        armor.id             = ArmorID::Sentry;
+        armor.id             = rmcs_msgs::ArmorID::Sentry;
         armor.is_large_armor = false;
         break;
     case 7:
-        armor.id             = ArmorID::InfantryIII;
+        armor.id             = rmcs_msgs::ArmorID::InfantryIII;
         armor.is_large_armor = true;
         break;
     case 8:
-        armor.id             = ArmorID::InfantryIV;
+        armor.id             = rmcs_msgs::ArmorID::InfantryIV;
         armor.is_large_armor = true;
         break;
     case 9:
-        armor.id             = ArmorID::InfantryV;
+        armor.id             = rmcs_msgs::ArmorID::InfantryV;
         armor.is_large_armor = true;
         break;
     case 10:
-        armor.id             = ArmorID::Outpost;
+        armor.id             = rmcs_msgs::ArmorID::Outpost;
         armor.is_large_armor = false;
         break;
     case 11:
-        armor.id             = ArmorID::Base;
+        armor.id             = rmcs_msgs::ArmorID::Base;
         armor.is_large_armor = false;
         break;
     default: return false;

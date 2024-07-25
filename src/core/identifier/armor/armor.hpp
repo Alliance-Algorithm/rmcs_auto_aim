@@ -15,6 +15,8 @@
 
 #include <opencv2/core/types.hpp>
 
+#include <rmcs_msgs/robot_id.hpp>
+
 namespace rmcs_auto_aim {
 
 struct LightBar {
@@ -27,22 +29,10 @@ struct LightBar {
         , angle(angle) {}
 };
 
-enum class ArmorID : uint16_t {
-    Unknown     = 0,
-    Hero        = 1,
-    Engineer    = 2,
-    InfantryIII = 3,
-    InfantryIV  = 4,
-    InfantryV   = 5,
-    Sentry      = 6,
-    Outpost     = 7,
-    Base        = 8,
-};
-
 struct ArmorPlate {
     ArmorPlate(
-        const LightBar& left, const LightBar& right, ArmorID armorId = ArmorID::Unknown,
-        bool isLargeArmor = false)
+        const LightBar& left, const LightBar& right,
+        rmcs_msgs::ArmorID armorId = rmcs_msgs::ArmorID::Unknown, bool isLargeArmor = false)
         : id(armorId)
         , is_large_armor(isLargeArmor) {
         points.push_back(left.top);
@@ -59,7 +49,7 @@ struct ArmorPlate {
     }
 
     std::vector<cv::Point2f> points;
-    ArmorID id;
+    rmcs_msgs::ArmorID id;
     bool is_large_armor;
 };
 

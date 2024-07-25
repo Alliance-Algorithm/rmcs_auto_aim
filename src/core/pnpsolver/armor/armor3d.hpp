@@ -13,29 +13,29 @@
 #include <geometry_msgs/msg/pose.hpp>
 
 #include <rmcs_description/tf_description.hpp>
-
-#include "core/identifier/armor/armor.hpp"
+#include <rmcs_msgs/robot_id.hpp>
 
 namespace rmcs_auto_aim {
 struct ArmorPlate3d {
-    ArmorID id;
+    rmcs_msgs::ArmorID id;
     rmcs_description::OdomImu::Position position;
     rmcs_description::OdomImu::Rotation rotation;
 
     explicit ArmorPlate3d(
-        ArmorID id, rmcs_description::OdomImu::Position position,
+        rmcs_msgs::ArmorID id, rmcs_description::OdomImu::Position position,
         rmcs_description::OdomImu::Rotation rotation)
         : id(id)
         , position(std::move(position))
         , rotation(std::move(rotation)) {}
 };
 
-struct ArmorPlate3dWithNoFrame {
-    ArmorID id;
+struct ArmorPlate3dWithoutFrame {
+    rmcs_msgs::ArmorID id;
     geometry_msgs::msg::Pose pose;
 
-    ArmorPlate3dWithNoFrame() = default;
-    ArmorPlate3dWithNoFrame(ArmorID id, Eigen::Vector3d position, Eigen::Quaterniond rotation)
+    ArmorPlate3dWithoutFrame() = default;
+    ArmorPlate3dWithoutFrame(
+        rmcs_msgs::ArmorID id, Eigen::Vector3d position, Eigen::Quaterniond rotation)
         : id(id) {
         pose.position.x    = position.x();
         pose.position.y    = position.y();
