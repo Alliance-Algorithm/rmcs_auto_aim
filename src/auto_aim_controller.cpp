@@ -61,6 +61,7 @@ public:
         register_input("/remote/keyboard", keyboard_);
         register_input("/referee/game/stage", stage_);
 
+        register_output("/omni", omni_perception_);
         register_output(
             "/gimbal/auto_aim/control_direction", control_direction_, Eigen::Vector3d::Zero());
 
@@ -80,11 +81,33 @@ public:
         k1                       = get_parameter("k1").as_double();
         k2                       = get_parameter("k2").as_double();
         k3                       = get_parameter("k3").as_double();
-        omni_exposure_           = get_parameter("omni_exposure").as_double();
-        fps_                     = get_parameter("fps").as_int();
-        debug_robot_id_          = get_parameter("debug_robot_id").as_int();
-        debug_buff_mode_         = get_parameter("debug_buff_mode").as_bool();
-        debug_color_             = get_parameter("debug_color").as_int();
+        record_                  = get_parameter("record").as_bool();
+
+        try {
+            record_fps_      = get_parameter("record_fps").as_int();
+            debug_robot_id_  = get_parameter("debug_robot_id").as_int();
+            debug_buff_mode_ = get_parameter("debug_buff_mode").as_bool();
+        debug_color_     = get_parameter("debug_color").as_int();
+        } catch (rclcpp::exceptions::InvalidParametersException& e) {
+            RCLCPP_WARN(get_logger(), "Failed to read parameter: %s", e.what());
+        }
+
+        if ((debug_ && debug_robot_id_ == 7)
+            || (!debug_ && robot_msg_->id() == rmcs_msgs::ArmorID::Sentry)) {
+            try {
+                omni_exposure_ = get_parameter("omni_exposure").as_double();
+                omni_cx        = get_parameter("omni_cx").as_double();
+                omni_cy        = get_parameter("omni_cy").as_double();
+                omni_fx        = get_parameter("omni_fx").as_double();
+                omni_fy        = get_parameter("omni_fy").as_double();
+                omni_k1        = get_parameter("omni_k1").as_double();
+                omni_k2        = get_parameter("omni_k2").as_double();
+                omni_k3        = get_parameter("omni_k3").as_double();
+
+            } catch (rclcpp::exceptions::InvalidParametersException& e) {
+                RCLCPP_WARN(get_logger(), "Failed to read parameter: %s", e.what());
+            }
+        }
 
         pose_pub_ = this->create_publisher<rmcs_msgs::msg::RobotPose>("/armor_pose", 10);
     }
@@ -102,8 +125,21 @@ public:
             if (debug) {
                 threads_.emplace_back([]() { rclcpp::spin(Debugger::getInstance().getNode()); });
             }
-
-            threads_.emplace_back([this]() { gimbal_process(); }); // gimbal_thread end
+if (robot_msg_->id() == rmcs_msgs::ArmorID::Sentry) {
+            threads_.emplace_back([this]() {
+                    omni_perception_process<rmcs_description::OmniLinkLeftFront>("/dev/leftfront");
+                });
+                threads_.emplace_back([this]() {
+                    omni_perception_process<rmcs_description::OmniLinkRightFront>(
+                        "/dev/rightfront");
+                });
+                threads_.emplace_back([this]() {
+                    omni_perception_process<rmcs_description::OmniLinkLeft>("/dev/left");
+                });
+                threads_.emplace_back([this]() {
+                    omni_perception_process<rmcs_description::OmniLinkRight>("/dev/right");
+                });
+            }
         }
 
         auto target = target_;
@@ -197,20 +233,9 @@ private:
             auto timestamp = std::chrono::steady_clock::now();
 
             auto tf = *tf_;
-            // if (false && *stage_ == rmcs_msgs::GameStage::STARTED && recorder.is_opened()
-            //     && !img.empty()) {
-            //     recorder.record_frame(img);
-            // }
 
             do {
-                // if (debug) {
-                //     auto stamp = this->get_clock()->now();
-                //     debugger.publish_raw_image(img, stamp);
-                // }
-                // cv::imshow("raw", img);
-                // cv::waitKey(1);
-
-                if (!buff_enabled && (debug ? debug_buff_mode_ : keyboard_->g == 1)) {
+                if (!buff_enabled && (debug_ ? debug_buff_mode_ : keyboard_->g == 1)) {
 
                     buff_tracker.ResetAll(tf);
                 }
@@ -257,19 +282,17 @@ private:
         } // while rclcpp::ok end
     }
 
-    void omni_perception_process() {
+    template <typename Link>
+    void omni_perception_process(const std::string& device) {
 
-        // omni dir
-        cv::VideoCapture camera(2);
-        camera.set(cv::CAP_PROP_EXPOSURE, omni_exposure_);
+        // // omni dir
+        auto camera = cv::VideoCapture(device);
 
-        if (camera.isOpened()) {
-            RCLCPP_INFO(
-                get_logger(), "exposure of omni-direction camera = %f",
-                camera.get(cv::CAP_PROP_EXPOSURE));
-        } else {
-            RCLCPP_INFO(get_logger(), "Failed to open omni-direction camera.");
+        if (!camera.isOpened()) {
+            RCLCPP_WARN(get_logger(), "Failed to open camera!");
+            return;
         }
+        camera.set(cv::CAP_PROP_EXPOSURE, omni_exposure_);
 
         auto package_share_directory =
             ament_index_cpp::get_package_share_directory("rmcs_auto_aim");
@@ -289,23 +312,33 @@ private:
 
             auto armors = armor_identifier.Identify(img, target_color);
 
-            if (armors.size() == 0) {
-                continue;
+            std::map<rmcs_msgs::ArmorID, typename Link::Position> targets_map;
+
+            for (auto& armor : armors) {
+                auto pnp_result = ArmorPnPSolver::Solve(
+                    armor, omni_fx, omni_fy, omni_cx, omni_cy, omni_k1, omni_k2, omni_k3);
+                typename Link::Position pos{
+                    pnp_result.pose.position.x, pnp_result.pose.position.y,
+                    pnp_result.pose.position.z};
+                targets_map.insert(std::make_pair(pnp_result.id, pos));
             }
 
-            auto sample = armors[0];
-
-            auto pnp_result = ArmorPnPSolver::Solve(sample, fx, fy, cx, cy, k1, k2, k3);
-            rmcs_msgs::msg::RobotPose msg;
-            msg.id   = static_cast<int64_t>(pnp_result.id);
-            msg.pose = pnp_result.pose;
-            pose_pub_->publish(msg);
+            for (auto& [id, target] : targets_map) {
+                auto pos = fast_tf::cast<rmcs_description::OdomImu>(target, *tf_);
+                Eigen::Vector2d plate_pos{pos->x(), pos->y()};
+                *omni_perception_ = std::make_pair(id, plate_pos);
+            }
         }
-        cv::destroyAllWindows();
-        camera.release();
     }
+    Recorder recorder;
+
+    std::queue<std::shared_ptr<cv::Mat>> imageQueue;
+    std::mutex mtx;
+    std::condition_variable cv;
 
     rclcpp::Publisher<rmcs_msgs::msg::RobotPose>::SharedPtr pose_pub_;
+
+    OutputInterface<std::pair<rmcs_msgs::ArmorID, Eigen::Vector2d>> omni_perception_;
 
     InputInterface<rmcs_description::Tf> tf_;
     InputInterface<size_t> update_count_;
@@ -326,7 +359,7 @@ private:
     int64_t armor_predict_duration_;
     int64_t buff_predict_duration_;
     int64_t exposure_time_;
-    int64_t fps_;
+    int64_t record_fps_;
 
     TrajectorySolver trajectory_{};
     TargetInterface* target_;
@@ -342,6 +375,7 @@ private:
     bool debug;
 
     double fx, fy, cx, cy, k1, k2, k3;
+    double omni_fx, omni_fy, omni_cx, omni_cy, omni_k1, omni_k2, omni_k3;
 };
 } // namespace rmcs_auto_aim
   // namespace rmcs_auto_aim
