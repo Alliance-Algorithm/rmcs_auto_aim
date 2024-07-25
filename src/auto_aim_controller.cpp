@@ -1,9 +1,13 @@
 
+#include <atomic>
 #include <chrono>
+#include <cmath>
 #include <cstdint>
 #include <cstdlib>
+#include <map>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include <ament_index_cpp/get_package_share_directory.hpp>
@@ -122,8 +126,24 @@ public:
 
     void update() override {
         if (*update_count_ == 0) {
-            if (debug) {
-                threads_.emplace_back([]() { rclcpp::spin(Debugger::getInstance().getNode()); });
+            threads_.emplace_back([this]() { gimbal_process(); });
+            if (record_) {
+                threads_.emplace_back([this]() {
+                    RCLCPP_INFO(get_logger(), "RECORDING...");
+                    while (rclcpp::ok()) {
+                        if (!recorder.is_opened()) {
+                            continue;
+                        }
+                        std::unique_lock<std::mutex> lock(mtx);
+                        cv.wait(lock, [this] { return !imageQueue.empty(); });
+                        std::shared_ptr<cv::Mat> imgPtr = imageQueue.front();
+                        imageQueue.pop();
+                        lock.unlock();
+
+                        cv::Mat img = *imgPtr;
+                        recorder.record_frame(img);
+                    }
+                });
             }
 if (robot_msg_->id() == rmcs_msgs::ArmorID::Sentry) {
             threads_.emplace_back([this]() {
@@ -224,12 +244,21 @@ private:
         // }
 
         while (rclcpp::ok()) {
-            auto startTime = std::chrono::high_resolution_clock::now();
-            if (*stage_ == rmcs_msgs::GameStage::SETTLING) {
-                break;
+            if (!debug_ && *stage_ == rmcs_msgs::GameStage::SETTLING) {
+                continue;
             }
 
-            auto img       = img_capture.read();
+            auto img = img_capture.read();
+
+            if (record_ && (debug_ || *stage_ == rmcs_msgs::GameStage::STARTED)
+                && recorder.is_opened() && !img.empty()) {
+
+                std::shared_ptr<cv::Mat> imgPtr = std::make_shared<cv::Mat>(img);
+                std::unique_lock<std::mutex> lock(mtx);
+                imageQueue.push(imgPtr);
+                lock.unlock();
+                cv.notify_one();
+            }
             auto timestamp = std::chrono::steady_clock::now();
 
             auto tf = *tf_;
@@ -372,7 +401,8 @@ private:
     double omni_exposure_;
     double pitch_error_;
     double yaw_error_;
-    bool debug;
+    bool debug_;
+    bool record_;
 
     double fx, fy, cx, cy, k1, k2, k3;
     double omni_fx, omni_fy, omni_cx, omni_cy, omni_k1, omni_k2, omni_k3;
