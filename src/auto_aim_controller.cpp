@@ -162,8 +162,8 @@ if (robot_msg_->id() == rmcs_msgs::ArmorID::Sentry) {
             }
         }
 
-        auto target = target_;
-        if (!target_) {
+        auto local_target = target_.load();
+        if (!local_target) {
             return;
         }
 
@@ -179,9 +179,9 @@ if (robot_msg_->id() == rmcs_msgs::ArmorID::Sentry) {
 
         double fly_time = 0;
         for (int i = 5; i-- > 0;) {
-            auto pos = target->Predict(
+            auto pos = local_target->Predict(
                 static_cast<std::chrono::duration<double>>(diff).count() + fly_time + 0.05);
-            // auto pos              = pnp_result_;
+            // auto pos = pnp_result_;
             auto aiming_direction = *trajectory_.GetShotVector(
                 {pos->x() - offset->x(), pos->y() - offset->y(), pos->z() - offset->z()}, 27.0,
                 fly_time);
@@ -196,10 +196,14 @@ if (robot_msg_->id() == rmcs_msgs::ArmorID::Sentry) {
             auto delta_yaw   = Eigen::AngleAxisd{yaw_error_, yaw_axis};
             auto delta_pitch = Eigen::AngleAxisd{pitch_error_, pitch_axis};
             aiming_direction = delta_pitch * (delta_yaw * (aiming_direction));
+
             if (i == 0) {
                 *control_direction_ = aiming_direction;
+                break;
             }
         }
+
+        delete local_target;
     }
 
 private:
@@ -286,7 +290,7 @@ private:
 
                     if (auto target = armor_tracker.Update(armor3d, timestamp, tf)) {
                         timestamp_ = timestamp;
-                        target_    = target.release();
+                        target_.exchange(target.release());
                         break;
                     }
 
@@ -296,7 +300,7 @@ private:
                                 BuffPnPSolver::Solve(*buff, tf, fx, fy, cx, cy, k1, k2, k3)) {
                             if (auto target = buff_tracker.Update(*buff3d, timestamp)) {
                                 timestamp_ = timestamp;
-                                target_    = target.release();
+                                target_.exchange(target.release());
                                 break;
                             }
                         }
@@ -389,7 +393,7 @@ private:
     int64_t record_fps_;
 
     TrajectorySolver trajectory_{};
-    TargetInterface* target_;
+    std::atomic<TargetInterface*> target_{nullptr};
 
     rmcs_description::OdomImu::Position pnp_result_;
 
