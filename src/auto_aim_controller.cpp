@@ -168,7 +168,7 @@ public:
         }
 
         auto local_target = target_.load();
-        if (!local_target) {
+        if (!target_available_.load()) {
             return;
         }
 
@@ -209,6 +209,8 @@ public:
         }
 
         delete local_target;
+        local_target = nullptr;
+        target_available_.store(false);
     }
 
 private:
@@ -448,6 +450,8 @@ private:
     bool debug_buff_mode_;
 
     std::atomic<TargetInterface*> target_{nullptr};
+    std::atomic<bool> target_available_{false};
+
     std::chrono::steady_clock::time_point timestamp_;
     std::queue<std::shared_ptr<cv::Mat>> imageQueue;
     std::vector<std::thread> threads_;

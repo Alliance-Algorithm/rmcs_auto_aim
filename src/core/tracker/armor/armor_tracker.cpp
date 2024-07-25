@@ -325,11 +325,12 @@ public:
             debugger_.publish_armors(marker_array);
         }
 
-        TrackerUnit* selected_tracker = nullptr;
-        int selected_level            = 0;
-        double minimum_angle          = INFINITY;
+        // TrackerUnit* selected_tracker = nullptr;
+        auto selected_tracker = std::unique_ptr<TrackerUnit>();
+        int selected_level    = 0;
+        double minimum_angle  = INFINITY;
         for (auto& [armor_id, tracker_array] : tracker_map_) {
-            for (auto& tracker : tracker_array) {
+            for (const auto& tracker : tracker_array) {
                 int level = 0;
                 if (tracker.tracking_density > 100) {
                     level = 2;
@@ -345,7 +346,7 @@ public:
 
                 if (angle < minimum_angle) {
                     minimum_angle    = angle;
-                    selected_tracker = &tracker;
+                    selected_tracker = std::make_unique<TrackerUnit>(tracker);
                     selected_level   = level;
                 } else if (
                     !std::isinf(angle) && fabs(angle - minimum_angle) < 1e-3
@@ -353,7 +354,7 @@ public:
                     selected_level = level;
                     minimum_angle  = angle;
 
-                    selected_tracker = &tracker;
+                    selected_tracker = std::make_unique<TrackerUnit>(tracker);
                 }
             }
         }
