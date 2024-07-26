@@ -1,5 +1,6 @@
-#include "trajectory_solvor.hpp"
 #include <rmcs_description/tf_description.hpp>
+
+#include "trajectory_solvor.hpp"
 
 using namespace rmcs_auto_aim;
 

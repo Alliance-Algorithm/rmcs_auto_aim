@@ -1,9 +1,7 @@
 #include <chrono>
 #include <cstdint>
 #include <cstdlib>
-#include <iostream>
 #include <memory>
-#include <ostream>
 #include <random>
 #include <vector>
 
@@ -13,12 +11,11 @@
 
 #include <fast_tf/impl/cast.hpp>
 
-#include "../ekf/ekf.hpp"
-#include "armor_tracker.hpp"
 #include "core/debugger/debugger.hpp"
 #include "core/pnpsolver/armor/armor3d.hpp"
 #include "core/tracker/target.hpp"
 
+#include "../ekf/ekf.hpp"
 #include "armor_tracker.hpp"
 
 using namespace rmcs_auto_aim;

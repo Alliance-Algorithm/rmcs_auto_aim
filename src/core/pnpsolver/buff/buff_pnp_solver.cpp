@@ -1,6 +1,7 @@
-#include "buff_pnp_solver.hpp"
 #include <fast_tf/impl/cast.hpp>
 #include <rmcs_description/tf_description.hpp>
+
+#include "buff_pnp_solver.hpp"
 
 using namespace rmcs_auto_aim;
 
