@@ -1,7 +1,9 @@
 #include <chrono>
 #include <cstdint>
 #include <cstdlib>
+#include <iostream>
 #include <memory>
+#include <ostream>
 #include <random>
 #include <vector>
 
@@ -325,13 +327,13 @@ public:
             debugger_.publish_armors(marker_array);
         }
 
-        // TrackerUnit* selected_tracker = nullptr;
         auto selected_tracker = std::unique_ptr<TrackerUnit>();
         int selected_level    = 0;
         double minimum_angle  = INFINITY;
         for (auto& [armor_id, tracker_array] : tracker_map_) {
-            for (const auto& tracker : tracker_array) {
-                int level = 0;
+            for (auto iter = tracker_array.begin(); iter != tracker_array.end();) {
+                auto& tracker = *iter;
+                int level     = 0;
                 if (tracker.tracking_density > 100) {
                     level = 2;
                 } else if (tracker.tracking_density > 40) {
@@ -342,6 +344,12 @@ public:
                     rmcs_description::OdomImu::Position{
                         tracker.ekf.x_(0), tracker.ekf.x_(2), tracker.ekf.x_(4)},
                     tf);
+
+                if (center.norm() <= 1.0) {
+                    iter = tracker_array.erase(iter);
+                    continue;
+                }
+
                 double angle = std::acos(center.dot(Eigen::Vector3d{1, 0, 0}) / center.norm());
 
                 if (angle < minimum_angle) {
@@ -356,6 +364,7 @@ public:
 
                     selected_tracker = std::make_unique<TrackerUnit>(tracker);
                 }
+                ++iter;
             }
         }
         if (selected_tracker) {
