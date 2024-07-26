@@ -137,31 +137,41 @@ private:
                 confidence = 0;
 
             if (confidence > 0.45f) {
-                constexpr int angleRange = 30;
-                auto box                 = cv::minAreaRect(contour);
-
-                cv::Point2f corner[4];
-                box.points(corner);
-                auto diff = box.size.width - box.size.height;
-                if (diff > 0) {        // 旋转前，矩形横放
-                    float angle = fmodf(box.angle + 360, 360);
-                    if (90 - angleRange < angle && angle < 90 + angleRange) {
-                        return LightBar(
-                            (corner[0] + corner[1]) / 2, (corner[2] + corner[3]) / 2, 0);
-                    } else if (270 - angleRange < angle && angle < 270 + angleRange) {
-                        return LightBar(
-                            (corner[2] + corner[3]) / 2, (corner[0] + corner[1]) / 2, 0);
-                    }
-                } else if (diff < 0) { // 旋转前，矩形竖放
-                    float angle = fmodf(box.angle + 360 + 90, 360);
-                    if (90 - angleRange < angle && angle < 90 + angleRange) {
-                        return LightBar(
-                            (corner[1] + corner[2]) / 2, (corner[0] + corner[3]) / 2, 0);
-                    } else if (270 - angleRange < angle && angle < 270 + angleRange) {
-                        return LightBar(
-                            (corner[0] + corner[3]) / 2, (corner[1] + corner[2]) / 2, 0);
+                auto b_rect  = cv::boundingRect(contour);
+                cv::Mat mask = cv::Mat::zeros(b_rect.size(), CV_8UC1);
+                std::vector<cv::Point> mask_contour;
+                mask_contour.reserve(contour.size());
+                for (const auto& p : contour) {
+                    mask_contour.emplace_back(p - cv::Point(b_rect.x, b_rect.y));
+                }
+                cv::fillPoly(mask, {mask_contour}, 255);
+                std::vector<cv::Point> points;
+                cv::findNonZero(mask, points);
+                cv::Vec4f return_param;
+                cv::fitLine(points, return_param, cv::DIST_L2, 0, 0.01, 0.01);
+                cv::Point2f top, bottom;
+                float angle_k;
+                if (int(return_param[0] * 100) == 100 || int(return_param[1] * 100) == 0) {
+                    top = cv::Point2f((float)b_rect.x + (float)b_rect.width / 2, (float)b_rect.y);
+                    bottom = cv::Point2f(
+                        (float)b_rect.x + (float)b_rect.width / 2,
+                        (float)b_rect.y + (float)b_rect.height);
+                    angle_k = 0;
+                } else {
+                    auto k = return_param[1] / return_param[0];
+                    auto b = (return_param[3] + (float)b_rect.y)
+                           - k * (return_param[2] + (float)b_rect.x);
+                    top    = cv::Point2f(((float)b_rect.y - b) / k, (float)b_rect.y);
+                    bottom = cv::Point2f(
+                        ((float)b_rect.y + (float)b_rect.height - b) / k,
+                        (float)b_rect.y + (float)b_rect.height);
+                    angle_k = (float)(std::atan(k) / CV_PI * 180 - 90);
+                    if (angle_k > 90) {
+                        angle_k = 180 - angle_k;
                     }
                 }
+                angle_k = (float)(angle_k / 180 * CV_PI);
+                return LightBar{top, bottom, angle_k};
             }
         }
         return std::nullopt;
