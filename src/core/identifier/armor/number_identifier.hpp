@@ -26,6 +26,6 @@ public:
     NumberIdentifier(const NumberIdentifier&) = delete;
     NumberIdentifier(NumberIdentifier&&)      = delete;
 
-    bool Identify(const cv::Mat& imgGray, ArmorPlate& armor);
+    bool Identify(const cv::Mat& imgGray, ArmorPlate& armor, const int8_t& blacklist);
 };
 } // namespace rmcs_auto_aim

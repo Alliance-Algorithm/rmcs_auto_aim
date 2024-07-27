@@ -1,3 +1,5 @@
+#include <cstdint>
+#include <std_msgs/msg/detail/int8__struct.hpp>
 #include <stdexcept>
 #include <string>
 
@@ -14,7 +16,8 @@ NumberIdentifier::NumberIdentifier(const std::string& model_path) {
     }
 }
 
-bool NumberIdentifier::Identify(const cv::Mat& imgGray, ArmorPlate& armor) {
+bool NumberIdentifier::Identify(
+    const cv::Mat& imgGray, ArmorPlate& armor, const int8_t& blacklist) {
     static const std::vector<cv::Point2f> dst = {
         {-4.5, 10.125},
         {-4.5, 25.875},
@@ -44,38 +47,65 @@ bool NumberIdentifier::Identify(const cv::Mat& imgGray, ArmorPlate& armor) {
     switch (maxLoc.x) {
     case 0: return false;
     case 1:
+        if (!(blacklist & 0x1)) {
+            return false;
+        }
         armor.id             = rmcs_msgs::ArmorID::Hero;
         armor.is_large_armor = true;
         break;
     case 2:
+        if (!(blacklist & 0x2)) {
+            return false;
+        }
         armor.id             = rmcs_msgs::ArmorID::Engineer;
         armor.is_large_armor = false;
         break;
     case 3:
+        if (!(blacklist & 0x4)) {
+            return false;
+        }
         armor.id             = rmcs_msgs::ArmorID::InfantryIII;
         armor.is_large_armor = false;
         break;
     case 4:
+        if (!(blacklist & 0x8)) {
+            return false;
+        }
         armor.id             = rmcs_msgs::ArmorID::InfantryIV;
         armor.is_large_armor = false;
         break;
     case 5:
+        if (!(blacklist & 0x10)) {
+            return false;
+        }
         armor.id             = rmcs_msgs::ArmorID::InfantryV;
         armor.is_large_armor = false;
         break;
     case 6:
+        if (!(blacklist & 0x20)) {
+            return false;
+        }
         armor.id             = rmcs_msgs::ArmorID::Sentry;
         armor.is_large_armor = false;
         break;
     case 7:
+        if (!(blacklist & 0x4)) {
+            return false;
+        }
         armor.id             = rmcs_msgs::ArmorID::InfantryIII;
         armor.is_large_armor = true;
         break;
     case 8:
+        if (!(blacklist & 0x8)) {
+            return false;
+        }
         armor.id             = rmcs_msgs::ArmorID::InfantryIV;
         armor.is_large_armor = true;
         break;
     case 9:
+        if (!(blacklist & 0x10)) {
+            return false;
+        }
         armor.id             = rmcs_msgs::ArmorID::InfantryV;
         armor.is_large_armor = true;
         break;

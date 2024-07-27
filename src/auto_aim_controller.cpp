@@ -7,14 +7,16 @@
 #include <cstdint>
 #include <cstdlib>
 #include <exception>
+#include <functional>
 #include <map>
 #include <memory>
 #include <mutex>
 #include <pthread.h>
 #include <queue>
+#include <std_msgs/msg/detail/int8__struct.hpp>
 #include <string>
-#include <unistd.h>
 #include <thread>
+#include <unistd.h>
 #include <utility>
 #include <vector>
 
@@ -31,9 +33,11 @@
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 #include <rclcpp/publisher.hpp>
+#include <rclcpp/subscription.hpp>
 #include <rclcpp/utilities.hpp>
 #include <sensor_msgs/image_encodings.hpp>
 #include <sensor_msgs/msg/image.hpp>
+#include <std_msgs/msg/int8.hpp>
 
 #include <fast_tf/impl/cast.hpp>
 #include <hikcamera/image_capturer.hpp>
@@ -126,6 +130,9 @@ public:
         }
 
         pose_pub_ = this->create_publisher<rmcs_msgs::msg::RobotPose>("/armor_pose", 10);
+        non_identifier_target_sub_ = this->create_subscription<std_msgs::msg::Int8>(
+            "/sentry/lock_premit", 10,
+            [this](auto&& PH1) { blacklist_update(std::forward<decltype(PH1)>(PH1)); });
     }
 
     ~Controller() {
@@ -238,6 +245,11 @@ public:
         }
     }
 
+    void blacklist_update(const std_msgs::msg::Int8::SharedPtr& msg) {
+        blacklist.store(msg->data);
+        RCLCPP_INFO(get_logger(), "%d", blacklist.load());
+    }
+
 private:
     class FPSCounter {
     public:
@@ -338,7 +350,7 @@ private:
                 buff_enabled = (debug_ ? debug_buff_mode_ : keyboard_->g == 1);
 
                 if (!buff_enabled) {
-                    auto armors = armor_identifier.Identify(img, target_color);
+                    auto armors = armor_identifier.Identify(img, target_color, blacklist.load());
 
                     auto armor3d = ArmorPnPSolver::SolveAll(armors, tf, fx, fy, cx, cy, k1, k2, k3);
 
@@ -407,7 +419,7 @@ private:
             if (img.empty()) {
                 continue;
             }
-            auto armors = armor_identifier.Identify(img, target_color);
+            auto armors = armor_identifier.Identify(img, target_color, blacklist.load());
 
             std::map<rmcs_msgs::ArmorID, typename Link::Position> targets_map;
 
@@ -471,6 +483,8 @@ private:
     int64_t record_fps_;
     bool debug_buff_mode_;
 
+    std::atomic<int8_t> blacklist;
+
     std::unique_ptr<TargetInterface> target_{nullptr};
     std::atomic<bool> target_updated_{false};
 
@@ -483,6 +497,7 @@ private:
     std::mutex img_mtx_;
 
     rclcpp::Publisher<rmcs_msgs::msg::RobotPose>::SharedPtr pose_pub_;
+    rclcpp::Subscription<std_msgs::msg::Int8>::SharedPtr non_identifier_target_sub_;
 
     OutputInterface<Eigen::Vector2d> enemies_infantry_iii_pose_;
     OutputInterface<Eigen::Vector2d> enemies_infantry_iv_pose_;
