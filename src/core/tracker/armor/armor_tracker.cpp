@@ -1,15 +1,20 @@
+
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <iostream>
 #include <memory>
+#include <ostream>
 #include <random>
 #include <vector>
 
-#include <rmcs_description/tf_description.hpp>
+#include <opencv2/core/cvdef.h>
 #include <visualization_msgs/msg/marker.hpp>
 #include <visualization_msgs/msg/marker_array.hpp>
 
 #include <fast_tf/impl/cast.hpp>
+#include <rmcs_description/tf_description.hpp>
 
 #include "core/debugger/debugger.hpp"
 #include "core/pnpsolver/armor/armor3d.hpp"
@@ -21,7 +26,7 @@
 using namespace rmcs_auto_aim;
 
 namespace rmcs_auto_aim::util {
-static inline constexpr double Pi = 3.14159265358979323846;
+static inline constexpr double Pi = CV_PI;
 
 static inline double GetArmorYaw(const ArmorPlate3d& armor) {
     Eigen::Vector3d normal = (*armor.rotation) * Eigen::Vector3d{1, 0, 0};
@@ -42,11 +47,26 @@ static double GetMinimumAngleDiff(double a, double b) {
 
 class ArmorTracker::Impl {
 public:
+    explicit Impl(const int64_t& predict_duration, const bool& debug)
+        : predict_duration_(predict_duration)
+        , debug_(debug) {
+        tracker_map_[rmcs_msgs::ArmorID::Hero]        = {};
+        tracker_map_[rmcs_msgs::ArmorID::Engineer]    = {};
+        tracker_map_[rmcs_msgs::ArmorID::InfantryIII] = {};
+        tracker_map_[rmcs_msgs::ArmorID::InfantryIV]  = {};
+        tracker_map_[rmcs_msgs::ArmorID::InfantryV]   = {};
+        tracker_map_[rmcs_msgs::ArmorID::Sentry]      = {};
+        tracker_map_[rmcs_msgs::ArmorID::Outpost]     = {};
+    }
+
+    ~Impl() {}
+
     // Complete Vehicle Solution
     struct TrackerUnit {
         TrackerUnit(
             const ArmorPlate3d& armor, const std::chrono::steady_clock::time_point& timestamp)
-            : last_update(timestamp) {
+            : last_update(timestamp)
+            , measurement_pos(armor.position->x(), armor.position->y(), armor.position->z()) {
             double& r        = r_list[0];
             double yaw       = rmcs_auto_aim::util::GetArmorYaw(armor);
             double xc        = armor.position->x() + r * cos(yaw);
@@ -77,6 +97,17 @@ public:
 
         void Update(
             const ArmorPlate3d& armor, const std::chrono::steady_clock::time_point& timestamp) {
+
+            measurement_pos[0] = armor.position->x();
+            measurement_pos[1] = armor.position->y();
+            measurement_pos[2] = armor.position->z();
+
+            if (armor.position->norm() <= 0.8) {
+                collision = true;
+            } else {
+                collision = false;
+            }
+
             double &v_za = ekf.x_(5), &model_yaw = ekf.x_(6), &r = ekf.x_(8);
             double yaw = rmcs_auto_aim::util::GetArmorYaw(armor);
 
@@ -155,6 +186,10 @@ public:
 
         int ros_marker_id;
         float color_r, color_g, color_b;
+
+        bool collision = false;
+
+        Eigen::Vector3d measurement_pos;
     };
     class Target : public TargetInterface {
     public:
@@ -164,6 +199,10 @@ public:
         ~Target() {}
 
         [[nodiscard]] rmcs_description::OdomImu::Position Predict(double sec) const override {
+            if (tracker_.collision) {
+                std::cout << "Collision" << std::endl;
+                return rmcs_description::OdomImu::Position{tracker_.measurement_pos};
+            }
             // xc  v_xc  yc  v_yc  za  v_za  yaw  v_yaw  r
             Eigen::VectorXd x = tracker_.ekf.PredictConst(sec);
             const double &xc = x(0), &yc = x(2), &za = x(4), &v_yaw = x(7);
@@ -171,8 +210,9 @@ public:
             double camera_yaw = std::atan2(-yc, -xc);
             if (fabs(v_yaw) < 12.0) {
                 double shift                 = 0;
-                constexpr double legal_range = rmcs_auto_aim::util::Pi / 4;
-                constexpr double step = 2 * rmcs_auto_aim::util::Pi / TrackerUnit::armor_count;
+                constexpr double legal_range = rmcs_auto_aim::util::Pi / 4 * 0.8;
+                constexpr double step =
+                    2 * rmcs_auto_aim::util::Pi / TrackerUnit::armor_count * 1.2;
                 size_t i;
                 for (i = 0; i < TrackerUnit::armor_count; ++i) {
                     double diff =
@@ -201,17 +241,6 @@ public:
     private:
         const TrackerUnit& tracker_;
     };
-    explicit Impl(const int64_t& predict_duration, const bool& debug)
-        : predict_duration_(predict_duration)
-        , debug_(debug) {
-        tracker_map_[rmcs_msgs::ArmorID::Hero]        = {};
-        tracker_map_[rmcs_msgs::ArmorID::Engineer]    = {};
-        tracker_map_[rmcs_msgs::ArmorID::InfantryIII] = {};
-        tracker_map_[rmcs_msgs::ArmorID::InfantryIV]  = {};
-        tracker_map_[rmcs_msgs::ArmorID::InfantryV]   = {};
-        tracker_map_[rmcs_msgs::ArmorID::Sentry]      = {};
-        tracker_map_[rmcs_msgs::ArmorID::Outpost]     = {};
-    }
 
     std::unique_ptr<TargetInterface> Update(
         const std::vector<ArmorPlate3d>& armors,
@@ -324,9 +353,10 @@ public:
             debugger_.publish_armors(marker_array);
         }
 
-        auto selected_tracker = std::unique_ptr<TrackerUnit>();
-        int selected_level    = 0;
-        double minimum_angle  = INFINITY;
+        // auto selected_tracker = std::unique_ptr<TrackerUnit>();
+        TrackerUnit* selected_tracker = nullptr;
+        int selected_level            = 0;
+        double minimum_angle          = INFINITY;
         for (auto& [armor_id, tracker_array] : tracker_map_) {
             for (auto iter = tracker_array.begin(); iter != tracker_array.end();) {
                 auto& tracker = *iter;
@@ -342,16 +372,17 @@ public:
                         tracker.ekf.x_(0), tracker.ekf.x_(2), tracker.ekf.x_(4)},
                     tf);
 
-                if (center.norm() <= 1.0) {
-                    iter = tracker_array.erase(iter);
-                    continue;
+                if (center.norm() <= 0.8) {
+                    tracker.collision = true;
+                } else {
+                    tracker.collision = false;
                 }
 
                 double angle = std::acos(center.dot(Eigen::Vector3d{1, 0, 0}) / center.norm());
 
                 if (angle < minimum_angle) {
                     minimum_angle    = angle;
-                    selected_tracker = std::make_unique<TrackerUnit>(tracker);
+                    selected_tracker = &tracker;
                     selected_level   = level;
                 } else if (
                     !std::isinf(angle) && fabs(angle - minimum_angle) < 1e-3
@@ -359,7 +390,7 @@ public:
                     selected_level = level;
                     minimum_angle  = angle;
 
-                    selected_tracker = std::make_unique<TrackerUnit>(tracker);
+                    selected_tracker = &tracker;
                 }
                 ++iter;
             }

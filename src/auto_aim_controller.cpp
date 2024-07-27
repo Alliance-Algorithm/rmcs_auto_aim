@@ -2,10 +2,12 @@
 #include <atomic>
 #include <chrono>
 #include <cmath>
+#include <condition_variable>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <map>
+#include <memory>
 #include <mutex>
 #include <pthread.h>
 #include <queue>
@@ -41,7 +43,6 @@
 #include <rmcs_msgs/robot_color.hpp>
 #include <rmcs_msgs/robot_id.hpp>
 
-#include "core/debugger/debugger.hpp"
 #include "core/identifier/armor/armor_identifier.hpp"
 #include "core/identifier/buff/buff_identifier.hpp"
 #include "core/pnpsolver/armor/armor_pnp_solver.hpp"
@@ -143,10 +144,10 @@ public:
                         if (!recorder.is_opened()) {
                             continue;
                         }
-                        std::unique_lock<std::mutex> lock(mtx);
-                        cv.wait(lock, [this] { return !imageQueue.empty(); });
-                        std::shared_ptr<cv::Mat> imgPtr = imageQueue.front();
-                        imageQueue.pop();
+                        std::unique_lock<std::mutex> lock(img_mtx_);
+                        img_cv_.wait(lock, [this] { return !image_queue_.empty(); });
+                        std::shared_ptr<cv::Mat> imgPtr = image_queue_.front();
+                        image_queue_.pop();
                         lock.unlock();
 
                         cv::Mat img = *imgPtr;
@@ -171,11 +172,11 @@ public:
             }
         }
 
-        auto local_target = target_.load();
-        if (!target_available_.load()) {
+        auto local_target = target_.release();
+        if (!local_target) {
+            *control_direction_ = Eigen::Vector3d::Zero();
             return;
         }
-
         using namespace std::chrono_literals;
         auto diff = std::chrono::steady_clock::now() - timestamp_;
         if (diff > std::chrono::milliseconds(gimbal_predict_duration_)) {
@@ -190,10 +191,10 @@ public:
         for (int i = 5; i-- > 0;) {
             auto pos = local_target->Predict(
                 static_cast<std::chrono::duration<double>>(diff).count() + fly_time + 0.05);
-            // auto pos = pnp_result_;
             auto aiming_direction = *trajectory_.GetShotVector(
                 {pos->x() - offset->x(), pos->y() - offset->y(), pos->z() - offset->z()}, 27.0,
                 fly_time);
+            // auto pos = pnp_result_;
             // auto aiming_direction = *trajectory_.GetShotVector(pos, 27.0, fly_time);
 
             auto yaw_axis = fast_tf::cast<rmcs_description::PitchLink>(
@@ -212,8 +213,12 @@ public:
             }
         }
 
-        delete local_target;
-        target_available_.store(false);
+        if (target_updated_.load()) {
+            delete local_target;
+            target_updated_.store(false);
+        } else {
+            target_.reset(local_target);
+        }
     }
 
 private:
@@ -264,7 +269,6 @@ private:
         auto buff_tracker  = BuffTracker(buff_predict_duration_);
 
         auto buff_enabled = false;
-        auto& debugger    = Debugger::getInstance();
 
         auto my_color =
             debug_ ? static_cast<rmcs_msgs::RobotColor>(debug_color_) : robot_msg_->color();
@@ -320,21 +324,11 @@ private:
                     auto armors = armor_identifier.Identify(img, target_color);
 
                     auto armor3d = ArmorPnPSolver::SolveAll(armors, tf, fx, fy, cx, cy, k1, k2, k3);
-                    if (debug_) {
-                        if (armor3d.size() > 0) {
-                            auto sample =
-                                ArmorPnPSolver::Solve(armors[0], fx, fy, cx, cy, k1, k2, k3);
-                            debugger.publish_pnp_armor(sample);
-                            pnp_result_ = rmcs_description::OdomImu::Position{
-                                armor3d[0].position->x(), armor3d[0].position->y(),
-                                armor3d[0].position->z()};
-                        }
-                    }
 
                     if (auto target = armor_tracker.Update(armor3d, timestamp, tf)) {
                         timestamp_ = timestamp;
-                        target_.store(target.release());
-                        target_available_.store(true);
+                        target_.swap(target);
+                        target_updated_.store(true);
                         break;
                     }
 
@@ -344,8 +338,8 @@ private:
                                 BuffPnPSolver::Solve(*buff, tf, fx, fy, cx, cy, k1, k2, k3)) {
                             if (auto target = buff_tracker.Update(*buff3d, timestamp)) {
                                 timestamp_ = timestamp;
-                                target_.store(target.release());
-                                target_available_.store(true);
+                                target_.swap(target);
+                                target_updated_.store(true);
                                 break;
                             }
                         }
@@ -357,10 +351,10 @@ private:
                 && recorder.is_opened() && !img.empty()) {
 
                 std::shared_ptr<cv::Mat> imgPtr = std::make_shared<cv::Mat>(img);
-                std::unique_lock<std::mutex> lock(mtx);
-                imageQueue.push(imgPtr);
+                std::unique_lock<std::mutex> lock(img_mtx_);
+                image_queue_.push(imgPtr);
                 lock.unlock();
-                cv.notify_one();
+                img_cv_.notify_one();
             }
 
             if (fps.Count()) {
@@ -460,16 +454,16 @@ private:
     int64_t record_fps_;
     bool debug_buff_mode_;
 
-    std::atomic<TargetInterface*> target_{nullptr};
-    std::atomic<bool> target_available_{false};
+    std::unique_ptr<TargetInterface> target_{nullptr};
+    std::atomic<bool> target_updated_{false};
 
     std::chrono::steady_clock::time_point timestamp_;
-    std::queue<std::shared_ptr<cv::Mat>> imageQueue;
+    std::queue<std::shared_ptr<cv::Mat>> image_queue_;
     std::vector<std::thread> threads_;
     std::string armor_model_path_;
     std::string buff_model_path_;
-    std::condition_variable cv;
-    std::mutex mtx;
+    std::condition_variable img_cv_;
+    std::mutex img_mtx_;
 
     rclcpp::Publisher<rmcs_msgs::msg::RobotPose>::SharedPtr pose_pub_;
 
