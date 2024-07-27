@@ -6,12 +6,14 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <exception>
 #include <map>
 #include <memory>
 #include <mutex>
 #include <pthread.h>
 #include <queue>
 #include <string>
+#include <unistd.h>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -136,7 +138,22 @@ public:
 
     void update() override {
         if (*update_count_ == 0) {
-            threads_.emplace_back([this]() { gimbal_process(); });
+            threads_.emplace_back([this]() {
+                size_t attempt = 0;
+                while (true) {
+                    try {
+                        gimbal_process();
+                    } catch (std::exception& e) {
+                        attempt++;
+                        if (attempt < 10) {
+                            RCLCPP_FATAL(get_logger(), "Gimbal Error: %s", e.what());
+                        } else if (attempt == 10) {
+                            RCLCPP_WARN(get_logger(), "Too many error. Diabled log...");
+                        }
+                    }
+                    sleep(5);
+                }
+            });
             if (record_) {
                 threads_.emplace_back([this]() {
                     RCLCPP_INFO(get_logger(), "RECORDING...");
