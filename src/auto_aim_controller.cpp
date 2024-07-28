@@ -163,7 +163,9 @@ public:
             });
             if (record_) {
                 threads_.emplace_back([this]() {
-                    RCLCPP_INFO(get_logger(), "RECORDING...");
+                    if (recorder.is_opened()) {
+                        RCLCPP_INFO(get_logger(), "RECORDING %s...", recorder.get_filename().c_str());
+                    }
                     while (rclcpp::ok()) {
                         if (!recorder.is_opened()) {
                             continue;

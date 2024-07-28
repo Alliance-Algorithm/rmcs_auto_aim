@@ -17,14 +17,14 @@ public:
     }
 
     void setParam(const double& fps, const cv::Size& size) {
-        fps_ = fps;
-        video_ =
-            cv::VideoWriter(filename_, cv::VideoWriter::fourcc('M', 'P', '4', '2'), fps_, size);
+        fps_   = fps;
+        video_ = cv::VideoWriter(filename_, cv::VideoWriter::fourcc('M', 'P', '4', '2'), fps_, size);
     }
 
     ~Impl() { video_.release(); }
 
     bool is_opened() const { return video_.isOpened(); }
+    std::string filename() const { return filename_; }
 
     bool record_frame(const cv::Mat& frame) {
         if (frame.empty()) {
@@ -45,10 +45,10 @@ Recorder::Recorder()
 
 Recorder::~Recorder() {}
 
-void Recorder::setParam(const double& fps, const cv::Size& size) {
-    return pImpl_->setParam(fps, size);
-}
+void Recorder::setParam(const double& fps, const cv::Size& size) { return pImpl_->setParam(fps, size); }
 
 bool Recorder::record_frame(const cv::Mat& frame) { return pImpl_->record_frame(frame); }
 
 bool Recorder::is_opened() const { return pImpl_->is_opened(); }
+
+std::string Recorder::get_filename() const { return pImpl_->filename(); }

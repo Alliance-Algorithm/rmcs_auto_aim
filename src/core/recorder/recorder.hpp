@@ -23,6 +23,7 @@ public:
     void setParam(const double& fps, const cv::Size& size);
     bool record_frame(const cv::Mat& frame);
     bool is_opened() const;
+    std::string get_filename() const;
 
 private:
     class Impl;
