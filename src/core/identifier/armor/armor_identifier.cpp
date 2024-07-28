@@ -1,3 +1,5 @@
+#include <iostream>
+#include <opencv2/core/types.hpp>
 #include <string>
 #include <vector>
 
@@ -21,8 +23,8 @@ public:
         , _redIdentifier(RedLightBarHue)
         , _numberIdentifier(std::forward<Args>(args)...) {}
 
-    std::vector<ArmorPlate> Identify(
-        const cv::Mat& img, const rmcs_msgs::RobotColor& target_color, const int8_t& blacklist) {
+    std::vector<ArmorPlate>
+        Identify(const cv::Mat& img, const rmcs_msgs::RobotColor& target_color, const int8_t& blacklist) {
         cv::Mat imgThre, imgGray;
         cv::cvtColor(img, imgGray, cv::COLOR_BGR2GRAY);
         cv::threshold(imgGray, imgThre, 150, 255, cv::THRESH_BINARY);
@@ -59,17 +61,21 @@ public:
                 if (fabs(Icenter.y - Jcenter.y) * 2 / (Isize + Jsize) > maxLightDy)
                     continue;
                 float lightBarDis = P2PDis(Icenter, Jcenter) * 2 / (Isize + Jsize);
-                if (lightBarDis > bigArmorDis)
+
+                if ((lightBarDis < minsmallArmorDis || lightBarDis > maxsmallArmorDis)
+                    && (lightBarDis < minbigArmorDis || lightBarDis > maxbigArmorDis)) {
+
                     continue;
-
+                }
                 ArmorPlate armor(
-                    lightBars[i], lightBars[j], rmcs_msgs::ArmorID::Unknown, lightBarDis > 3.5);
+                    lightBars[i], lightBars[j], rmcs_msgs::ArmorID::Unknown, lightBarDis > minbigArmorDis);
 
-                if (_numberIdentifier.Identify(imgGray, armor, blacklist)) {
+                if (_numberIdentifier.Identify(img, armor, blacklist)) {
                     result.push_back(armor);
-                    for (auto& point : armor.points) {
-                        cv::circle(img, point, 10, cv::Scalar(0, 255, 0), 2);
-                    }
+
+                    cv::rectangle(img, cv::Rect{armor.points[0], armor.points[2]}, cv::Scalar(0, 255, 0), 2);
+                    cv::putText(
+                        img, std::to_string((int)armor.id), armor.center(), 2, 2, cv::Scalar(0, 255, 0), 2);
                 }
             }
         }
@@ -84,7 +90,10 @@ private:
     inline static constexpr const double maxdAngle          = 9.5;
     inline static constexpr const double maxMalposition     = 0.7;
     inline static constexpr const double maxLightDy         = 0.9;
-    inline static constexpr const double bigArmorDis        = 5.0;
+    inline static constexpr const double maxbigArmorDis     = 5.5;
+    inline static constexpr const double minbigArmorDis     = 3.2;
+    inline static constexpr const double maxsmallArmorDis   = 3.2;
+    inline static constexpr const double minsmallArmorDis   = 0.8;
     inline static constexpr const double BlueLightBarHue    = 228.0f;
     inline static constexpr const double RedLightBarHue     = 11.0f;
 
@@ -152,15 +161,13 @@ private:
                 cv::Point2f top, bottom;
                 float angle_k;
                 if (int(return_param[0] * 100) == 100 || int(return_param[1] * 100) == 0) {
-                    top = cv::Point2f((float)b_rect.x + (float)b_rect.width / 2, (float)b_rect.y);
+                    top    = cv::Point2f((float)b_rect.x + (float)b_rect.width / 2, (float)b_rect.y);
                     bottom = cv::Point2f(
-                        (float)b_rect.x + (float)b_rect.width / 2,
-                        (float)b_rect.y + (float)b_rect.height);
+                        (float)b_rect.x + (float)b_rect.width / 2, (float)b_rect.y + (float)b_rect.height);
                     angle_k = 0;
                 } else {
                     auto k = return_param[1] / return_param[0];
-                    auto b = (return_param[3] + (float)b_rect.y)
-                           - k * (return_param[2] + (float)b_rect.x);
+                    auto b = (return_param[3] + (float)b_rect.y) - k * (return_param[2] + (float)b_rect.x);
                     top    = cv::Point2f(((float)b_rect.y - b) / k, (float)b_rect.y);
                     bottom = cv::Point2f(
                         ((float)b_rect.y + (float)b_rect.height - b) / k,

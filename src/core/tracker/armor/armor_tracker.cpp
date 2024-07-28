@@ -1,5 +1,6 @@
 
 #include <chrono>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -63,8 +64,7 @@ public:
 
     // Complete Vehicle Solution
     struct TrackerUnit {
-        TrackerUnit(
-            const ArmorPlate3d& armor, const std::chrono::steady_clock::time_point& timestamp)
+        TrackerUnit(const ArmorPlate3d& armor, const std::chrono::steady_clock::time_point& timestamp)
             : last_update(timestamp)
             , measurement_pos(armor.position->x(), armor.position->y(), armor.position->z()) {
             double& r        = r_list[0];
@@ -95,8 +95,7 @@ public:
             }
         }
 
-        void Update(
-            const ArmorPlate3d& armor, const std::chrono::steady_clock::time_point& timestamp) {
+        void Update(const ArmorPlate3d& armor, const std::chrono::steady_clock::time_point& timestamp) {
 
             measurement_pos[0] = armor.position->x();
             measurement_pos[1] = armor.position->y();
@@ -203,20 +202,23 @@ public:
                 std::cout << "Collision" << std::endl;
                 return rmcs_description::OdomImu::Position{tracker_.measurement_pos};
             }
-            // xc  v_xc  yc  v_yc  za  v_za  yaw  v_yaw  r
+            // xc0  v_xc1  yc2  v_yc3  za4  v_za5  yaw6  v_yaw7  r8
             Eigen::VectorXd x = tracker_.ekf.PredictConst(sec);
             const double &xc = x(0), &yc = x(2), &za = x(4), &v_yaw = x(7);
+            const double &vc = x(1), &vy = x(3);
+            const double sigma_v = sqrt(pow(vc, 2) + pow(vy, 2));
+            if (sigma_v > 2.0) {
+                return rmcs_description::OdomImu::Position{tracker_.measurement_pos};
+            }
             double& model_yaw = x(6);
             double camera_yaw = std::atan2(-yc, -xc);
             if (fabs(v_yaw) < 12.0) {
                 double shift                 = 0;
-                constexpr double legal_range = rmcs_auto_aim::util::Pi / 4 * 0.8;
-                constexpr double step =
-                    2 * rmcs_auto_aim::util::Pi / TrackerUnit::armor_count * 1.2;
+                constexpr double legal_range = rmcs_auto_aim::util::Pi / 4;
+                constexpr double step        = 2 * rmcs_auto_aim::util::Pi / TrackerUnit::armor_count;
                 size_t i;
                 for (i = 0; i < TrackerUnit::armor_count; ++i) {
-                    double diff =
-                        rmcs_auto_aim::util::GetMinimumAngleDiff(camera_yaw, model_yaw + shift);
+                    double diff = rmcs_auto_aim::util::GetMinimumAngleDiff(camera_yaw, model_yaw + shift);
                     if (-legal_range < diff && diff < legal_range)
                         break;
                     else
@@ -243,8 +245,8 @@ public:
     };
 
     std::unique_ptr<TargetInterface> Update(
-        const std::vector<ArmorPlate3d>& armors,
-        const std::chrono::steady_clock::time_point& timestamp, const rmcs_description::Tf& tf) {
+        const std::vector<ArmorPlate3d>& armors, const std::chrono::steady_clock::time_point& timestamp,
+        const rmcs_description::Tf& tf) {
         //
         // dt: interval between adjacent updates by seconds.
         double dt    = std::chrono::duration<double>(timestamp - last_update_).count();
@@ -253,8 +255,7 @@ public:
         for (auto& [armor_id, tracker_array] : tracker_map_) {
             for (auto iter = tracker_array.begin(); iter != tracker_array.end();) {
                 auto& tracker = *iter;
-                if (timestamp - tracker.last_update
-                    > std::chrono::milliseconds(predict_duration_)) {
+                if (timestamp - tracker.last_update > std::chrono::milliseconds(predict_duration_)) {
                     iter = tracker_array.erase(iter);
                 } else {
                     tracker.Predict(dt);
@@ -385,8 +386,7 @@ public:
                     selected_tracker = &tracker;
                     selected_level   = level;
                 } else if (
-                    !std::isinf(angle) && fabs(angle - minimum_angle) < 1e-3
-                    && selected_level < level) {
+                    !std::isinf(angle) && fabs(angle - minimum_angle) < 1e-3 && selected_level < level) {
                     selected_level = level;
                     minimum_angle  = angle;
 

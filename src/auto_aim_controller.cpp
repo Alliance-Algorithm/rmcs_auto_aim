@@ -13,7 +13,6 @@
 #include <mutex>
 #include <pthread.h>
 #include <queue>
-#include <std_msgs/msg/detail/int8__struct.hpp>
 #include <string>
 #include <thread>
 #include <unistd.h>
@@ -60,6 +59,7 @@
 #include "core/trajectory/trajectory_solvor.hpp"
 
 namespace rmcs_auto_aim {
+using std::placeholders::_1;
 
 class Controller
     : public rmcs_executor::Component
@@ -82,8 +82,7 @@ public:
         register_output("/referee/enemies/infantry_iv/position", enemies_infantry_iv_pose_);
         register_output("/referee/enemies/infantry_v/position", enemies_infantry_v_pose_);
         register_output("/referee/enemies/sentry/position", enemies_sentry_pose_);
-        register_output(
-            "/gimbal/auto_aim/control_direction", control_direction_, Eigen::Vector3d::Zero());
+        register_output("/gimbal/auto_aim/control_direction", control_direction_, Eigen::Vector3d::Zero());
 
         exposure_time_           = get_parameter("exposure_time").as_int();
         armor_predict_duration_  = get_parameter("armor_predict_duration").as_int();
@@ -112,8 +111,7 @@ public:
             RCLCPP_WARN(get_logger(), "Failed to read parameter: %s", e.what());
         }
 
-        if ((debug_ && debug_robot_id_ == 7)
-            || (!debug_ && robot_msg_->id() == rmcs_msgs::ArmorID::Sentry)) {
+        if ((debug_ && debug_robot_id_ == 7) || (!debug_ && robot_msg_->id() == rmcs_msgs::ArmorID::Sentry)) {
             try {
                 omni_exposure_ = get_parameter("omni_exposure").as_double();
                 omni_cx        = get_parameter("omni_cx").as_double();
@@ -129,10 +127,9 @@ public:
             }
         }
 
-        pose_pub_ = this->create_publisher<rmcs_msgs::msg::RobotPose>("/armor_pose", 10);
+        pose_pub_                  = this->create_publisher<rmcs_msgs::msg::RobotPose>("/armor_pose", 10);
         non_identifier_target_sub_ = this->create_subscription<std_msgs::msg::Int8>(
-            "/sentry/lock_premit", 10,
-            [this](auto&& PH1) { blacklist_update(std::forward<decltype(PH1)>(PH1)); });
+            "/sentry/lock_premit", 10, std::bind(&Controller::blacklist_update, this, _1));
     }
 
     ~Controller() {
@@ -186,15 +183,12 @@ public:
                     omni_perception_process<rmcs_description::OmniLinkLeftFront>("/dev/leftfront");
                 });
                 threads_.emplace_back([this]() {
-                    omni_perception_process<rmcs_description::OmniLinkRightFront>(
-                        "/dev/rightfront");
+                    omni_perception_process<rmcs_description::OmniLinkRightFront>("/dev/rightfront");
                 });
-                threads_.emplace_back([this]() {
-                    omni_perception_process<rmcs_description::OmniLinkLeft>("/dev/left");
-                });
-                threads_.emplace_back([this]() {
-                    omni_perception_process<rmcs_description::OmniLinkRight>("/dev/right");
-                });
+                threads_.emplace_back(
+                    [this]() { omni_perception_process<rmcs_description::OmniLinkLeft>("/dev/left"); });
+                threads_.emplace_back(
+                    [this]() { omni_perception_process<rmcs_description::OmniLinkRight>("/dev/right"); });
             }
         }
 
@@ -210,16 +204,15 @@ public:
             return;
         }
 
-        auto offset = fast_tf::cast<rmcs_description::OdomImu>(
-            rmcs_description::MuzzleLink::Position{0, 0, 0}, *tf_);
+        auto offset =
+            fast_tf::cast<rmcs_description::OdomImu>(rmcs_description::MuzzleLink::Position{0, 0, 0}, *tf_);
 
         double fly_time = 0;
         for (int i = 5; i-- > 0;) {
             auto pos = local_target->Predict(
                 static_cast<std::chrono::duration<double>>(diff).count() + fly_time + 0.05);
             auto aiming_direction = *trajectory_.GetShotVector(
-                {pos->x() - offset->x(), pos->y() - offset->y(), pos->z() - offset->z()}, 27.0,
-                fly_time);
+                {pos->x() - offset->x(), pos->y() - offset->y(), pos->z() - offset->z()}, 27.0, fly_time);
             // auto pos = pnp_result_;
             // auto aiming_direction = *trajectory_.GetShotVector(pos, 27.0, fly_time);
 
@@ -244,10 +237,20 @@ public:
             target_updated_.store(false);
         } else {
             target_.reset(local_target);
-        }
+        } /*
+ 0   1
+ 1   2
+ 2   3
+ 3   4
+ 4   5
+ 5   outpost
+ 6   guard
+ 7   base
+ 8   negative
+  */
     }
 
-    void blacklist_update(const std_msgs::msg::Int8::SharedPtr& msg) {
+    void blacklist_update(const std_msgs::msg::Int8::SharedPtr msg) {
         blacklist.store(msg->data);
         RCLCPP_INFO(get_logger(), "%d", blacklist.load());
     }
@@ -290,8 +293,7 @@ private:
 
         hikcamera::ImageCapturer img_capture(camera_profile);
 
-        auto package_share_directory =
-            ament_index_cpp::get_package_share_directory("rmcs_auto_aim");
+        auto package_share_directory = ament_index_cpp::get_package_share_directory("rmcs_auto_aim");
 
         auto armor_identifier = ArmorIdentifier(package_share_directory + armor_model_path_);
         auto buff_identifier  = BuffIdentifier(package_share_directory + buff_model_path_);
@@ -301,8 +303,7 @@ private:
 
         auto buff_enabled = false;
 
-        auto my_color =
-            debug_ ? static_cast<rmcs_msgs::RobotColor>(debug_color_) : robot_msg_->color();
+        auto my_color = debug_ ? static_cast<rmcs_msgs::RobotColor>(debug_color_) : robot_msg_->color();
 
         auto target_color = static_cast<rmcs_msgs::RobotColor>(1 - static_cast<uint8_t>(my_color));
 
@@ -341,8 +342,7 @@ private:
 
             auto img       = img_capture.read();
             auto timestamp = std::chrono::steady_clock::now();
-
-            auto tf = *tf_;
+            auto tf        = *tf_;
 
             do {
                 if (!buff_enabled && (debug_ ? debug_buff_mode_ : keyboard_->g == 1)) {
@@ -365,8 +365,7 @@ private:
 
                 } else {
                     if (auto buff = buff_identifier.Identify(img)) {
-                        if (auto buff3d =
-                                BuffPnPSolver::Solve(*buff, tf, fx, fy, cx, cy, k1, k2, k3)) {
+                        if (auto buff3d = BuffPnPSolver::Solve(*buff, tf, fx, fy, cx, cy, k1, k2, k3)) {
                             if (auto target = buff_tracker.Update(*buff3d, timestamp)) {
                                 timestamp_ = timestamp;
                                 target_.swap(target);
@@ -378,8 +377,8 @@ private:
                 }
             } while (false);
 
-            if (record_ && (debug_ || *stage_ == rmcs_msgs::GameStage::STARTED)
-                && recorder.is_opened() && !img.empty()) {
+            if (record_ && (debug_ || *stage_ == rmcs_msgs::GameStage::STARTED) && recorder.is_opened()
+                && !img.empty()) {
 
                 std::shared_ptr<cv::Mat> imgPtr = std::make_shared<cv::Mat>(img);
                 std::unique_lock<std::mutex> lock(img_mtx_);
@@ -387,6 +386,8 @@ private:
                 lock.unlock();
                 img_cv_.notify_one();
             }
+            // cv::imshow("img", img);
+            // cv::waitKey(10);
 
             if (fps.Count()) {
                 RCLCPP_INFO(get_logger(), "Fps:%d", fps.GetFPS());
@@ -406,13 +407,11 @@ private:
         }
         camera.set(cv::CAP_PROP_EXPOSURE, omni_exposure_);
 
-        auto package_share_directory =
-            ament_index_cpp::get_package_share_directory("rmcs_auto_aim");
+        auto package_share_directory = ament_index_cpp::get_package_share_directory("rmcs_auto_aim");
 
         auto armor_identifier = ArmorIdentifier(package_share_directory + armor_model_path_);
 
-        auto my_color =
-            debug_ ? static_cast<rmcs_msgs::RobotColor>(debug_color_) : robot_msg_->color();
+        auto my_color     = debug_ ? static_cast<rmcs_msgs::RobotColor>(debug_color_) : robot_msg_->color();
         auto target_color = static_cast<rmcs_msgs::RobotColor>(1 - static_cast<uint8_t>(my_color));
 
         cv::Mat img;
@@ -429,8 +428,7 @@ private:
                 auto pnp_result = ArmorPnPSolver::Solve(
                     armor, omni_fx, omni_fy, omni_cx, omni_cy, omni_k1, omni_k2, omni_k3);
                 typename Link::Position pos{
-                    pnp_result.pose.position.x, pnp_result.pose.position.y,
-                    pnp_result.pose.position.z};
+                    pnp_result.pose.position.x, pnp_result.pose.position.y, pnp_result.pose.position.z};
                 targets_map.insert(std::make_pair(pnp_result.id, pos));
             }
 
@@ -485,7 +483,7 @@ private:
     int64_t record_fps_;
     bool debug_buff_mode_;
 
-    std::atomic<int8_t> blacklist;
+    std::atomic<int8_t> blacklist{0x3f};
 
     std::unique_ptr<TargetInterface> target_{nullptr};
     std::atomic<bool> target_updated_{false};
