@@ -287,8 +287,6 @@ public:
                     if (tracker.tracking_density < 40.0)
                         continue;
 
-                    // std::cout << (int)armor_id << ' ' << tracker.ekf.x_(7) << ' ';
-                    // std::cout << tracker.ekf.x_[7] << '\n';
                     for (size_t i = 0; i < TrackerUnit::armor_count; ++i) {
                         visualization_msgs::msg::Marker marker1;
                         marker1.header.frame_id = "odom_imu";

@@ -15,13 +15,12 @@ public:
         infer_request_ = compiled_model_.create_infer_request();
     }
 
-    std::optional<BuffPlate> Identify(const cv::Mat& img) {
+    std::optional<BuffPlate> Identify(const cv::Mat& img, bool debug_mode = true) {
         cv::Mat letterbox_img        = letterbox(img);
         constexpr int letterbox_size = 384; // 352
         double scale                 = letterbox_img.size[0] / (double)letterbox_size;
         cv::Mat blob                 = cv::dnn::blobFromImage(
-            letterbox_img, 1.0 / 255.0, cv::Size(letterbox_size, letterbox_size), cv::Scalar(),
-            true);
+            letterbox_img, 1.0 / 255.0, cv::Size(letterbox_size, letterbox_size), cv::Scalar(), true);
         auto input_port = compiled_model_.input();
         ov::Tensor input_tensor(input_port.get_element_type(), input_port.get_shape(), blob.ptr(0));
 
@@ -60,6 +59,32 @@ public:
                 return cv::Point2f(x, y);
             };
 
+            if (debug_mode) {
+                {
+                    auto [x, y] = get_result_point(2);
+                    cv::circle(
+                        img, cv::Point((int)std::lround(x), (int)std::lround(y)), 8, cv::Scalar{0, 0, 255},
+                        1);
+                }
+                {
+                    auto [x, y] = get_result_point(1);
+                    cv::circle(
+                        img, cv::Point((int)std::lround(x), (int)std::lround(y)), 8, cv::Scalar{0, 255, 255},
+                        1);
+                }
+                {
+                    auto [x, y] = get_result_point(0);
+                    cv::circle(
+                        img, cv::Point((int)std::lround(x), (int)std::lround(y)), 8, cv::Scalar{0, 255, 0},
+                        1);
+                }
+                {
+                    auto [x, y] = get_result_point(4);
+                    cv::circle(
+                        img, cv::Point((int)std::lround(x), (int)std::lround(y)), 8, cv::Scalar{255, 255, 0},
+                        1);
+                }
+            }
             result.points.emplace_back(get_result_point(2));
             result.points.emplace_back(get_result_point(1));
             result.points.emplace_back(get_result_point(0));
@@ -74,8 +99,8 @@ private:
     ov::InferRequest infer_request_;
 
     std::vector<cv::Scalar> colors = {
-        cv::Scalar(255, 0, 0), cv::Scalar(255, 0, 255), cv::Scalar(170, 0, 255),
-        cv::Scalar(255, 0, 85), cv::Scalar(255, 0, 170)};
+        cv::Scalar(255, 0, 0), cv::Scalar(255, 0, 255), cv::Scalar(170, 0, 255), cv::Scalar(255, 0, 85),
+        cv::Scalar(255, 0, 170)};
 
     [[nodiscard]] static cv::Mat letterbox(const cv::Mat& source) {
         int col        = source.cols;
@@ -115,8 +140,6 @@ private:
 BuffIdentifier::BuffIdentifier(const std::string& model_path)
     : pImpl_(new Impl{model_path}) {}
 
-std::optional<BuffPlate> BuffIdentifier::Identify(const cv::Mat& img) {
-    return pImpl_->Identify(img);
-}
+std::optional<BuffPlate> BuffIdentifier::Identify(const cv::Mat& img) { return pImpl_->Identify(img); }
 
 BuffIdentifier::~BuffIdentifier() = default;
