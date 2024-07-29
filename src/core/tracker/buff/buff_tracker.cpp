@@ -4,8 +4,8 @@
 #include <fast_tf/impl/cast.hpp>
 #include <rmcs_description/tf_description.hpp>
 
-#include "core/tracker/target.hpp"
 #include "buff_tracker.hpp"
+#include "core/tracker/target.hpp"
 
 using namespace rmcs_auto_aim;
 
@@ -36,8 +36,8 @@ public:
             angle_array_.push_back(0);
         } else {
             const double& last_angle = angle_array_[angle_array_.size() - 1];
-            angle    = last_angle + GetMinimumAngleDiff(angle + angle_offset_, last_angle);
-            double t = std::chrono::duration<double>(timestamp - first_update_).count();
+            angle                    = last_angle + GetMinimumAngleDiff(angle + angle_offset_, last_angle);
+            double t                 = std::chrono::duration<double>(timestamp - first_update_).count();
             time_array_.push_back(t);
             angle_array_.push_back(angle);
             angle_sum_ += angle;
@@ -52,8 +52,7 @@ public:
                     if (linear_loss < sine_loss)
                         return std::make_unique<Target>(buff, 0.7, angle_sum_ > 0, k, t);
                     else
-                        return std::make_unique<Target>(
-                            buff, 0.7, angle_sum_ > 0, a, omega, phi, t);
+                        return std::make_unique<Target>(buff, 0.7, angle_sum_ > 0, a, omega, phi, t);
                 }
             }
         }
@@ -74,8 +73,8 @@ private:
     class Target : public TargetInterface {
     public:
         Target(
-            const BuffPlate3d& buff, const double& radius, bool is_rotation_forward,
-            const double& k, const double& t)
+            const BuffPlate3d& buff, const double& radius, bool is_rotation_forward, const double& k,
+            const double& t)
             : position_(*buff.position)
             , is_rotation_forward_(is_rotation_forward) {
             center_line_ = *buff.rotation * Eigen::Vector3d{-radius, 0, 0};
@@ -88,8 +87,8 @@ private:
         }
 
         Target(
-            const BuffPlate3d& buff, const double& radius, bool is_rotation_forward,
-            const double& a, const double& omega, const double& phi, const double& t)
+            const BuffPlate3d& buff, const double& radius, bool is_rotation_forward, const double& a,
+            const double& omega, const double& phi, const double& t)
             : position_(*buff.position)
             , is_rotation_forward_(is_rotation_forward) {
             center_line_ = *buff.rotation * Eigen::Vector3d{-radius, 0, 0};
@@ -130,8 +129,7 @@ private:
         for (size_t i = 0; i < angle_array_.size(); ++i) {
             ceres::CostFunction* cost_function =
                 new ceres::AutoDiffCostFunction<ExponentialResidual, 1, 1, 1, 1, 1>(
-                    new ExponentialResidual(
-                        time_array_[i], is_forward ? angle_array_[i] : -angle_array_[i]));
+                    new ExponentialResidual(time_array_[i], is_forward ? angle_array_[i] : -angle_array_[i]));
             problem.AddResidualBlock(cost_function, nullptr, &a, &omega, &phi, &c);
         }
         ceres::Solver::Options options;
@@ -150,9 +148,8 @@ private:
         ceres::Problem problem;
         for (size_t i = 0; i < angle_array_.size(); ++i) {
             ceres::CostFunction* cost_function =
-                new ceres::AutoDiffCostFunction<ExponentialResidual2, 1, 1, 1>(
-                    new ExponentialResidual2(
-                        time_array_[i], is_forward ? angle_array_[i] : -angle_array_[i]));
+                new ceres::AutoDiffCostFunction<ExponentialResidual2, 1, 1, 1>(new ExponentialResidual2(
+                    time_array_[i], is_forward ? angle_array_[i] : -angle_array_[i]));
             problem.AddResidualBlock(cost_function, nullptr, &k, &b);
         }
         ceres::Solver::Options options;
@@ -181,12 +178,10 @@ private:
             , y_(y) {}
         template <typename T>
         bool operator()(
-            const T* const a, const T* const omega, const T* const phi, const T* const c,
-            T* residual) const {
-            auto value =
-                (T(2.09) - a[0]) * T(x_)
-                + a[0] * (ceres::cos(phi[0]) - ceres::cos(phi[0] + omega[0] * T(x_))) / omega[0]
-                + c[0];
+            const T* const a, const T* const omega, const T* const phi, const T* const c, T* residual) const {
+            auto value = (T(2.09) - a[0]) * T(x_)
+                       + a[0] * (ceres::cos(phi[0]) - ceres::cos(phi[0] + omega[0] * T(x_))) / omega[0]
+                       + c[0];
             residual[0] = T(y_) - value;
             return true;
         }
@@ -212,7 +207,7 @@ private:
         const double y_;
     };
 
-    static inline const double Pi = acos(-1);
+    static inline constexpr double Pi = CV_PI;
 
     double angle_sum_, angle_offset_, yaw_offset_ = 0;
     std::chrono::steady_clock::time_point first_update_, last_update_;

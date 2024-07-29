@@ -15,16 +15,14 @@ public:
         if (cv::solvePnP(
                 BuffObjectPoints, buff.points,
                 (cv::Mat)(cv::Mat_<double>(3, 3) << fx, 0, cx, 0, fy, cy, 0, 0, 1),
-                (cv::Mat)(cv::Mat_<double>(1, 5) << k1, k2, 1, 1, k3), rvec, tvec, false,
+                (cv::Mat)(cv::Mat_<double>(1, 5) << k1, k2, 0, 0, k3), rvec, tvec, false,
                 cv::SOLVEPNP_IPPE)) {
-            Eigen::Vector3d position = {
-                tvec.at<double>(2), -tvec.at<double>(0), -tvec.at<double>(1)};
-            position = position / 1000.0;
+            Eigen::Vector3d position = {tvec.at<double>(2), -tvec.at<double>(0), -tvec.at<double>(1)};
+            position                 = position / 1000.0;
             if (position.norm() > MaxArmorDistance)
                 return std::nullopt;
 
-            Eigen::Vector3d rvec_eigen = {
-                rvec.at<double>(2), -rvec.at<double>(0), -rvec.at<double>(1)};
+            Eigen::Vector3d rvec_eigen  = {rvec.at<double>(2), -rvec.at<double>(0), -rvec.at<double>(1)};
             Eigen::Quaterniond rotation = Eigen::Quaterniond{
                 Eigen::AngleAxisd{rvec_eigen.norm(), rvec_eigen.normalized()}
             };
@@ -39,8 +37,7 @@ public:
     }
 
 private:
-    inline static constexpr double BuffPlateHeightL = 372, BuffPlateHeightR = 320,
-                                   BuffPlateWidth                 = 317;
+    inline static constexpr double BuffPlateHeightL = 372, BuffPlateHeightR = 320, BuffPlateWidth = 317;
     inline static const std::vector<cv::Point3d> BuffObjectPoints = {
         cv::Point3d{0, -0.5 * BuffPlateHeightL, -0.5 * BuffPlateWidth},
         cv::Point3d{0, -0.5 * BuffPlateHeightR,  0.5 * BuffPlateWidth},
