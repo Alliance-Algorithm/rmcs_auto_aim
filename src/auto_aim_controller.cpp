@@ -1,6 +1,7 @@
 
 #include <map>
 #include <rclcpp/logging.hpp>
+#include <robot_id.hpp>
 #include <utility>
 
 #include "core/identifier/armor/armor_identifier.hpp"
@@ -15,7 +16,7 @@
 using namespace rmcs_auto_aim;
 
 void Controller::gimbal_process() {
-    if (*robot_msg_) {
+    if (robot_msg_->id() != rmcs_msgs::ArmorID::Unknown) {
         RCLCPP_INFO(get_logger(), "Robot Info:");
         RCLCPP_INFO(get_logger(), "id: %hu", static_cast<uint16_t>(robot_msg_->id()));
         RCLCPP_INFO(get_logger(), "color: %hu", static_cast<uint16_t>(robot_msg_->color()));

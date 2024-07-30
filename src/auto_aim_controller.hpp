@@ -1,6 +1,5 @@
 #pragma once
 
-#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cmath>
@@ -106,23 +105,6 @@ public:
             RCLCPP_WARN(get_logger(), "Failed to read parameter: %s", e.what());
         }
 
-        if ((debug_mode_ && debug_robot_id_ == 7)
-            || (!debug_mode_ && robot_msg_->id() == rmcs_msgs::ArmorID::Sentry)) {
-            try {
-                omni_exposure_ = get_parameter("omni_exposure").as_double();
-                omni_cx        = get_parameter("omni_cx").as_double();
-                omni_cy        = get_parameter("omni_cy").as_double();
-                omni_fx        = get_parameter("omni_fx").as_double();
-                omni_fy        = get_parameter("omni_fy").as_double();
-                omni_k1        = get_parameter("omni_k1").as_double();
-                omni_k2        = get_parameter("omni_k2").as_double();
-                omni_k3        = get_parameter("omni_k3").as_double();
-
-            } catch (rclcpp::exceptions::InvalidParametersException& e) {
-                RCLCPP_WARN(get_logger(), "Failed to read parameter: %s", e.what());
-            }
-        }
-
         non_target_sub_ = this->create_subscription<std_msgs::msg::Int8>(
             "/sentry/lock_premit", 10,
             [this](std_msgs::msg::Int8::UniquePtr msg) { blacklist_update(std::move(msg)); });
@@ -138,17 +120,43 @@ public:
 
     void update() override {
         if (*update_count_ == 0) {
+            while (!robot_msg_.ready()) {
+                RCLCPP_WARN(get_logger(), "Robot ID is unknown. Waiting for robot ID...");
+                sleep(1);
+            }
+            if ((debug_mode_ && debug_robot_id_ == 7)
+                || (!debug_mode_ && robot_msg_->id() == rmcs_msgs::ArmorID::Sentry)) {
+                RCLCPP_INFO(get_logger(), "Reading omni-direction perception parameters");
+                try {
+                    omni_exposure_ = get_parameter("omni_exposure").as_double();
+                    omni_cx        = get_parameter("omni_cx").as_double();
+                    omni_cy        = get_parameter("omni_cy").as_double();
+                    omni_fx        = get_parameter("omni_fx").as_double();
+                    omni_fy        = get_parameter("omni_fy").as_double();
+                    omni_k1        = get_parameter("omni_k1").as_double();
+                    omni_k2        = get_parameter("omni_k2").as_double();
+                    omni_k3        = get_parameter("omni_k3").as_double();
+
+                } catch (rclcpp::exceptions::InvalidParametersException& e) {
+                    RCLCPP_WARN(get_logger(), "Failed to read parameter: %s", e.what());
+                }
+            }
             threads_.emplace_back([this]() {
                 size_t attempt = 0;
                 while (true) {
-                    try {
-                        gimbal_process();
-                    } catch (std::exception& e) {
-                        attempt++;
-                        if (attempt < 10) {
-                            RCLCPP_FATAL(get_logger(), "Gimbal Error: %s", e.what());
-                        } else if (attempt == 10) {
-                            RCLCPP_WARN(get_logger(), "Too many error. Diabled log...");
+                    if (robot_msg_->id() == rmcs_msgs::ArmorID::Unknown) {
+                        RCLCPP_WARN(get_logger(), "Robot ID is unknown. Waiting for robot ID...");
+                        // continue;
+                    } else {
+                        try {
+                            gimbal_process();
+                        } catch (std::exception& e) {
+                            attempt++;
+                            if (attempt < 10) {
+                                RCLCPP_FATAL(get_logger(), "Gimbal Error: %s", e.what());
+                            } else if (attempt == 10) {
+                                RCLCPP_WARN(get_logger(), "Too many error. Diabled log...");
+                            }
                         }
                     }
                     sleep(5);

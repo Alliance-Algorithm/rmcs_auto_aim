@@ -199,7 +199,6 @@ public:
 
         [[nodiscard]] rmcs_description::OdomImu::Position Predict(double sec) const override {
             if (tracker_.collision) {
-                std::cout << "Collision" << std::endl;
                 return rmcs_description::OdomImu::Position{tracker_.measurement_pos};
             }
             // xc0  v_xc1  yc2  v_yc3  za4  v_za5  yaw6  v_yaw7  r8
