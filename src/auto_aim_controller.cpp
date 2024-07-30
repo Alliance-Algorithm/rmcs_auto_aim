@@ -80,9 +80,9 @@ void Controller::gimbal_process() {
             continue;
         }
 
-        auto img             = img_capture.read();
-        auto timestamp       = std::chrono::steady_clock::now();
-        thread_local auto tf = *tf_;
+        auto img       = img_capture.read();
+        auto timestamp = std::chrono::steady_clock::now();
+        auto tf        = *tf_;
 
         do {
             if (!buff_enabled && (debug_mode_ ? debug_buff_mode_ : keyboard_->g == 1)) {
