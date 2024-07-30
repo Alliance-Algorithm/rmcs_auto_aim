@@ -225,9 +225,11 @@ public:
                         shift += step;
                 }
                 if (i < TrackerUnit::armor_count) {
-                    double r   = tracker_.r_list[i];
-                    double yaw = model_yaw + shift;
-                    auto pos   = Eigen::Vector3d{xc - r * cos(yaw), yc - r * sin(yaw), za};
+                    double r    = tracker_.r_list[i];
+                    auto offset = rmcs_auto_aim::util::Pi / 6.0; // To solve gimbal delay
+                    double yaw  = model_yaw + shift + offset;
+                    // TODO: Dynamic z
+                    auto pos = Eigen::Vector3d{xc - r * cos(yaw), yc - r * sin(yaw), za};
                     return rmcs_description::OdomImu::Position(pos);
                 }
             }

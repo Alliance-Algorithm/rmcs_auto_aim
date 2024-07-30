@@ -269,7 +269,7 @@ private:
     template <typename Link>
     void omni_perception_process(const std::string& device);
 
-    // Parameters of omni-direction preception
+    // Parameters of omni-direction perception
     double omni_fx, omni_fy, omni_cx, omni_cy, omni_k1, omni_k2, omni_k3;
     double omni_exposure_;
 
@@ -317,7 +317,7 @@ private:
     // TF related
     InputInterface<rmcs_description::Tf> tf_;
 
-    // Recoder related
+    // Recorder related
     std::queue<std::shared_ptr<cv::Mat>> image_queue_;
     std::condition_variable img_cv_;
     std::mutex img_mtx_;
