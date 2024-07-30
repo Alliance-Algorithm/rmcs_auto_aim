@@ -7,7 +7,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
-#include <exception>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -118,129 +117,7 @@ public:
         }
     }
 
-    void update() override {
-        if (*update_count_ == 0) {
-            while (!robot_msg_.ready()) {
-                RCLCPP_WARN(get_logger(), "Robot ID is unknown. Waiting for robot ID...");
-                sleep(1);
-            }
-            if ((debug_mode_ && debug_robot_id_ == 7)
-                || (!debug_mode_ && robot_msg_->id() == rmcs_msgs::ArmorID::Sentry)) {
-                RCLCPP_INFO(get_logger(), "Reading omni-direction perception parameters");
-                try {
-                    omni_exposure_ = get_parameter("omni_exposure").as_double();
-                    omni_cx        = get_parameter("omni_cx").as_double();
-                    omni_cy        = get_parameter("omni_cy").as_double();
-                    omni_fx        = get_parameter("omni_fx").as_double();
-                    omni_fy        = get_parameter("omni_fy").as_double();
-                    omni_k1        = get_parameter("omni_k1").as_double();
-                    omni_k2        = get_parameter("omni_k2").as_double();
-                    omni_k3        = get_parameter("omni_k3").as_double();
-
-                } catch (rclcpp::exceptions::InvalidParametersException& e) {
-                    RCLCPP_WARN(get_logger(), "Failed to read parameter: %s", e.what());
-                }
-            }
-            threads_.emplace_back([this]() {
-                size_t attempt = 0;
-                while (true) {
-                    if (robot_msg_->id() == rmcs_msgs::ArmorID::Unknown) {
-                        RCLCPP_WARN(get_logger(), "Robot ID is unknown. Waiting for robot ID...");
-                        // continue;
-                    } else {
-                        try {
-                            gimbal_process();
-                        } catch (std::exception& e) {
-                            attempt++;
-                            if (attempt < 10) {
-                                RCLCPP_FATAL(get_logger(), "Gimbal Error: %s", e.what());
-                            } else if (attempt == 10) {
-                                RCLCPP_WARN(get_logger(), "Too many error. Diabled log...");
-                            }
-                        }
-                    }
-                    sleep(5);
-                }
-            });
-            if (record_mode_) {
-                threads_.emplace_back([this]() {
-                    if (recorder.is_opened()) {
-                        RCLCPP_INFO(get_logger(), "RECORDING %s...", recorder.get_filename().c_str());
-                    }
-                    while (rclcpp::ok()) {
-                        if (!recorder.is_opened()) {
-                            continue;
-                        }
-                        std::unique_lock<std::mutex> lock(img_mtx_);
-                        img_cv_.wait(lock, [this] { return !image_queue_.empty(); });
-                        std::shared_ptr<cv::Mat> imgPtr = image_queue_.front();
-                        image_queue_.pop();
-                        lock.unlock();
-
-                        cv::Mat img = *imgPtr;
-                        recorder.record_frame(img);
-                    }
-                });
-            }
-            if (robot_msg_->id() == rmcs_msgs::ArmorID::Sentry) {
-                threads_.emplace_back([this]() {
-                    omni_perception_process<rmcs_description::OmniLinkLeftFront>("/dev/leftfront");
-                });
-                threads_.emplace_back([this]() {
-                    omni_perception_process<rmcs_description::OmniLinkRightFront>("/dev/rightfront");
-                });
-                threads_.emplace_back(
-                    [this]() { omni_perception_process<rmcs_description::OmniLinkLeft>("/dev/left"); });
-                threads_.emplace_back(
-                    [this]() { omni_perception_process<rmcs_description::OmniLinkRight>("/dev/right"); });
-            }
-        }
-
-        auto local_target = target_.release();
-        if (!local_target) {
-            *control_direction_ = Eigen::Vector3d::Zero();
-            return;
-        }
-        using namespace std::chrono_literals;
-        auto diff = std::chrono::steady_clock::now() - timestamp_;
-        if (diff > std::chrono::milliseconds(gimbal_predict_duration_)) {
-            *control_direction_ = Eigen::Vector3d::Zero();
-            return;
-        }
-
-        auto offset =
-            fast_tf::cast<rmcs_description::OdomImu>(rmcs_description::MuzzleLink::Position{0, 0, 0}, *tf_);
-
-        double fly_time = 0;
-        for (int i = 5; i-- > 0;) {
-            auto pos = local_target->Predict(
-                static_cast<std::chrono::duration<double>>(diff).count() + fly_time + 0.05);
-            auto aiming_direction = *trajectory_.GetShotVector(
-                {pos->x() - offset->x(), pos->y() - offset->y(), pos->z() - offset->z()}, 27.0, fly_time);
-
-            auto yaw_axis = fast_tf::cast<rmcs_description::PitchLink>(
-                                rmcs_description::OdomImu::DirectionVector(0, 0, 1), *tf_)
-                                ->normalized();
-            auto pitch_axis = fast_tf::cast<rmcs_description::PitchLink>(
-                                  rmcs_description::OdomImu::DirectionVector(0, 1, 0), *tf_)
-                                  ->normalized();
-            auto delta_yaw   = Eigen::AngleAxisd{yaw_error_, yaw_axis};
-            auto delta_pitch = Eigen::AngleAxisd{pitch_error_, pitch_axis};
-            aiming_direction = delta_pitch * (delta_yaw * (aiming_direction));
-
-            if (i == 0) {
-                *control_direction_ = aiming_direction;
-                break;
-            }
-        }
-
-        if (target_updated_.load()) {
-            delete local_target;
-            target_updated_.store(false);
-        } else {
-            target_.reset(local_target);
-        }
-    }
+    void update() override;
 
     void blacklist_update(std_msgs::msg::Int8::UniquePtr msg) {
         blacklist.store(msg->data);
