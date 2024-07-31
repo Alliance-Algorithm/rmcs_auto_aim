@@ -238,6 +238,10 @@ void Controller::update() {
                 RCLCPP_WARN(get_logger(), "Failed to read parameter: %s", e.what());
             }
         }
+
+        /******************************
+            Auto Gimbal Aiming System
+         ******************************/
         threads_.emplace_back([this]() {
             size_t attempt = 0;
             while (true) {
@@ -259,6 +263,10 @@ void Controller::update() {
                 std::this_thread::sleep_for(std::chrono::milliseconds(5000));
             }
         });
+
+        /********************
+            Image Recorder
+         *******************/
         if (record_mode_) {
             threads_.emplace_back([this]() {
                 if (recorder.is_opened()) {
@@ -285,6 +293,10 @@ void Controller::update() {
                 }
             });
         }
+
+        /*****************************************
+            Omni Direction Perception System
+         *****************************************/
         if (robot_msg_->id() == rmcs_msgs::ArmorID::Sentry) {
             threads_.emplace_back([this]() {
                 size_t attempt = 0;

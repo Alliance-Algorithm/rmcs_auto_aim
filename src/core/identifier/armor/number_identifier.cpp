@@ -72,6 +72,7 @@ bool NumberIdentifier::Identify(const cv::Mat& imgGray, ArmorPlate& armor, const
     int label_id = class_id_point.x;
 
     switch (label_id) {
+    case 8: return false;
     case 0:
         if (!(blacklist & 0x1)) {
             return false;
