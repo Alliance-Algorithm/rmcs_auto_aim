@@ -373,7 +373,7 @@ void Controller::update() {
 
     auto local_target = target_.release();
     if (!local_target) {
-        *control_direction_ = Eigen::Vector3d::Zero();
+        // *control_direction_ = Eigen::Vector3d::Zero();
         return;
     }
     using namespace std::chrono_literals;
