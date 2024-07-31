@@ -16,6 +16,7 @@
 #include <string>
 #include <thread>
 #include <unistd.h>
+#include <utility>
 #include <vector>
 
 #include <ament_index_cpp/get_package_share_directory.hpp>
@@ -47,6 +48,7 @@
 #include <rmcs_msgs/robot_color.hpp>
 #include <rmcs_msgs/robot_id.hpp>
 
+#include "core/debugger/debugger.hpp"
 #include "core/recorder/recorder.hpp"
 #include "core/tracker/target.hpp"
 #include "core/trajectory/trajectory_solvor.hpp"
@@ -94,6 +96,7 @@ public:
         k2                       = get_parameter("k2").as_double();
         k3                       = get_parameter("k3").as_double();
         record_mode_             = get_parameter("record").as_bool();
+        raw_img_pub_mode_        = get_parameter("raw_img_pub").as_bool();
 
         try {
             record_fps_      = get_parameter("record_fps").as_int();
@@ -203,7 +206,7 @@ private:
     InputInterface<rmcs_description::Tf> tf_;
 
     // Recorder related
-    std::queue<std::shared_ptr<cv::Mat>> image_queue_;
+    std::queue<std::pair<rclcpp::Time, std::shared_ptr<cv::Mat>>> image_queue_;
     std::condition_variable img_cv_;
     std::mutex img_mtx_;
 
@@ -215,6 +218,9 @@ private:
     InputInterface<rmcs_msgs::Keyboard> keyboard_;
     InputInterface<rmcs_msgs::GameStage> stage_;
     InputInterface<size_t> update_count_;
+
+    Debugger& debugger_ = Debugger::getInstance();
+    bool raw_img_pub_mode_;
 
     std::vector<std::thread> threads_;
 };

@@ -1,4 +1,6 @@
 
+#include <chrono>
+#include <cstddef>
 #include <exception>
 #include <map>
 #include <utility>
@@ -7,6 +9,7 @@
 
 #include <robot_id.hpp>
 
+#include "core/debugger/debugger.hpp"
 #include "core/identifier/armor/armor_identifier.hpp"
 #include "core/identifier/buff/buff_identifier.hpp"
 #include "core/pnpsolver/armor/armor_pnp_solver.hpp"
@@ -23,6 +26,9 @@ void Controller::gimbal_process() {
         RCLCPP_INFO(get_logger(), "Robot Info:");
         RCLCPP_INFO(get_logger(), "id: %hu", static_cast<uint16_t>(robot_msg_->id()));
         RCLCPP_INFO(get_logger(), "color: %hu", static_cast<uint16_t>(robot_msg_->color()));
+    } else {
+        // RCLCPP_INFO(get_logger(), "Unknown Robot.Use debug mode");
+        // debug_mode_ = true;
     }
 
     hikcamera::ImageCapturer::CameraProfile camera_profile;
@@ -126,7 +132,7 @@ void Controller::gimbal_process() {
 
             std::shared_ptr<cv::Mat> imgPtr = std::make_shared<cv::Mat>(img);
             std::unique_lock<std::mutex> lock(img_mtx_);
-            image_queue_.push(imgPtr);
+            image_queue_.emplace(this->now(), imgPtr);
             lock.unlock();
             img_cv_.notify_one();
         }
@@ -258,18 +264,24 @@ void Controller::update() {
                 if (recorder.is_opened()) {
                     RCLCPP_INFO(get_logger(), "RECORDING %s...", recorder.get_filename().c_str());
                 }
+                size_t t = 0;
                 while (rclcpp::ok()) {
                     if (!recorder.is_opened()) {
                         continue;
                     }
                     std::unique_lock<std::mutex> lock(img_mtx_);
                     img_cv_.wait(lock, [this] { return !image_queue_.empty(); });
-                    std::shared_ptr<cv::Mat> imgPtr = image_queue_.front();
+                    std::shared_ptr<cv::Mat> imgPtr = image_queue_.front().second;
+                    auto timestamp                  = image_queue_.front().first;
                     image_queue_.pop();
                     lock.unlock();
 
                     cv::Mat img = *imgPtr;
                     recorder.record_frame(img);
+                    if (raw_img_pub_mode_ && t++ >= 3) {
+                        t = 0;
+                        debugger_.publish_raw_image(img, timestamp);
+                    }
                 }
             });
         }

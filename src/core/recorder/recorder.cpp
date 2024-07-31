@@ -18,7 +18,7 @@ public:
 
     void setParam(const double& fps, const cv::Size& size) {
         fps_   = fps;
-        video_ = cv::VideoWriter(filename_, cv::VideoWriter::fourcc('M', 'P', '4', '2'), fps_, size);
+        video_ = cv::VideoWriter(filename_, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'), fps_, size);
     }
 
     ~Impl() { video_.release(); }

@@ -25,8 +25,7 @@ public:
         img_pub_        = this->create_publisher<sensor_msgs::msg::Image>("/raw_img", 10);
         pose_pub_       = this->create_publisher<rmcs_msgs::msg::RobotPose>("/armor_pose", 10);
         pnp_marker_pub_ = this->create_publisher<visualization_msgs::msg::Marker>("/marker", 10);
-        marker_pub_ =
-            this->create_publisher<visualization_msgs::msg::MarkerArray>("/armor_plate_array", 10);
+        marker_pub_ = this->create_publisher<visualization_msgs::msg::MarkerArray>("/armor_plate_array", 10);
 
         parameter_subscriber_ = std::make_unique<rclcpp::ParameterEventHandler>(this);
 
@@ -49,40 +48,39 @@ public:
         img_pub_->publish(msg);
     }
 
-    void publish_pnp_armor(const ArmorPlate3dWithoutFrame& armor) {
+    void publish_pnp_armor(const ArmorPlate3dWithoutFrame& armor, bool visualization = true) {
         rmcs_msgs::msg::RobotPose msg;
         msg.id   = static_cast<int64_t>(armor.id);
         msg.pose = armor.pose;
         pose_pub_->publish(msg);
+        if (visualization) {
+            auto marker               = visualization_msgs::msg::Marker();
+            marker.header.frame_id    = "odom_imu";
+            marker.header.stamp       = this->get_clock()->now();
+            marker.ns                 = "basic_shapes";
+            marker.id                 = 0;
+            marker.type               = visualization_msgs::msg::Marker::CUBE;
+            marker.action             = visualization_msgs::msg::Marker::ADD;
+            marker.pose.position.x    = armor.pose.position.x;
+            marker.pose.position.y    = armor.pose.position.y;
+            marker.pose.position.z    = armor.pose.position.z;
+            marker.pose.orientation.x = armor.pose.orientation.x;
+            marker.pose.orientation.y = armor.pose.orientation.y;
+            marker.pose.orientation.z = armor.pose.orientation.z;
+            marker.pose.orientation.w = armor.pose.orientation.w;
+            marker.scale.x            = 1.0;
+            marker.scale.y            = 1.0;
+            marker.scale.z            = 0.1; // 厚度非常薄
+            marker.color.a            = 1.0; // 不要忘记设置alpha
+            marker.color.r            = 0.0;
+            marker.color.g            = 1.0;
+            marker.color.b            = 0.0;
 
-        auto marker               = visualization_msgs::msg::Marker();
-        marker.header.frame_id    = "odom_imu";
-        marker.header.stamp       = this->get_clock()->now();
-        marker.ns                 = "basic_shapes";
-        marker.id                 = 0;
-        marker.type               = visualization_msgs::msg::Marker::CUBE;
-        marker.action             = visualization_msgs::msg::Marker::ADD;
-        marker.pose.position.x    = armor.pose.position.x;
-        marker.pose.position.y    = armor.pose.position.y;
-        marker.pose.position.z    = armor.pose.position.z;
-        marker.pose.orientation.x = armor.pose.orientation.x;
-        marker.pose.orientation.y = armor.pose.orientation.y;
-        marker.pose.orientation.z = armor.pose.orientation.z;
-        marker.pose.orientation.w = armor.pose.orientation.w;
-        marker.scale.x            = 1.0;
-        marker.scale.y            = 1.0;
-        marker.scale.z            = 0.1; // 厚度非常薄
-        marker.color.a            = 1.0; // 不要忘记设置alpha
-        marker.color.r            = 0.0;
-        marker.color.g            = 1.0;
-        marker.color.b            = 0.0;
-
-        pnp_marker_pub_->publish(marker);
+            pnp_marker_pub_->publish(marker);
+        }
     }
 
-    void publish_armors(const visualization_msgs::msg::MarkerArray& msg) {
-        marker_pub_->publish(msg);
-    }
+    void publish_armors(const visualization_msgs::msg::MarkerArray& msg) { marker_pub_->publish(msg); }
 
 private:
     rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr img_pub_;
