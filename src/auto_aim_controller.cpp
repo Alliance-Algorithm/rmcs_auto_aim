@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <exception>
 #include <map>
+#include <robot_color.hpp>
 #include <utility>
 
 #include <rclcpp/logging.hpp>
@@ -54,7 +55,11 @@ void Controller::gimbal_process() {
 
     auto my_color = debug_mode_ ? static_cast<rmcs_msgs::RobotColor>(debug_color_) : robot_msg_->color();
 
-    auto target_color = static_cast<rmcs_msgs::RobotColor>(1 - static_cast<uint8_t>(my_color));
+    auto target_color = rmcs_msgs::RobotColor::BLUE;
+
+    if (my_color == rmcs_msgs::RobotColor::BLUE) {
+        target_color = rmcs_msgs::RobotColor::RED;
+    }
 
     FPSCounter fps;
 
