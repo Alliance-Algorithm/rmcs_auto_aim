@@ -78,6 +78,7 @@ public:
         register_output("/referee/enemies/infantry_v/position", enemies_infantry_v_pose_);
         register_output("/referee/enemies/sentry/position", enemies_sentry_pose_);
         register_output("/gimbal/auto_aim/control_direction", control_direction_, Eigen::Vector3d::Zero());
+        register_output("/auto_aim/ui_target", ui_target_, std::make_pair(0, 0));
 
         exposure_time_           = get_parameter("exposure_time").as_int();
         armor_predict_duration_  = get_parameter("armor_predict_duration").as_int();
@@ -88,13 +89,13 @@ public:
         armor_model_path_        = get_parameter("armor_model_path").as_string();
         buff_model_path_         = get_parameter("buff_model_path").as_string();
         debug_mode_              = get_parameter("debug").as_bool();
-        fx                       = get_parameter("fx").as_double();
-        fy                       = get_parameter("fy").as_double();
-        cx                       = get_parameter("cx").as_double();
-        cy                       = get_parameter("cy").as_double();
-        k1                       = get_parameter("k1").as_double();
-        k2                       = get_parameter("k2").as_double();
-        k3                       = get_parameter("k3").as_double();
+        fx_                      = get_parameter("fx").as_double();
+        fy_                      = get_parameter("fy").as_double();
+        cx_                      = get_parameter("cx").as_double();
+        cy_                      = get_parameter("cy").as_double();
+        k1_                      = get_parameter("k1").as_double();
+        k2_                      = get_parameter("k2").as_double();
+        k3_                      = get_parameter("k3").as_double();
         record_mode_             = get_parameter("record").as_bool();
         raw_img_pub_mode_        = get_parameter("raw_img_pub").as_bool();
 
@@ -123,8 +124,8 @@ public:
     void update() override;
 
     void blacklist_update(std_msgs::msg::Int8::UniquePtr msg) {
-        blacklist.store(msg->data);
-        RCLCPP_INFO(get_logger(), "%d", blacklist.load());
+        blacklist_.store(msg->data);
+        RCLCPP_INFO(get_logger(), "%d", blacklist_.load());
     }
 
 private:
@@ -170,7 +171,7 @@ private:
     OutputInterface<Eigen::Vector2d> enemies_hero_pose_;
 
     // Parameters of auto-aim
-    double fx, fy, cx, cy, k1, k2, k3;
+    double fx_, fy_, cx_, cy_, k1_, k2_, k3_;
     double pitch_error_;
     double yaw_error_;
 
@@ -183,7 +184,7 @@ private:
     std::string armor_model_path_;
     std::string buff_model_path_;
 
-    std::atomic<int8_t> blacklist{0x3f};
+    std::atomic<int8_t> blacklist_{0x3f};
 
     std::chrono::steady_clock::time_point timestamp_;
 
@@ -193,7 +194,7 @@ private:
     OutputInterface<Eigen::Vector3d> control_direction_;
 
     TrajectorySolver trajectory_{};
-    Recorder recorder;
+    Recorder recorder_;
 
     // Parameters in debug mode
     bool debug_buff_mode_;
@@ -224,6 +225,8 @@ private:
     bool raw_img_pub_mode_;
 
     std::vector<std::thread> threads_;
+
+    OutputInterface<std::pair<uint16_t, uint16_t>> ui_target_;
 };
 } // namespace rmcs_auto_aim
 

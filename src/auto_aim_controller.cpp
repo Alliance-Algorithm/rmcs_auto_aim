@@ -65,7 +65,7 @@ void Controller::gimbal_process() {
 
     if (record_mode_) {
         auto flag = true;
-        recorder.setParam(static_cast<double>(record_fps_), [&img_capture, this, &flag]() {
+        recorder_.setParam(static_cast<double>(record_fps_), [&img_capture, this, &flag]() {
             auto i   = 0;
             auto img = img_capture.read();
             while (i < 5) {
@@ -83,7 +83,7 @@ void Controller::gimbal_process() {
             return cv::Size(img.cols, img.rows);
         }());
 
-        if (!flag || !recorder.is_opened()) {
+        if (!flag || !recorder_.is_opened()) {
             RCLCPP_WARN(get_logger(), "Failed to open an VideoWriter.");
             record_mode_ = false;
         }
@@ -107,9 +107,12 @@ void Controller::gimbal_process() {
             buff_enabled = (debug_mode_ ? debug_buff_mode_ : keyboard_->g == 1);
 
             if (!buff_enabled) {
-                auto armors = armor_identifier.Identify(img, target_color, blacklist.load());
-
-                auto armor3d = ArmorPnPSolver::SolveAll(armors, tf, fx, fy, cx, cy, k1, k2, k3);
+                auto armors = armor_identifier.Identify(img, target_color, blacklist_.load());
+                if (!armors.empty()) {
+                    auto center = armors[0].center();
+                    *ui_target_ = std::make_pair(center.x, center.y);
+                }
+                auto armor3d = ArmorPnPSolver::SolveAll(armors, tf, fx_, fy_, cx_, cy_, k1_, k2_, k3_);
 
                 if (!armor3d.empty()) {
                     for (auto& object : armor3d) {
@@ -128,7 +131,7 @@ void Controller::gimbal_process() {
 
             } else {
                 if (auto buff = buff_identifier.Identify(img)) {
-                    if (auto buff3d = BuffPnPSolver::Solve(*buff, tf, fx, fy, cx, cy, k1, k2, k3)) {
+                    if (auto buff3d = BuffPnPSolver::Solve(*buff, tf, fx_, fy_, cx_, cy_, k1_, k2_, k3_)) {
                         if (auto target = buff_tracker.Update(*buff3d, timestamp)) {
                             timestamp_ = timestamp;
                             target_.swap(target);
@@ -140,7 +143,7 @@ void Controller::gimbal_process() {
             }
         } while (false);
 
-        if (record_mode_ && (debug_mode_ || *stage_ == rmcs_msgs::GameStage::STARTED) && recorder.is_opened()
+        if (record_mode_ && (debug_mode_ || *stage_ == rmcs_msgs::GameStage::STARTED) && recorder_.is_opened()
             && !img.empty()) {
 
             std::shared_ptr<cv::Mat> imgPtr = std::make_shared<cv::Mat>(img);
@@ -251,7 +254,7 @@ void Controller::omni_perception_process(const std::string& device) {
         if (img.empty()) {
             continue;
         }
-        auto armors = armor_identifier.Identify(img, target_color, blacklist.load());
+        auto armors = armor_identifier.Identify(img, target_color, blacklist_.load());
 
         std::map<rmcs_msgs::ArmorID, typename Link::Position> targets_map;
 
@@ -324,12 +327,12 @@ void Controller::update() {
          *******************/
         if (record_mode_) {
             threads_.emplace_back([this]() {
-                if (recorder.is_opened()) {
-                    RCLCPP_INFO(get_logger(), "RECORDING %s...", recorder.get_filename().c_str());
+                if (recorder_.is_opened()) {
+                    RCLCPP_INFO(get_logger(), "RECORDING %s...", recorder_.get_filename().c_str());
                 }
                 size_t t = 0;
                 while (rclcpp::ok()) {
-                    if (!recorder.is_opened()) {
+                    if (!recorder_.is_opened()) {
                         continue;
                     }
                     std::unique_lock<std::mutex> lock(img_mtx_);
@@ -340,7 +343,7 @@ void Controller::update() {
                     lock.unlock();
 
                     cv::Mat img = *imgPtr;
-                    recorder.record_frame(img);
+                    recorder_.record_frame(img);
                     if (raw_img_pub_mode_ && t++ >= 3) {
                         t = 0;
                         debugger_.publish_raw_image(img, timestamp);
