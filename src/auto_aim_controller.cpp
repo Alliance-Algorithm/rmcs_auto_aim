@@ -8,9 +8,6 @@
 #include <opencv2/highgui.hpp>
 #include <rclcpp/logging.hpp>
 
-#include <robot_color.hpp>
-#include <robot_id.hpp>
-
 #include "core/debugger/debugger.hpp"
 #include "core/identifier/armor/armor_identifier.hpp"
 #include "core/identifier/buff/buff_identifier.hpp"
@@ -18,6 +15,8 @@
 #include "core/pnpsolver/buff/buff_pnp_solver.hpp"
 #include "core/tracker/armor/armor_tracker.hpp"
 #include "core/tracker/buff/buff_tracker.hpp"
+#include <robot_color.hpp>
+#include <robot_id.hpp>
 
 #include "auto_aim_controller.hpp"
 
@@ -59,6 +58,12 @@ void Controller::gimbal_process() {
         target_color = static_cast<rmcs_msgs::RobotColor>(1 + debug_color_);
     } else if (robot_msg_->color() == rmcs_msgs::RobotColor::BLUE) {
         target_color = rmcs_msgs::RobotColor::RED;
+    }
+
+    if (target_color == rmcs_msgs::RobotColor::RED) {
+        RCLCPP_INFO(get_logger(), "Target Color: RED");
+    } else {
+        RCLCPP_INFO(get_logger(), "Target Color: BLUE");
     }
 
     FPSCounter fps;
@@ -156,7 +161,8 @@ void Controller::gimbal_process() {
         // cv::waitKey(10);
 
         if (fps.Count()) {
-            RCLCPP_INFO(get_logger(), "Fps:%d", fps.GetFPS());
+            RCLCPP_INFO(
+                get_logger(), "Game Stage: %hhu , Fps:%d", static_cast<uint8_t>(*stage_), fps.GetFPS());
         }
     } // while rclcpp::ok end
 }
@@ -275,9 +281,10 @@ void Controller::omni_perception_process(const std::string& device) {
 
 void Controller::update() {
     if (*update_count_ == 0) {
-        while (!robot_msg_.ready()) {
+        if (!robot_msg_.ready()) {
             RCLCPP_WARN(get_logger(), "Robot ID is unknown. Waiting for robot ID...");
             std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+            return;
         }
         if ((debug_mode_ && debug_robot_id_ == 7)
             || (!debug_mode_ && robot_msg_->id() == rmcs_msgs::ArmorID::Sentry)) {
