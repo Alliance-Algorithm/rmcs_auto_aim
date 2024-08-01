@@ -3,11 +3,12 @@
 #include <cstddef>
 #include <exception>
 #include <map>
-#include <robot_color.hpp>
 #include <utility>
 
+#include <opencv2/highgui.hpp>
 #include <rclcpp/logging.hpp>
 
+#include <robot_color.hpp>
 #include <robot_id.hpp>
 
 #include "core/debugger/debugger.hpp"
@@ -53,11 +54,10 @@ void Controller::gimbal_process() {
 
     auto buff_enabled = false;
 
-    auto my_color = debug_mode_ ? static_cast<rmcs_msgs::RobotColor>(debug_color_) : robot_msg_->color();
-
     auto target_color = rmcs_msgs::RobotColor::BLUE;
-
-    if (my_color == rmcs_msgs::RobotColor::BLUE) {
+    if (debug_mode_) {
+        target_color = static_cast<rmcs_msgs::RobotColor>(1 + debug_color_);
+    } else if (robot_msg_->color() == rmcs_msgs::RobotColor::BLUE) {
         target_color = rmcs_msgs::RobotColor::RED;
     }
 
@@ -152,22 +152,29 @@ void Controller::gimbal_process() {
 
 template <typename Link>
 void Controller::omni_perception_process(const std::string& device) {
-
+    RCLCPP_INFO(get_logger(), "Omni-Direction Perception Start.");
     auto camera = cv::VideoCapture(device);
 
     if (!camera.isOpened()) {
         RCLCPP_WARN(get_logger(), "Failed to open camera!");
         return;
+    } else {
+        RCLCPP_INFO(get_logger(), "Omni-Direction Perception Start.");
     }
+    camera.set(cv::CAP_PROP_AUTO_EXPOSURE, 1);
     camera.set(cv::CAP_PROP_EXPOSURE, omni_exposure_);
+    RCLCPP_INFO(get_logger(), "exposure time = %f", camera.get(cv::CAP_PROP_EXPOSURE));
 
     auto package_share_directory = ament_index_cpp::get_package_share_directory("rmcs_auto_aim");
 
     auto armor_identifier = ArmorIdentifier(package_share_directory + armor_model_path_);
 
-    auto my_color     = debug_mode_ ? static_cast<rmcs_msgs::RobotColor>(debug_color_) : robot_msg_->color();
-    auto target_color = static_cast<rmcs_msgs::RobotColor>(1 - static_cast<uint8_t>(my_color));
-
+    auto target_color = rmcs_msgs::RobotColor::BLUE;
+    if (debug_mode_) {
+        target_color = static_cast<rmcs_msgs::RobotColor>(1 + debug_color_);
+    } else if (robot_msg_->color() == rmcs_msgs::RobotColor::BLUE) {
+        target_color = rmcs_msgs::RobotColor::RED;
+    }
     cv::Mat img;
     while (camera.isOpened()) {
         camera >> img;
@@ -302,7 +309,8 @@ void Controller::update() {
         /*****************************************
             Omni Direction Perception System
          *****************************************/
-        if (robot_msg_->id() == rmcs_msgs::ArmorID::Sentry) {
+        if (debug_mode_ ? static_cast<rmcs_msgs::ArmorID>(debug_robot_id_) == rmcs_msgs::ArmorID::Sentry
+                        : robot_msg_->id() == rmcs_msgs::ArmorID::Sentry) {
             threads_.emplace_back([this]() {
                 size_t attempt = 0;
                 while (true) {
