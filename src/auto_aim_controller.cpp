@@ -3,9 +3,9 @@
 #include <cstddef>
 #include <exception>
 #include <map>
-#include <opencv2/highgui.hpp>
 #include <utility>
 
+#include <opencv2/highgui.hpp>
 #include <rclcpp/logging.hpp>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/videoio.hpp>
@@ -20,6 +20,8 @@
 #include "core/pnpsolver/buff/buff_pnp_solver.hpp"
 #include "core/tracker/armor/armor_tracker.hpp"
 #include "core/tracker/buff/buff_tracker.hpp"
+#include <robot_color.hpp>
+#include <robot_id.hpp>
 
 #include "auto_aim_controller.hpp"
 
@@ -58,15 +60,22 @@ void Controller::gimbal_process() {
 
     auto target_color = rmcs_msgs::RobotColor::BLUE;
     if (debug_mode_) {
-        target_color = static_cast<rmcs_msgs::RobotColor>(1+debug_color_);
-    }else if (robot_msg_->color() == rmcs_msgs::RobotColor::BLUE) {
+        target_color = static_cast<rmcs_msgs::RobotColor>(1 + debug_color_);
+    } else if (robot_msg_->color() == rmcs_msgs::RobotColor::BLUE) {
         target_color = rmcs_msgs::RobotColor::RED;
-    } 
+    }
+
+    if (target_color == rmcs_msgs::RobotColor::RED) {
+        RCLCPP_INFO(get_logger(), "Target Color: RED");
+    } else {
+        RCLCPP_INFO(get_logger(), "Target Color: BLUE");
+    }
+
     FPSCounter fps;
 
     if (record_mode_) {
         auto flag = true;
-        recorder.setParam(static_cast<double>(record_fps_), [&img_capture, this, &flag]() {
+        recorder_.setParam(static_cast<double>(record_fps_), [&img_capture, this, &flag]() {
             auto i   = 0;
             auto img = img_capture.read();
             while (i < 5) {
@@ -84,7 +93,7 @@ void Controller::gimbal_process() {
             return cv::Size(img.cols, img.rows);
         }());
 
-        if (!flag || !recorder.is_opened()) {
+        if (!flag || !recorder_.is_opened()) {
             RCLCPP_WARN(get_logger(), "Failed to open an VideoWriter.");
             record_mode_ = false;
         }
@@ -108,9 +117,20 @@ void Controller::gimbal_process() {
             buff_enabled = (debug_mode_ ? debug_buff_mode_ : keyboard_->g == 1);
 
             if (!buff_enabled) {
-                auto armors = armor_identifier.Identify(img, target_color, blacklist.load());
+                auto armors = armor_identifier.Identify(img, target_color, blacklist_.load());
+                if (!armors.empty()) {
+                    auto center = armors[0].center();
+                    *ui_target_ = std::make_pair(center.x, center.y);
+                }
+                auto armor3d = ArmorPnPSolver::SolveAll(armors, tf, fx_, fy_, cx_, cy_, k1_, k2_, k3_);
 
-                auto armor3d = ArmorPnPSolver::SolveAll(armors, tf, fx, fy, cx, cy, k1, k2, k3);
+                if (!armor3d.empty()) {
+                    for (auto& object : armor3d) {
+                        auto& id  = object.id;
+                        auto& pos = object.position;
+                        communicate(id, pos);
+                    }
+                }
 
                 if (auto target = armor_tracker.Update(armor3d, timestamp, tf)) {
                     timestamp_ = timestamp;
@@ -121,7 +141,7 @@ void Controller::gimbal_process() {
 
             } else {
                 if (auto buff = buff_identifier.Identify(img)) {
-                    if (auto buff3d = BuffPnPSolver::Solve(*buff, tf, fx, fy, cx, cy, k1, k2, k3)) {
+                    if (auto buff3d = BuffPnPSolver::Solve(*buff, tf, fx_, fy_, cx_, cy_, k1_, k2_, k3_)) {
                         if (auto target = buff_tracker.Update(*buff3d, timestamp)) {
                             timestamp_ = timestamp;
                             target_.swap(target);
@@ -133,7 +153,7 @@ void Controller::gimbal_process() {
             }
         } while (false);
 
-        if (record_mode_ && (debug_mode_ || *stage_ == rmcs_msgs::GameStage::STARTED) && recorder.is_opened()
+        if (record_mode_ && (debug_mode_ || *stage_ == rmcs_msgs::GameStage::STARTED) && recorder_.is_opened()
             && !img.empty()) {
 
             std::shared_ptr<cv::Mat> imgPtr = std::make_shared<cv::Mat>(img);
@@ -146,39 +166,101 @@ void Controller::gimbal_process() {
         // cv::waitKey(10);
 
         if (fps.Count()) {
-            RCLCPP_INFO(get_logger(), "Fps:%d", fps.GetFPS());
+            RCLCPP_INFO(
+                get_logger(), "Game Stage: %hhu , Fps:%d", static_cast<uint8_t>(*stage_), fps.GetFPS());
         }
     } // while rclcpp::ok end
 }
 
+void Controller::communicate(const rmcs_msgs::ArmorID& id, const rmcs_description::OdomImu::Position& pos) {
+    Eigen::Vector2d plate_pos{pos->x(), pos->y()};
+    Eigen::Vector2d zero{0, 0};
+    switch (id) {
+    case rmcs_msgs::ArmorID::Hero: {
+        *enemies_hero_pose_         = plate_pos;
+        *enemies_engineer_pose_     = zero;
+        *enemies_infantry_iii_pose_ = zero;
+        *enemies_infantry_iv_pose_  = zero;
+        *enemies_infantry_v_pose_   = zero;
+        *enemies_sentry_pose_       = zero;
+        break;
+    }
+    case rmcs_msgs::ArmorID::Engineer: {
+        *enemies_hero_pose_         = zero;
+        *enemies_engineer_pose_     = plate_pos;
+        *enemies_infantry_iii_pose_ = zero;
+        *enemies_infantry_iv_pose_  = zero;
+        *enemies_infantry_v_pose_   = zero;
+        *enemies_sentry_pose_       = zero;
+        break;
+    }
+    case rmcs_msgs::ArmorID::InfantryIII: {
+        *enemies_hero_pose_         = zero;
+        *enemies_engineer_pose_     = zero;
+        *enemies_infantry_iii_pose_ = plate_pos;
+        *enemies_infantry_iv_pose_  = zero;
+        *enemies_infantry_v_pose_   = zero;
+        *enemies_sentry_pose_       = zero;
+        break;
+    }
+    case rmcs_msgs::ArmorID::InfantryIV: {
+        *enemies_hero_pose_         = zero;
+        *enemies_engineer_pose_     = zero;
+        *enemies_infantry_iii_pose_ = zero;
+        *enemies_infantry_iv_pose_  = plate_pos;
+        *enemies_infantry_v_pose_   = zero;
+        *enemies_sentry_pose_       = zero;
+        break;
+    }
+    case rmcs_msgs::ArmorID::InfantryV: {
+        *enemies_hero_pose_         = zero;
+        *enemies_engineer_pose_     = zero;
+        *enemies_infantry_iii_pose_ = zero;
+        *enemies_infantry_iv_pose_  = zero;
+        *enemies_infantry_v_pose_   = plate_pos;
+        *enemies_sentry_pose_       = zero;
+        break;
+    }
+    case rmcs_msgs::ArmorID::Sentry: {
+        *enemies_hero_pose_         = zero;
+        *enemies_engineer_pose_     = zero;
+        *enemies_infantry_iii_pose_ = zero;
+        *enemies_infantry_iv_pose_  = zero;
+        *enemies_infantry_v_pose_   = zero;
+        *enemies_sentry_pose_       = plate_pos;
+        break;
+    }
+    default: break;
+    }
+}
+
 template <typename Link>
 void Controller::omni_perception_process(const std::string& device) {
+    RCLCPP_INFO(get_logger(), "Omni-Direction Perception Start.");
 
     auto camera = cv::VideoCapture(device, cv::CAP_V4L);
 
     if (!camera.isOpened()) {
         RCLCPP_WARN(get_logger(), "Failed to open camera!");
         return;
-    }else {
+    } else {
         RCLCPP_INFO(get_logger(), "Omni-Direction Perception Start.");
     }
     camera.set(cv::CAP_PROP_AUTO_EXPOSURE, 1);
     camera.set(cv::CAP_PROP_EXPOSURE, omni_exposure_);
-    RCLCPP_INFO(get_logger(), "exposure time = %f",camera.get(cv::CAP_PROP_EXPOSURE));
+    RCLCPP_INFO(get_logger(), "exposure time = %f", camera.get(cv::CAP_PROP_EXPOSURE));
 
     auto package_share_directory = ament_index_cpp::get_package_share_directory("rmcs_auto_aim");
 
     auto armor_identifier = ArmorIdentifier(package_share_directory + armor_model_path_);
 
-    auto target_color = rmcs_msgs::RobotColor::RED;
+    auto target_color = rmcs_msgs::RobotColor::BLUE;
     if (debug_mode_) {
-        target_color = static_cast<rmcs_msgs::RobotColor>(debug_color_+1);
-    }else if (robot_msg_->color() == rmcs_msgs::RobotColor::RED) {
-        target_color = rmcs_msgs::RobotColor::BLUE;
-    } 
+        target_color = static_cast<rmcs_msgs::RobotColor>(1 + debug_color_);
+    } else if (robot_msg_->color() == rmcs_msgs::RobotColor::BLUE) {
+        target_color = rmcs_msgs::RobotColor::RED;
+    }
     cv::Mat img;
-
-    RCLCPP_INFO(get_logger(),"Fuck %hhu",static_cast<uint8_t>(target_color));
 
     while (camera.isOpened()) {
         camera >> img;
@@ -186,9 +268,8 @@ void Controller::omni_perception_process(const std::string& device) {
         if (img.empty()) {
             continue;
         }
-        auto armors = armor_identifier.Identify(img, target_color, blacklist.load());
+        auto armors = armor_identifier.Identify(img, target_color, blacklist_.load());
 
-        cv::imwrite("sample.jpg", img);
         std::map<rmcs_msgs::ArmorID, typename Link::Position> targets_map;
 
         for (auto& armor : armors) {
@@ -196,49 +277,23 @@ void Controller::omni_perception_process(const std::string& device) {
                 ArmorPnPSolver::Solve(armor, omni_fx, omni_fy, omni_cx, omni_cy, omni_k1, omni_k2, omni_k3);
             typename Link::Position pos{
                 pnp_result.pose.position.x, pnp_result.pose.position.y, pnp_result.pose.position.z};
-            RCLCPP_INFO(get_logger(), "Right Omni-Direction Perception detected: Armor [%hu]", static_cast<uint16_t>(pnp_result.id));
+            RCLCPP_INFO(get_logger(), "%s,Omni-Direction Perception detected: Armor [%hu]", device.c_str(), static_cast<uint16_t>(pnp_result.id));
             targets_map.insert(std::make_pair(pnp_result.id, pos));
         }
 
         for (auto& [id, target] : targets_map) {
             auto pos = fast_tf::cast<rmcs_description::OdomImu>(target, *tf_);
-            Eigen::Vector2d plate_pos{pos->x(), pos->y()};
-            switch (id) {
-            case rmcs_msgs::ArmorID::Hero: {
-                *enemies_hero_pose_ = plate_pos;
-                break;
-            }
-            case rmcs_msgs::ArmorID::Engineer: {
-                *enemies_engineer_pose_ = plate_pos;
-                break;
-            }
-            case rmcs_msgs::ArmorID::InfantryIII: {
-                *enemies_infantry_iii_pose_ = plate_pos;
-                break;
-            }
-            case rmcs_msgs::ArmorID::InfantryIV: {
-                *enemies_infantry_iv_pose_ = plate_pos;
-                break;
-            }
-            case rmcs_msgs::ArmorID::InfantryV: {
-                *enemies_infantry_v_pose_ = plate_pos;
-                break;
-            }
-            case rmcs_msgs::ArmorID::Sentry: {
-                *enemies_sentry_pose_ = plate_pos;
-                break;
-            }
-            default: break;
-            }
+            communicate(id, pos);
         }
     }
 }
 
 void Controller::update() {
     if (*update_count_ == 0) {
-        while (!debug_mode_ && !robot_msg_.ready()) {
-            RCLCPP_WARN(get_logger(), "Waiting for rmcs_referee...");
+        if (!robot_msg_.ready()) {
+            RCLCPP_WARN(get_logger(), "Robot ID is unknown. Waiting for robot ID...");
             std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+            return;
         }
         if ((debug_mode_ && debug_robot_id_ == 7)
             || (!debug_mode_ && robot_msg_->id() == rmcs_msgs::ArmorID::Sentry)) {
@@ -288,12 +343,12 @@ void Controller::update() {
          *******************/
         if (record_mode_) {
             threads_.emplace_back([this]() {
-                if (recorder.is_opened()) {
-                    RCLCPP_INFO(get_logger(), "RECORDING %s...", recorder.get_filename().c_str());
+                if (recorder_.is_opened()) {
+                    RCLCPP_INFO(get_logger(), "RECORDING %s...", recorder_.get_filename().c_str());
                 }
                 size_t t = 0;
                 while (rclcpp::ok()) {
-                    if (!recorder.is_opened()) {
+                    if (!recorder_.is_opened()) {
                         continue;
                     }
                     std::unique_lock<std::mutex> lock(img_mtx_);
@@ -304,7 +359,7 @@ void Controller::update() {
                     lock.unlock();
 
                     cv::Mat img = *imgPtr;
-                    recorder.record_frame(img);
+                    recorder_.record_frame(img);
                     if (raw_img_pub_mode_ && t++ >= 3) {
                         t = 0;
                         debugger_.publish_raw_image(img, timestamp);
@@ -316,8 +371,9 @@ void Controller::update() {
         /*****************************************
             Omni Direction Perception System
          *****************************************/
-        if (debug_mode_ ? static_cast<rmcs_msgs::ArmorID>(debug_robot_id_)==rmcs_msgs::ArmorID::Sentry:robot_msg_->id() == rmcs_msgs::ArmorID::Sentry) {
-            /*threads_.emplace_back([this]() {
+        if (debug_mode_ ? static_cast<rmcs_msgs::ArmorID>(debug_robot_id_) == rmcs_msgs::ArmorID::Sentry
+                        : robot_msg_->id() == rmcs_msgs::ArmorID::Sentry) {
+            threads_.emplace_back([this]() {
                 size_t attempt = 0;
                 while (true) {
                     try {
@@ -365,7 +421,7 @@ void Controller::update() {
                     }
                     std::this_thread::sleep_for(std::chrono::milliseconds(5000));
                 }
-            });*/
+            });
             threads_.emplace_back([this]() {
                 size_t attempt = 0;
                 while (true) {

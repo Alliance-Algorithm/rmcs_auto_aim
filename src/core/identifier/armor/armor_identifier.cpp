@@ -1,11 +1,14 @@
-#include <iostream>
-#include <opencv2/core/types.hpp>
+#include <optional>
 #include <opencv2/imgcodecs.hpp>
-#include <ostream>
 #include <string>
 #include <vector>
 
+#include <opencv2/core.hpp>
+#include <opencv2/core/mat.hpp>
+#include <opencv2/core/types.hpp>
 #include <opencv2/opencv.hpp>
+#include <rclcpp/logger.hpp>
+#include <rclcpp/logging.hpp>
 
 #include <rmcs_msgs/robot_color.hpp>
 
@@ -125,63 +128,68 @@ private:
         const rmcs_msgs::RobotColor& target_color) {
         auto&& contourSize = contour.size();
         if (contourSize >= 5) {
-            float scoreMap[256];
-            float confidence                                            = 0.0f;
-            scoreMap[static_cast<size_t>(ColorConfidence::NotCredible)] = 0.0f;
-            scoreMap[static_cast<size_t>(ColorConfidence::CredibleOneChannelOverexposure)] =
-                1.0f / (float)contourSize;
-            scoreMap[static_cast<size_t>(ColorConfidence::CredibleTwoChannelOverexposure)] =
-                0.5f / (float)contourSize;
-            scoreMap[static_cast<size_t>(ColorConfidence::CredibleThreeChannelOverexposure)] =
-                0.2f / (float)contourSize;
-
-            auto& colorIdentifier =
-                target_color == rmcs_msgs::RobotColor::BLUE ? _blueIdentifier : _redIdentifier;
-            int maxPointY = 0;
-            for (const auto& point : contour) {
-                maxPointY = std::max(maxPointY, point.y);
-                auto c    = reinterpret_cast<const uchar*>(&img.at<cv::Vec3b>(point));
-                confidence += scoreMap[static_cast<size_t>(colorIdentifier.Identify(c))];
+            auto b_rect  = cv::boundingRect(contour);
+            auto r_rect  = cv::minAreaRect(contour);
+            cv::Mat mask = cv::Mat::zeros(b_rect.size(), CV_8UC1);
+            std::vector<cv::Point> mask_contour;
+            mask_contour.reserve(contour.size());
+            for (const auto& p : contour) {
+                mask_contour.emplace_back(p - cv::Point(b_rect.x, b_rect.y));
             }
-            if (img.rows == maxPointY + 1)
-                confidence = 0;
-if (confidence!=0){
-            std::cout << "Confidence" <<confidence << std::endl;}
-
-            if (confidence > 0.45f) {
-                auto b_rect  = cv::boundingRect(contour);
-                cv::Mat mask = cv::Mat::zeros(b_rect.size(), CV_8UC1);
-                std::vector<cv::Point> mask_contour;
-                mask_contour.reserve(contour.size());
-                for (const auto& p : contour) {
-                    mask_contour.emplace_back(p - cv::Point(b_rect.x, b_rect.y));
+            cv::fillPoly(mask, {mask_contour}, 255);
+            std::vector<cv::Point> points;
+            cv::findNonZero(mask, points);
+            bool filled = (float)points.size() / (r_rect.size.width * r_rect.size.height) > 0.8;
+            cv::Vec4f return_param;
+            cv::fitLine(points, return_param, cv::DIST_L2, 0, 0.01, 0.01);
+            cv::Point2f top, bottom;
+            float angle_k;
+            if (int(return_param[0] * 100) == 100 || int(return_param[1] * 100) == 0) {
+                top    = cv::Point2f((float)b_rect.x + (float)b_rect.width / 2, (float)b_rect.y);
+                bottom = cv::Point2f(
+                    (float)b_rect.x + (float)b_rect.width / 2, (float)b_rect.y + (float)b_rect.height);
+                angle_k = 0;
+            } else {
+                auto k = return_param[1] / return_param[0];
+                auto b = (return_param[3] + (float)b_rect.y) - k * (return_param[2] + (float)b_rect.x);
+                top    = cv::Point2f(((float)b_rect.y - b) / k, (float)b_rect.y);
+                bottom = cv::Point2f(
+                    ((float)b_rect.y + (float)b_rect.height - b) / k, (float)b_rect.y + (float)b_rect.height);
+                angle_k = (float)(std::atan(k) / CV_PI * 180 - 90);
+                if (angle_k > 90) {
+                    angle_k = 180 - angle_k;
                 }
-                cv::fillPoly(mask, {mask_contour}, 255);
-                std::vector<cv::Point> points;
-                cv::findNonZero(mask, points);
-                cv::Vec4f return_param;
-                cv::fitLine(points, return_param, cv::DIST_L2, 0, 0.01, 0.01);
-                cv::Point2f top, bottom;
-                float angle_k;
-                if (int(return_param[0] * 100) == 100 || int(return_param[1] * 100) == 0) {
-                    top    = cv::Point2f((float)b_rect.x + (float)b_rect.width / 2, (float)b_rect.y);
-                    bottom = cv::Point2f(
-                        (float)b_rect.x + (float)b_rect.width / 2, (float)b_rect.y + (float)b_rect.height);
-                    angle_k = 0;
-                } else {
-                    auto k = return_param[1] / return_param[0];
-                    auto b = (return_param[3] + (float)b_rect.y) - k * (return_param[2] + (float)b_rect.x);
-                    top    = cv::Point2f(((float)b_rect.y - b) / k, (float)b_rect.y);
-                    bottom = cv::Point2f(
-                        ((float)b_rect.y + (float)b_rect.height - b) / k,
-                        (float)b_rect.y + (float)b_rect.height);
-                    angle_k = (float)(std::atan(k) / CV_PI * 180 - 90);
-                    if (angle_k > 90) {
-                        angle_k = 180 - angle_k;
+            }
+            if (angle_k > 35.0) {
+                return std::nullopt;
+            }
+
+            auto length = cv::norm(bottom - top);
+            auto width  = (double)points.size() / length;
+
+            auto ratio = width / length;
+            if (!(ratio > 0.1 && ratio < 0.4 && filled)) {
+                return std::nullopt;
+            }
+            angle_k  = (float)(angle_k / 180 * CV_PI);
+            auto tmp = LightBar{top, bottom, angle_k};
+            if (0 <= b_rect.x && 0 <= b_rect.width && b_rect.x + b_rect.width <= img.cols && 0 <= b_rect.y
+                && 0 <= b_rect.height && b_rect.y + b_rect.height <= img.rows) {
+                int sum  = 0;
+                auto roi = img(b_rect);
+                for (int i = 0; i < roi.rows; i++) {
+                    for (int j = 0; j < roi.cols; j++) {
+                        if (cv::pointPolygonTest(contour, cv::Point2f(j + b_rect.x, i + b_rect.y), false)
+                            >= 0) {
+                            sum += roi.at<cv::Vec3b>(i, j)[0];
+                            sum -= roi.at<cv::Vec3b>(i, j)[2];
+                        }
                     }
                 }
-                angle_k = (float)(angle_k / 180 * CV_PI);
-                return LightBar{top, bottom, angle_k};
+                if ((sum > 0 && target_color == rmcs_msgs::RobotColor::BLUE)
+                    || (sum < 0 && target_color == rmcs_msgs::RobotColor::RED)) {
+                    return tmp;
+                }
             }
         }
         return std::nullopt;
