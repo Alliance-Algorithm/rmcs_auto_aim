@@ -128,6 +128,7 @@ public:
     }
 
 private:
+    void communicate(const rmcs_msgs::ArmorID& id, const rmcs_description::OdomImu::Position& pos);
     class FPSCounter {
     public:
         bool Count() {

@@ -111,6 +111,14 @@ void Controller::gimbal_process() {
 
                 auto armor3d = ArmorPnPSolver::SolveAll(armors, tf, fx, fy, cx, cy, k1, k2, k3);
 
+                if (!armor3d.empty()) {
+                    for (auto& object : armor3d) {
+                        auto& id  = object.id;
+                        auto& pos = object.position;
+                        communicate(id, pos);
+                    }
+                }
+
                 if (auto target = armor_tracker.Update(armor3d, timestamp, tf)) {
                     timestamp_ = timestamp;
                     target_.swap(target);
@@ -148,6 +156,68 @@ void Controller::gimbal_process() {
             RCLCPP_INFO(get_logger(), "Fps:%d", fps.GetFPS());
         }
     } // while rclcpp::ok end
+}
+
+void Controller::communicate(const rmcs_msgs::ArmorID& id, const rmcs_description::OdomImu::Position& pos) {
+    Eigen::Vector2d plate_pos{pos->x(), pos->y()};
+    Eigen::Vector2d zero{0, 0};
+    switch (id) {
+    case rmcs_msgs::ArmorID::Hero: {
+        *enemies_hero_pose_         = plate_pos;
+        *enemies_engineer_pose_     = zero;
+        *enemies_infantry_iii_pose_ = zero;
+        *enemies_infantry_iv_pose_  = zero;
+        *enemies_infantry_v_pose_   = zero;
+        *enemies_sentry_pose_       = zero;
+        break;
+    }
+    case rmcs_msgs::ArmorID::Engineer: {
+        *enemies_hero_pose_         = zero;
+        *enemies_engineer_pose_     = plate_pos;
+        *enemies_infantry_iii_pose_ = zero;
+        *enemies_infantry_iv_pose_  = zero;
+        *enemies_infantry_v_pose_   = zero;
+        *enemies_sentry_pose_       = zero;
+        break;
+    }
+    case rmcs_msgs::ArmorID::InfantryIII: {
+        *enemies_hero_pose_         = zero;
+        *enemies_engineer_pose_     = zero;
+        *enemies_infantry_iii_pose_ = plate_pos;
+        *enemies_infantry_iv_pose_  = zero;
+        *enemies_infantry_v_pose_   = zero;
+        *enemies_sentry_pose_       = zero;
+        break;
+    }
+    case rmcs_msgs::ArmorID::InfantryIV: {
+        *enemies_hero_pose_         = zero;
+        *enemies_engineer_pose_     = zero;
+        *enemies_infantry_iii_pose_ = zero;
+        *enemies_infantry_iv_pose_  = plate_pos;
+        *enemies_infantry_v_pose_   = zero;
+        *enemies_sentry_pose_       = zero;
+        break;
+    }
+    case rmcs_msgs::ArmorID::InfantryV: {
+        *enemies_hero_pose_         = zero;
+        *enemies_engineer_pose_     = zero;
+        *enemies_infantry_iii_pose_ = zero;
+        *enemies_infantry_iv_pose_  = zero;
+        *enemies_infantry_v_pose_   = plate_pos;
+        *enemies_sentry_pose_       = zero;
+        break;
+    }
+    case rmcs_msgs::ArmorID::Sentry: {
+        *enemies_hero_pose_         = zero;
+        *enemies_engineer_pose_     = zero;
+        *enemies_infantry_iii_pose_ = zero;
+        *enemies_infantry_iv_pose_  = zero;
+        *enemies_infantry_v_pose_   = zero;
+        *enemies_sentry_pose_       = plate_pos;
+        break;
+    }
+    default: break;
+    }
 }
 
 template <typename Link>
@@ -195,34 +265,7 @@ void Controller::omni_perception_process(const std::string& device) {
 
         for (auto& [id, target] : targets_map) {
             auto pos = fast_tf::cast<rmcs_description::OdomImu>(target, *tf_);
-            Eigen::Vector2d plate_pos{pos->x(), pos->y()};
-            switch (id) {
-            case rmcs_msgs::ArmorID::Hero: {
-                *enemies_hero_pose_ = plate_pos;
-                break;
-            }
-            case rmcs_msgs::ArmorID::Engineer: {
-                *enemies_engineer_pose_ = plate_pos;
-                break;
-            }
-            case rmcs_msgs::ArmorID::InfantryIII: {
-                *enemies_infantry_iii_pose_ = plate_pos;
-                break;
-            }
-            case rmcs_msgs::ArmorID::InfantryIV: {
-                *enemies_infantry_iv_pose_ = plate_pos;
-                break;
-            }
-            case rmcs_msgs::ArmorID::InfantryV: {
-                *enemies_infantry_v_pose_ = plate_pos;
-                break;
-            }
-            case rmcs_msgs::ArmorID::Sentry: {
-                *enemies_sentry_pose_ = plate_pos;
-                break;
-            }
-            default: break;
-            }
+            communicate(id, pos);
         }
     }
 }
