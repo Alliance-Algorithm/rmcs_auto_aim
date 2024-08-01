@@ -71,12 +71,12 @@ public:
         register_input("/remote/keyboard", keyboard_);
         register_input("/referee/game/stage", stage_);
 
-        register_output("/referee/enemies/hero/position", enemies_hero_pose_);
-        register_output("/referee/enemies/engineer/position", enemies_engineer_pose_);
-        register_output("/referee/enemies/infantry_iii/position", enemies_infantry_iii_pose_);
-        register_output("/referee/enemies/infantry_iv/position", enemies_infantry_iv_pose_);
-        register_output("/referee/enemies/infantry_v/position", enemies_infantry_v_pose_);
-        register_output("/referee/enemies/sentry/position", enemies_sentry_pose_);
+        register_output("/auto_aim/hero/position", enemies_hero_pose_);
+        register_output("/auto_aim/engineer/position", enemies_engineer_pose_);
+        register_output("/auto_aim/infantry_iii/position", enemies_infantry_iii_pose_);
+        register_output("/auto_aim/infantry_iv/position", enemies_infantry_iv_pose_);
+        register_output("/auto_aim/infantry_v/position", enemies_infantry_v_pose_);
+        register_output("/auto_aim/sentry/position", enemies_sentry_pose_);
         register_output("/gimbal/auto_aim/control_direction", control_direction_, Eigen::Vector3d::Zero());
         register_output("/auto_aim/ui_target", ui_target_, std::make_pair(0, 0));
 

@@ -6,9 +6,9 @@
 #include <utility>
 
 #include <opencv2/highgui.hpp>
-#include <rclcpp/logging.hpp>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/videoio.hpp>
+#include <rclcpp/logging.hpp>
 
 #include <robot_color.hpp>
 #include <robot_id.hpp>
@@ -236,7 +236,7 @@ void Controller::communicate(const rmcs_msgs::ArmorID& id, const rmcs_descriptio
 
 template <typename Link>
 void Controller::omni_perception_process(const std::string& device) {
-    RCLCPP_INFO(get_logger(), "Omni-Direction Perception Start.");
+    RCLCPP_INFO(get_logger(), "%s Omni-Direction Perception Start.", device.c_str());
 
     auto camera = cv::VideoCapture(device, cv::CAP_V4L);
 
@@ -277,7 +277,9 @@ void Controller::omni_perception_process(const std::string& device) {
                 ArmorPnPSolver::Solve(armor, omni_fx, omni_fy, omni_cx, omni_cy, omni_k1, omni_k2, omni_k3);
             typename Link::Position pos{
                 pnp_result.pose.position.x, pnp_result.pose.position.y, pnp_result.pose.position.z};
-            RCLCPP_INFO(get_logger(), "%s,Omni-Direction Perception detected: Armor [%hu]", device.c_str(), static_cast<uint16_t>(pnp_result.id));
+            RCLCPP_INFO(
+                get_logger(), "%s,Omni-Direction Perception detected: Armor [%hu]", device.c_str(),
+                static_cast<uint16_t>(pnp_result.id));
             targets_map.insert(std::make_pair(pnp_result.id, pos));
         }
 
@@ -290,12 +292,12 @@ void Controller::omni_perception_process(const std::string& device) {
 
 void Controller::update() {
     if (*update_count_ == 0) {
-        if (!robot_msg_.ready()) {
+        if (!debug_mode_ && !robot_msg_.ready()) {
             RCLCPP_WARN(get_logger(), "Robot ID is unknown. Waiting for robot ID...");
             std::this_thread::sleep_for(std::chrono::milliseconds(1000));
             return;
         }
-        if ((debug_mode_ && debug_robot_id_ == 7)
+        if ((debug_mode_ && debug_robot_id_ == (uint16_t)rmcs_msgs::ArmorID::Sentry)
             || (!debug_mode_ && robot_msg_->id() == rmcs_msgs::ArmorID::Sentry)) {
             RCLCPP_INFO(get_logger(), "Reading omni-direction perception parameters");
             try {
@@ -371,8 +373,8 @@ void Controller::update() {
         /*****************************************
             Omni Direction Perception System
          *****************************************/
-        if (debug_mode_ ? static_cast<rmcs_msgs::ArmorID>(debug_robot_id_) == rmcs_msgs::ArmorID::Sentry
-                        : robot_msg_->id() == rmcs_msgs::ArmorID::Sentry) {
+        if ((debug_mode_ && debug_robot_id_ == (uint16_t)rmcs_msgs::ArmorID::Sentry)
+            || (!debug_mode_ && robot_msg_->id() == rmcs_msgs::ArmorID::Sentry)) {
             threads_.emplace_back([this]() {
                 size_t attempt = 0;
                 while (true) {
