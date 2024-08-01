@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <exception>
 #include <map>
+#include <opencv2/highgui.hpp>
 #include <utility>
 
 #include <rclcpp/logging.hpp>
@@ -57,7 +58,7 @@ void Controller::gimbal_process() {
 
     auto target_color = rmcs_msgs::RobotColor::BLUE;
     if (debug_mode_) {
-        target_color = static_cast<rmcs_msgs::RobotColor>(2-debug_color_);
+        target_color = static_cast<rmcs_msgs::RobotColor>(1+debug_color_);
     }else if (robot_msg_->color() == rmcs_msgs::RobotColor::BLUE) {
         target_color = rmcs_msgs::RobotColor::RED;
     } 
@@ -169,13 +170,15 @@ void Controller::omni_perception_process(const std::string& device) {
 
     auto armor_identifier = ArmorIdentifier(package_share_directory + armor_model_path_);
 
-    auto target_color = rmcs_msgs::RobotColor::BLUE;
+    auto target_color = rmcs_msgs::RobotColor::RED;
     if (debug_mode_) {
-        target_color = static_cast<rmcs_msgs::RobotColor>(2-debug_color_);
-    }else if (robot_msg_->color() == rmcs_msgs::RobotColor::BLUE) {
-        target_color = rmcs_msgs::RobotColor::RED;
+        target_color = static_cast<rmcs_msgs::RobotColor>(debug_color_+1);
+    }else if (robot_msg_->color() == rmcs_msgs::RobotColor::RED) {
+        target_color = rmcs_msgs::RobotColor::BLUE;
     } 
     cv::Mat img;
+
+    RCLCPP_INFO(get_logger(),"Fuck %hhu",static_cast<uint8_t>(target_color));
 
     while (camera.isOpened()) {
         camera >> img;

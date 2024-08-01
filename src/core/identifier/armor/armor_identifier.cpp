@@ -1,5 +1,7 @@
 #include <iostream>
 #include <opencv2/core/types.hpp>
+#include <opencv2/imgcodecs.hpp>
+#include <ostream>
 #include <string>
 #include <vector>
 
@@ -64,7 +66,6 @@ public:
 
                 if ((lightBarDis < minsmallArmorDis || lightBarDis > maxsmallArmorDis)
                     && (lightBarDis < minbigArmorDis || lightBarDis > maxbigArmorDis)) {
-
                     continue;
                 }
                 ArmorPlate armor(
@@ -144,6 +145,8 @@ private:
             }
             if (img.rows == maxPointY + 1)
                 confidence = 0;
+if (confidence!=0){
+            std::cout << "Confidence" <<confidence << std::endl;}
 
             if (confidence > 0.45f) {
                 auto b_rect  = cv::boundingRect(contour);

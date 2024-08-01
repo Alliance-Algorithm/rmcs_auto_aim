@@ -115,8 +115,8 @@ private:
         } else {
             auto& imgDisplay = false ? imgBGR : imgMap;
             cv::flip(imgDisplay, imgDisplay, 0);
-            cv::imshow("debug", imgDisplay);
-            cv::waitKey(-1);
+            // cv::imshow("debug", imgDisplay);
+            // cv::waitKey(-1);
             throw(std::runtime_error("render size != 256, enable debugging..."));
         }
     }
