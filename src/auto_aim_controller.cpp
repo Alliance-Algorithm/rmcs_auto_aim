@@ -37,7 +37,7 @@ std::string get_stage(const rmcs_msgs::GameStage& stage) {
     case rmcs_msgs::GameStage::COUNTDOWN: return "COUNTDOWN";
     case rmcs_msgs::GameStage::STARTED: return "STARTED";
     case rmcs_msgs::GameStage::SETTLING: return "SETTLING";
-    case rmcs_msgs::GameStage::UNKNOWN: return "UNKNOWN"; break;
+    default: return "UNKNOWN";
     }
 }
 
@@ -114,6 +114,7 @@ void Controller::gimbal_process() {
     }
 
     size_t counter = 0;
+    size_t rau     = 0;
     while (rclcpp::ok()) {
         if (!debug_mode_ && *stage_ == rmcs_msgs::GameStage::SETTLING) {
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -145,6 +146,7 @@ void Controller::gimbal_process() {
                         auto& pos = object.position;
                         communicate(id, pos);
                     }
+                    rau++;
                 }
 
                 if (auto target = armor_tracker.Update(armor3d, timestamp, tf)) {
@@ -158,6 +160,7 @@ void Controller::gimbal_process() {
                 if (auto buff = buff_identifier.Identify(img)) {
                     if (buff) {
                         RCLCPP_INFO(get_logger(), "Buff Detected!");
+                        rau++;
                     }
                     if (auto buff3d = BuffPnPSolver::Solve(*buff, tf, fx_, fy_, cx_, cy_, k1_, k2_, k3_)) {
                         if (auto target = buff_tracker.Update(*buff3d, timestamp)) {
@@ -187,7 +190,9 @@ void Controller::gimbal_process() {
         // cv::waitKey(10);
 
         if (fps.Count()) {
-            RCLCPP_INFO(get_logger(), "Game Stage: %s , Fps:%d", get_stage(*stage_).c_str(), fps.GetFPS());
+            RCLCPP_INFO(
+                get_logger(), "Game Stage: %s , Fps:%d, Rau:%zu", get_stage(*stage_).c_str(), fps.GetFPS(),
+                rau);
         }
     } // while rclcpp::ok end
 }
@@ -468,7 +473,7 @@ void Controller::update() {
 
     auto local_target = target_.release();
     if (!local_target) {
-        // *control_direction_ = Eigen::Vector3d::Zero();
+        *control_direction_ = Eigen::Vector3d::Zero();
         return;
     }
     using namespace std::chrono_literals;
