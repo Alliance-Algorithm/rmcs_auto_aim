@@ -269,8 +269,8 @@ void Controller::omni_perception_process(const std::string& device) {
     } else {
         RCLCPP_INFO(get_logger(), "Omni-Direction Perception Start.");
     }
-    camera.set(cv::CAP_PROP_AUTO_EXPOSURE, 1);
-    camera.set(cv::CAP_PROP_EXPOSURE, omni_exposure_);
+    // camera.set(cv::CAP_PROP_AUTO_EXPOSURE, 1);
+    // camera.set(cv::CAP_PROP_EXPOSURE, omni_exposure_);
     RCLCPP_INFO(get_logger(), "exposure time = %f", camera.get(cv::CAP_PROP_EXPOSURE));
 
     auto package_share_directory = ament_index_cpp::get_package_share_directory("rmcs_auto_aim");
