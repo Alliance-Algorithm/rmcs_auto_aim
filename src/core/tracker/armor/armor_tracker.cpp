@@ -213,11 +213,11 @@ public:
             double camera_yaw = std::atan2(-yc, -xc);
             if (fabs(v_yaw) < 12.0) {
                 double shift                 = 0;
-                constexpr double legal_range = rmcs_auto_aim::util::Pi / 4;
+                constexpr double legal_range = rmcs_auto_aim::util::Pi / 6;
                 constexpr double step        = 2 * rmcs_auto_aim::util::Pi / TrackerUnit::armor_count;
                 size_t i;
                 for (i = 0; i < TrackerUnit::armor_count; ++i) {
-                    double diff = rmcs_auto_aim::util::GetMinimumAngleDiff(camera_yaw, model_yaw + shift);
+                    double diff = rmcs_auto_aim::util::GetMinimumAngleDiff(camera_yaw, 7 + shift);
                     if (-legal_range < diff && diff < legal_range)
                         break;
                     else
