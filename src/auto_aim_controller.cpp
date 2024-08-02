@@ -2,7 +2,9 @@
 #include <chrono>
 #include <cstddef>
 #include <exception>
+#include <game_stage.hpp>
 #include <map>
+#include <string>
 #include <utility>
 
 #include <opencv2/highgui.hpp>
@@ -26,6 +28,18 @@
 #include "auto_aim_controller.hpp"
 
 using namespace rmcs_auto_aim;
+
+std::string get_stage(const rmcs_msgs::GameStage& stage) {
+    switch (stage) {
+    case rmcs_msgs::GameStage::NOT_START: return "NOT_START";
+    case rmcs_msgs::GameStage::PREPARATION: return "PREPARATION";
+    case rmcs_msgs::GameStage::REFEREE_CHECK: return "REFEREE_CHECK";
+    case rmcs_msgs::GameStage::COUNTDOWN: return "COUNTDOWN";
+    case rmcs_msgs::GameStage::STARTED: return "STARTED";
+    case rmcs_msgs::GameStage::SETTLING: return "SETTLING";
+    case rmcs_msgs::GameStage::UNKNOWN: return "UNKNOWN"; break;
+    }
+}
 
 void Controller::gimbal_process() {
     if (robot_msg_->id() != rmcs_msgs::ArmorID::Unknown) {
@@ -99,6 +113,7 @@ void Controller::gimbal_process() {
         }
     }
 
+    size_t counter = 0;
     while (rclcpp::ok()) {
         if (!debug_mode_ && *stage_ == rmcs_msgs::GameStage::SETTLING) {
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -110,11 +125,11 @@ void Controller::gimbal_process() {
         auto tf        = *tf_;
 
         do {
-            if (!buff_enabled && (debug_mode_ ? debug_buff_mode_ : keyboard_->g == 1)) {
-
+            auto buff_control = (debug_mode_ ? debug_buff_mode_ : keyboard_->g == 1);
+            if (!buff_enabled && buff_control) {
                 buff_tracker.ResetAll(tf);
             }
-            buff_enabled = (debug_mode_ ? debug_buff_mode_ : keyboard_->g == 1);
+            buff_enabled = buff_control;
 
             if (!buff_enabled) {
                 auto armors = armor_identifier.Identify(img, target_color, blacklist_.load());
@@ -141,6 +156,9 @@ void Controller::gimbal_process() {
 
             } else {
                 if (auto buff = buff_identifier.Identify(img)) {
+                    if (buff) {
+                        RCLCPP_INFO(get_logger(), "Buff Detected!");
+                    }
                     if (auto buff3d = BuffPnPSolver::Solve(*buff, tf, fx_, fy_, cx_, cy_, k1_, k2_, k3_)) {
                         if (auto target = buff_tracker.Update(*buff3d, timestamp)) {
                             timestamp_ = timestamp;
@@ -152,22 +170,24 @@ void Controller::gimbal_process() {
                 }
             }
         } while (false);
-
+        counter++;
         if (record_mode_ && (debug_mode_ || *stage_ == rmcs_msgs::GameStage::STARTED) && recorder_.is_opened()
             && !img.empty()) {
-
-            std::shared_ptr<cv::Mat> imgPtr = std::make_shared<cv::Mat>(img);
-            std::unique_lock<std::mutex> lock(img_mtx_);
-            image_queue_.emplace(this->now(), imgPtr);
-            lock.unlock();
-            img_cv_.notify_one();
+            if (counter > 3) {
+                counter = 0;
+            } else {
+                std::shared_ptr<cv::Mat> imgPtr = std::make_shared<cv::Mat>(img);
+                std::unique_lock<std::mutex> lock(img_mtx_);
+                image_queue_.emplace(this->now(), imgPtr);
+                lock.unlock();
+                img_cv_.notify_one();
+            }
         }
         // cv::imshow("img", img);
         // cv::waitKey(10);
 
         if (fps.Count()) {
-            RCLCPP_INFO(
-                get_logger(), "Game Stage: %hhu , Fps:%d", static_cast<uint8_t>(*stage_), fps.GetFPS());
+            RCLCPP_INFO(get_logger(), "Game Stage: %s , Fps:%d", get_stage(*stage_).c_str(), fps.GetFPS());
         }
     } // while rclcpp::ok end
 }
@@ -232,6 +252,9 @@ void Controller::communicate(const rmcs_msgs::ArmorID& id, const rmcs_descriptio
     }
     default: break;
     }
+    RCLCPP_INFO(
+        get_logger(), "Detected Armor %hu=[%f,%f,%f]", static_cast<uint16_t>(id), pos->x(), pos->y(),
+        pos->z());
 }
 
 template <typename Link>

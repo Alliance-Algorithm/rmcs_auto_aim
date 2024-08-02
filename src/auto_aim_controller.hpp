@@ -109,7 +109,7 @@ public:
         }
 
         non_target_sub_ = this->create_subscription<std_msgs::msg::Int8>(
-            "/sentry/lock_premit", 10,
+            "/sentry/lock_permit", 10,
             [this](std_msgs::msg::Int8::UniquePtr msg) { blacklist_update(std::move(msg)); });
     }
 
