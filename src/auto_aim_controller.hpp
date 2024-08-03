@@ -77,7 +77,8 @@ public:
         register_output("/auto_aim/infantry_iv/position", enemies_infantry_iv_pose_);
         register_output("/auto_aim/infantry_v/position", enemies_infantry_v_pose_);
         register_output("/auto_aim/sentry/position", enemies_sentry_pose_);
-        register_output("/gimbal/auto_aim/control_direction", control_direction_, Eigen::Vector3d::Zero());
+        register_output(
+            "/gimbal/auto_aim/control_direction", control_direction_, Eigen::Vector3d::Zero());
         register_output("/auto_aim/ui_target", ui_target_, std::make_pair(0, 0));
 
         exposure_time_           = get_parameter("exposure_time").as_int();
@@ -98,6 +99,7 @@ public:
         k3_                      = get_parameter("k3").as_double();
         record_mode_             = get_parameter("record").as_bool();
         raw_img_pub_mode_        = get_parameter("raw_img_pub").as_bool();
+        shoot_velocity_          = get_parameter("shoot_velocity").as_double();
 
         try {
             record_fps_      = get_parameter("record_fps").as_int();
@@ -227,6 +229,8 @@ private:
     std::vector<std::thread> threads_;
 
     OutputInterface<std::pair<uint16_t, uint16_t>> ui_target_;
+
+    double shoot_velocity_;
 };
 } // namespace rmcs_auto_aim
 
