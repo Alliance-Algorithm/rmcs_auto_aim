@@ -12,7 +12,6 @@
 #include <mutex>
 #include <pthread.h>
 #include <queue>
-#include <std_msgs/msg/detail/int8__struct.hpp>
 #include <string>
 #include <thread>
 #include <unistd.h>

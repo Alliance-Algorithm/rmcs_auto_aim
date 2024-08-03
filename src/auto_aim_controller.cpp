@@ -195,6 +195,7 @@ void Controller::gimbal_process() {
             RCLCPP_INFO(
                 get_logger(), "Game Stage: %s , Fps:%d, Rau:%zu", get_stage(*stage_).c_str(),
                 fps.GetFPS(), rau);
+            rau = 0;
         }
     } // while rclcpp::ok end
 }
@@ -323,11 +324,6 @@ void Controller::omni_perception_process(const std::string& device) {
 
 void Controller::update() {
     if (*update_count_ == 0) {
-        if (!debug_mode_ && !robot_msg_.ready()) {
-            RCLCPP_WARN(get_logger(), "Robot ID is unknown. Waiting for robot ID...");
-            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-            return;
-        }
         if ((debug_mode_ && debug_robot_id_ == (uint16_t)rmcs_msgs::ArmorID::Sentry)
             || (!debug_mode_ && robot_msg_->id() == rmcs_msgs::ArmorID::Sentry)) {
             RCLCPP_INFO(get_logger(), "Reading omni-direction perception parameters");
@@ -367,7 +363,7 @@ void Controller::update() {
                         }
                     }
                 }
-                std::this_thread::sleep_for(std::chrono::milliseconds(5000));
+                std::this_thread::sleep_for(std::chrono::milliseconds(500));
             }
         });
 
