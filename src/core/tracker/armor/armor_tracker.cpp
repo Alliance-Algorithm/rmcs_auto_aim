@@ -64,7 +64,8 @@ public:
 
     // Complete Vehicle Solution
     struct TrackerUnit {
-        TrackerUnit(const ArmorPlate3d& armor, const std::chrono::steady_clock::time_point& timestamp)
+        TrackerUnit(
+            const ArmorPlate3d& armor, const std::chrono::steady_clock::time_point& timestamp)
             : last_update(timestamp)
             , measurement_pos(armor.position->x(), armor.position->y(), armor.position->z()) {
             double& r        = r_list[0];
@@ -95,7 +96,8 @@ public:
             }
         }
 
-        void Update(const ArmorPlate3d& armor, const std::chrono::steady_clock::time_point& timestamp) {
+        void Update(
+            const ArmorPlate3d& armor, const std::chrono::steady_clock::time_point& timestamp) {
 
             measurement_pos[0] = armor.position->x();
             measurement_pos[1] = armor.position->y();
@@ -214,10 +216,11 @@ public:
             if (fabs(v_yaw) < 12.0) {
                 double shift                 = 0;
                 constexpr double legal_range = rmcs_auto_aim::util::Pi / 6;
-                constexpr double step        = 2 * rmcs_auto_aim::util::Pi / TrackerUnit::armor_count;
+                constexpr double step = 2 * rmcs_auto_aim::util::Pi / TrackerUnit::armor_count;
                 size_t i;
                 for (i = 0; i < TrackerUnit::armor_count; ++i) {
-                    double diff = rmcs_auto_aim::util::GetMinimumAngleDiff(camera_yaw, 7 + shift);
+                    double diff =
+                        rmcs_auto_aim::util::GetMinimumAngleDiff(camera_yaw, model_yaw + shift);
                     if (-legal_range < diff && diff < legal_range)
                         break;
                     else
@@ -246,8 +249,8 @@ public:
     };
 
     std::unique_ptr<TargetInterface> Update(
-        const std::vector<ArmorPlate3d>& armors, const std::chrono::steady_clock::time_point& timestamp,
-        const rmcs_description::Tf& tf) {
+        const std::vector<ArmorPlate3d>& armors,
+        const std::chrono::steady_clock::time_point& timestamp, const rmcs_description::Tf& tf) {
         //
         // dt: interval between adjacent updates by seconds.
         double dt    = std::chrono::duration<double>(timestamp - last_update_).count();
@@ -256,7 +259,8 @@ public:
         for (auto& [armor_id, tracker_array] : tracker_map_) {
             for (auto iter = tracker_array.begin(); iter != tracker_array.end();) {
                 auto& tracker = *iter;
-                if (timestamp - tracker.last_update > std::chrono::milliseconds(predict_duration_)) {
+                if (timestamp - tracker.last_update
+                    > std::chrono::milliseconds(predict_duration_)) {
                     iter = tracker_array.erase(iter);
                 } else {
                     tracker.Predict(dt);
@@ -385,7 +389,8 @@ public:
                     selected_tracker = &tracker;
                     selected_level   = level;
                 } else if (
-                    !std::isinf(angle) && fabs(angle - minimum_angle) < 1e-3 && selected_level < level) {
+                    !std::isinf(angle) && fabs(angle - minimum_angle) < 1e-3
+                    && selected_level < level) {
                     selected_level = level;
                     minimum_angle  = angle;
 
