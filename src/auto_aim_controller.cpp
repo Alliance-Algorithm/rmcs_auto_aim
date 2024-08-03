@@ -162,14 +162,14 @@ void Controller::gimbal_process() {
                     if (buff) {
                         RCLCPP_INFO(get_logger(), "Buff Detected!");
                         rau++;
-                    }
-                    if (auto buff3d =
-                            BuffPnPSolver::Solve(*buff, tf, fx_, fy_, cx_, cy_, k1_, k2_, k3_)) {
-                        if (auto target = buff_tracker.Update(*buff3d, timestamp)) {
-                            timestamp_ = timestamp;
-                            target_.swap(target);
-                            target_updated_.store(true);
-                            break;
+                        if (auto buff3d = BuffPnPSolver::Solve(
+                                *buff, tf, fx_, fy_, cx_, cy_, k1_, k2_, k3_)) {
+                            if (auto target = buff_tracker.Update(*buff3d, timestamp)) {
+                                timestamp_ = timestamp;
+                                target_.swap(target);
+                                target_updated_.store(true);
+                                break;
+                            }
                         }
                     }
                 }
