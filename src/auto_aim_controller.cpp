@@ -22,6 +22,7 @@
 #include "core/pnpsolver/buff/buff_pnp_solver.hpp"
 #include "core/tracker/armor/armor_tracker.hpp"
 #include "core/tracker/buff/buff_tracker.hpp"
+#include "core/tracker/target.hpp"
 #include <robot_color.hpp>
 #include <robot_id.hpp>
 
@@ -477,20 +478,27 @@ void Controller::update() {
         }
     }
 
-    auto local_target = target_.release();
+    TargetInterface* local_target = target_.release();
+    target_updated_.store(false);
+
     if (!local_target) {
         *control_direction_ = Eigen::Vector3d::Zero();
+        RCLCPP_INFO(get_logger(), "No target");
         return;
     }
+
     using namespace std::chrono_literals;
     auto diff = std::chrono::steady_clock::now() - timestamp_;
     if (diff > std::chrono::milliseconds(gimbal_predict_duration_)) {
         *control_direction_ = Eigen::Vector3d::Zero();
+        target_.reset(nullptr);
+        RCLCPP_INFO(get_logger(), "Target timeout");
         return;
     }
+    auto tf = *tf_;
 
     auto offset = fast_tf::cast<rmcs_description::OdomImu>(
-        rmcs_description::MuzzleLink::Position{0, 0, 0}, *tf_);
+        rmcs_description::MuzzleLink::Position{0, 0, 0}, tf);
 
     double fly_time = 0;
     for (int i = 5; i-- > 0;) {
@@ -501,10 +509,10 @@ void Controller::update() {
             shoot_velocity_, fly_time);
 
         auto yaw_axis = fast_tf::cast<rmcs_description::PitchLink>(
-                            rmcs_description::OdomImu::DirectionVector(0, 0, 1), *tf_)
+                            rmcs_description::OdomImu::DirectionVector(0, 0, 1), tf)
                             ->normalized();
         auto pitch_axis = fast_tf::cast<rmcs_description::PitchLink>(
-                              rmcs_description::OdomImu::DirectionVector(0, 1, 0), *tf_)
+                              rmcs_description::OdomImu::DirectionVector(0, 1, 0), tf)
                               ->normalized();
         auto delta_yaw   = Eigen::AngleAxisd{yaw_error_, yaw_axis};
         auto delta_pitch = Eigen::AngleAxisd{pitch_error_, pitch_axis};
@@ -517,7 +525,9 @@ void Controller::update() {
     }
 
     if (target_updated_.load()) {
+        auto new_target = target_.release();
         delete local_target;
+        target_.reset(new_target);
         target_updated_.store(false);
     } else {
         target_.reset(local_target);
