@@ -503,7 +503,7 @@ void Controller::update() {
     double fly_time = 0;
     for (int i = 5; i-- > 0;) {
         auto pos = local_target->Predict(
-            static_cast<std::chrono::duration<double>>(diff).count() + fly_time + 0.05);
+            static_cast<std::chrono::duration<double>>(diff).count() + fly_time + predict_sec_);
         auto aiming_direction = *trajectory_.GetShotVector(
             {pos->x() - offset->x(), pos->y() - offset->y(), pos->z() - offset->z()},
             shoot_velocity_, fly_time);

@@ -99,6 +99,7 @@ public:
         record_mode_             = get_parameter("record").as_bool();
         raw_img_pub_mode_        = get_parameter("raw_img_pub").as_bool();
         shoot_velocity_          = get_parameter("shoot_velocity").as_double();
+        predict_sec_             = get_parameter("predict_sec").as_double();
 
         try {
             record_fps_      = get_parameter("record_fps").as_int();
@@ -230,6 +231,7 @@ private:
     OutputInterface<std::pair<uint16_t, uint16_t>> ui_target_;
 
     double shoot_velocity_;
+    double predict_sec_;
 };
 } // namespace rmcs_auto_aim
 
