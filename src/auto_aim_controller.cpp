@@ -1,6 +1,7 @@
 
 #include <chrono>
 #include <cstddef>
+#include <cstdint>
 #include <exception>
 #include <game_stage.hpp>
 #include <map>
@@ -25,6 +26,7 @@
 #include "core/tracker/target.hpp"
 #include <robot_color.hpp>
 #include <robot_id.hpp>
+#include <vector>
 
 #include "auto_aim_controller.hpp"
 
@@ -87,6 +89,7 @@ void Controller::gimbal_process() {
     }
 
     FPSCounter fps;
+    uint8_t ids;
 
     if (record_mode_) {
         auto flag = true;
@@ -146,7 +149,7 @@ void Controller::gimbal_process() {
                     for (auto& object : armor3d) {
                         auto& id  = object.id;
                         auto& pos = object.position;
-                        communicate(id, pos);
+                        communicate(id, pos, ids);
                     }
                     rau++;
                 }
@@ -194,15 +197,16 @@ void Controller::gimbal_process() {
 
         if (fps.Count()) {
             RCLCPP_INFO(
-                get_logger(), "Game Stage: %s , Fps:%d, Rau:%zu", get_stage(*stage_).c_str(),
-                fps.GetFPS(), rau);
+                get_logger(), "Game Stage: %s , Fps:%d, Rau:%zu, Detected Armor: %d",
+                get_stage(*stage_).c_str(), fps.GetFPS(), rau, ids);
+            ids = 0;
             rau = 0;
         }
     } // while rclcpp::ok end
 }
 
 void Controller::communicate(
-    const rmcs_msgs::ArmorID& id, const rmcs_description::OdomImu::Position& pos) {
+    const rmcs_msgs::ArmorID& id, const rmcs_description::OdomImu::Position& pos, uint8_t& ids) {
     Eigen::Vector2d plate_pos{pos->x(), pos->y()};
     Eigen::Vector2d zero{0, 0};
     switch (id) {
@@ -213,6 +217,7 @@ void Controller::communicate(
         *enemies_infantry_iv_pose_  = zero;
         *enemies_infantry_v_pose_   = zero;
         *enemies_sentry_pose_       = zero;
+        ids |= 0x01;
         break;
     }
     case rmcs_msgs::ArmorID::Engineer: {
@@ -222,6 +227,7 @@ void Controller::communicate(
         *enemies_infantry_iv_pose_  = zero;
         *enemies_infantry_v_pose_   = zero;
         *enemies_sentry_pose_       = zero;
+        ids |= 0x02;
         break;
     }
     case rmcs_msgs::ArmorID::InfantryIII: {
@@ -231,6 +237,7 @@ void Controller::communicate(
         *enemies_infantry_iv_pose_  = zero;
         *enemies_infantry_v_pose_   = zero;
         *enemies_sentry_pose_       = zero;
+        ids |= 0x04;
         break;
     }
     case rmcs_msgs::ArmorID::InfantryIV: {
@@ -240,6 +247,7 @@ void Controller::communicate(
         *enemies_infantry_iv_pose_  = plate_pos;
         *enemies_infantry_v_pose_   = zero;
         *enemies_sentry_pose_       = zero;
+        ids |= 0x08;
         break;
     }
     case rmcs_msgs::ArmorID::InfantryV: {
@@ -249,6 +257,7 @@ void Controller::communicate(
         *enemies_infantry_iv_pose_  = zero;
         *enemies_infantry_v_pose_   = plate_pos;
         *enemies_sentry_pose_       = zero;
+        ids |= 0x10;
         break;
     }
     case rmcs_msgs::ArmorID::Sentry: {
@@ -258,13 +267,14 @@ void Controller::communicate(
         *enemies_infantry_iv_pose_  = zero;
         *enemies_infantry_v_pose_   = zero;
         *enemies_sentry_pose_       = plate_pos;
+        ids |= 0x20;
         break;
     }
     default: break;
     }
-    RCLCPP_INFO(
-        get_logger(), "Detected Armor %hu=[%f,%f,%f]", static_cast<uint16_t>(id), pos->x(),
-        pos->y(), pos->z());
+    // RCLCPP_INFO(
+    //     get_logger(), "Detected Armor %hu=[%f,%f,%f]", static_cast<uint16_t>(id), pos->x(),
+    //     pos->y(), pos->z());
 }
 
 template <typename Link>
@@ -294,6 +304,7 @@ void Controller::omni_perception_process(const std::string& device) {
         target_color = rmcs_msgs::RobotColor::RED;
     }
     cv::Mat img;
+    uint8_t ids;
 
     while (camera.isOpened()) {
         camera >> img;
@@ -318,7 +329,7 @@ void Controller::omni_perception_process(const std::string& device) {
 
         for (auto& [id, target] : targets_map) {
             auto pos = fast_tf::cast<rmcs_description::OdomImu>(target, *tf_);
-            communicate(id, pos);
+            communicate(id, pos, ids);
         }
     }
 }
@@ -483,7 +494,6 @@ void Controller::update() {
 
     if (!local_target) {
         *control_direction_ = Eigen::Vector3d::Zero();
-        RCLCPP_INFO(get_logger(), "No target");
         return;
     }
 

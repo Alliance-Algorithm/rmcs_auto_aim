@@ -131,7 +131,8 @@ public:
     }
 
 private:
-    void communicate(const rmcs_msgs::ArmorID& id, const rmcs_description::OdomImu::Position& pos);
+    void communicate(
+        const rmcs_msgs::ArmorID& id, const rmcs_description::OdomImu::Position& pos, uint8_t& ids);
     class FPSCounter {
     public:
         bool Count() {
@@ -186,7 +187,7 @@ private:
     std::string armor_model_path_;
     std::string buff_model_path_;
 
-    std::atomic<int8_t> blacklist_{0x3f};
+    std::atomic<uint8_t> blacklist_{0x3f};
 
     std::chrono::steady_clock::time_point timestamp_;
 

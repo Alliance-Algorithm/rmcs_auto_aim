@@ -1,5 +1,5 @@
-#include <optional>
 #include <opencv2/imgcodecs.hpp>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -28,8 +28,8 @@ public:
         , _redIdentifier(RedLightBarHue)
         , _numberIdentifier(std::forward<Args>(args)...) {}
 
-    std::vector<ArmorPlate>
-        Identify(const cv::Mat& img, const rmcs_msgs::RobotColor& target_color, const int8_t& blacklist) {
+    std::vector<ArmorPlate> Identify(
+        const cv::Mat& img, const rmcs_msgs::RobotColor& target_color, const uint8_t& blacklist) {
         cv::Mat imgThre, imgGray;
         cv::cvtColor(img, imgGray, cv::COLOR_BGR2GRAY);
         cv::threshold(imgGray, imgThre, 150, 255, cv::THRESH_BINARY);
@@ -72,14 +72,17 @@ public:
                     continue;
                 }
                 ArmorPlate armor(
-                    lightBars[i], lightBars[j], rmcs_msgs::ArmorID::Unknown, lightBarDis > minbigArmorDis);
+                    lightBars[i], lightBars[j], rmcs_msgs::ArmorID::Unknown,
+                    lightBarDis > minbigArmorDis);
 
                 if (_numberIdentifier.Identify(img, armor, blacklist)) {
                     result.push_back(armor);
 
-                    cv::rectangle(img, cv::Rect{armor.points[0], armor.points[2]}, cv::Scalar(0, 255, 0), 2);
+                    cv::rectangle(
+                        img, cv::Rect{armor.points[0], armor.points[2]}, cv::Scalar(0, 255, 0), 2);
                     cv::putText(
-                        img, std::to_string((int)armor.id), armor.center(), 2, 2, cv::Scalar(0, 255, 0), 2);
+                        img, std::to_string((int)armor.id), armor.center(), 2, 2,
+                        cv::Scalar(0, 255, 0), 2);
                 }
             }
         }
@@ -147,14 +150,17 @@ private:
             if (int(return_param[0] * 100) == 100 || int(return_param[1] * 100) == 0) {
                 top    = cv::Point2f((float)b_rect.x + (float)b_rect.width / 2, (float)b_rect.y);
                 bottom = cv::Point2f(
-                    (float)b_rect.x + (float)b_rect.width / 2, (float)b_rect.y + (float)b_rect.height);
+                    (float)b_rect.x + (float)b_rect.width / 2,
+                    (float)b_rect.y + (float)b_rect.height);
                 angle_k = 0;
             } else {
                 auto k = return_param[1] / return_param[0];
-                auto b = (return_param[3] + (float)b_rect.y) - k * (return_param[2] + (float)b_rect.x);
+                auto b =
+                    (return_param[3] + (float)b_rect.y) - k * (return_param[2] + (float)b_rect.x);
                 top    = cv::Point2f(((float)b_rect.y - b) / k, (float)b_rect.y);
                 bottom = cv::Point2f(
-                    ((float)b_rect.y + (float)b_rect.height - b) / k, (float)b_rect.y + (float)b_rect.height);
+                    ((float)b_rect.y + (float)b_rect.height - b) / k,
+                    (float)b_rect.y + (float)b_rect.height);
                 angle_k = (float)(std::atan(k) / CV_PI * 180 - 90);
                 if (angle_k > 90) {
                     angle_k = 180 - angle_k;
@@ -173,13 +179,14 @@ private:
             }
             angle_k  = (float)(angle_k / 180 * CV_PI);
             auto tmp = LightBar{top, bottom, angle_k};
-            if (0 <= b_rect.x && 0 <= b_rect.width && b_rect.x + b_rect.width <= img.cols && 0 <= b_rect.y
-                && 0 <= b_rect.height && b_rect.y + b_rect.height <= img.rows) {
+            if (0 <= b_rect.x && 0 <= b_rect.width && b_rect.x + b_rect.width <= img.cols
+                && 0 <= b_rect.y && 0 <= b_rect.height && b_rect.y + b_rect.height <= img.rows) {
                 int sum  = 0;
                 auto roi = img(b_rect);
                 for (int i = 0; i < roi.rows; i++) {
                     for (int j = 0; j < roi.cols; j++) {
-                        if (cv::pointPolygonTest(contour, cv::Point2f(j + b_rect.x, i + b_rect.y), false)
+                        if (cv::pointPolygonTest(
+                                contour, cv::Point2f(j + b_rect.x, i + b_rect.y), false)
                             >= 0) {
                             sum += roi.at<cv::Vec3b>(i, j)[0];
                             sum -= roi.at<cv::Vec3b>(i, j)[2];
@@ -200,7 +207,7 @@ ArmorIdentifier::ArmorIdentifier(const std::string& model_path)
     : pImpl_(new Impl{model_path}) {}
 
 std::vector<ArmorPlate> ArmorIdentifier::Identify(
-    const cv::Mat& img, const rmcs_msgs::RobotColor& target_color, int8_t blacklist) {
+    const cv::Mat& img, const rmcs_msgs::RobotColor& target_color, uint8_t blacklist) {
     return pImpl_->Identify(img, target_color, blacklist);
 }
 
