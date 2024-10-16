@@ -26,7 +26,7 @@ public:
     explicit ArmorTracker(const int64_t& predict_duration, const bool& debug);
     ~ArmorTracker();
 
-    std::unique_ptr<TargetInterface> Update(
+    std::shared_ptr<TargetInterface> Update(
         const std::vector<ArmorPlate3d>& armors,
         const std::chrono::steady_clock::time_point& timestamp, const rmcs_description::Tf& tf);
 

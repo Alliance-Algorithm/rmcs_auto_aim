@@ -157,7 +157,6 @@ void Controller::gimbal_process() {
                 if (auto target = armor_tracker.Update(armor3d, timestamp, tf)) {
                     timestamp_ = timestamp;
                     target_.swap(target);
-                    target_updated_.store(true);
                     break;
                 }
 
@@ -171,7 +170,6 @@ void Controller::gimbal_process() {
                             if (auto target = buff_tracker.Update(*buff3d, timestamp)) {
                                 timestamp_ = timestamp;
                                 target_.swap(target);
-                                target_updated_.store(true);
                                 break;
                             }
                         }
@@ -489,9 +487,7 @@ void Controller::update() {
         }
     }
 
-    TargetInterface* local_target = target_.release();
-    target_updated_.store(false);
-
+    auto local_target = target_;
     if (!local_target) {
         *control_direction_ = Eigen::Vector3d::Zero();
         return;
@@ -501,7 +497,6 @@ void Controller::update() {
     auto diff = std::chrono::steady_clock::now() - timestamp_;
     if (diff > std::chrono::milliseconds(gimbal_predict_duration_)) {
         *control_direction_ = Eigen::Vector3d::Zero();
-        target_.reset(nullptr);
         RCLCPP_INFO(get_logger(), "Target timeout");
         return;
     }
@@ -532,14 +527,5 @@ void Controller::update() {
             *control_direction_ = aiming_direction;
             break;
         }
-    }
-
-    if (target_updated_.load()) {
-        auto new_target = target_.release();
-        delete local_target;
-        target_.reset(new_target);
-        target_updated_.store(false);
-    } else {
-        target_.reset(local_target);
     }
 }

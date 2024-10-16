@@ -17,7 +17,7 @@ NumberIdentifier::NumberIdentifier(const std::string& model_path) {
     }
 }
 
-bool NumberIdentifier::Identify(const cv::Mat& imgGray, ArmorPlate& armor, const int8_t& blacklist) {
+bool NumberIdentifier::Identify(const cv::Mat& imgGray, ArmorPlate& armor, const uint8_t& blacklist) {
 
     static const int light_length      = 12;
     static const int warp_height       = 28;

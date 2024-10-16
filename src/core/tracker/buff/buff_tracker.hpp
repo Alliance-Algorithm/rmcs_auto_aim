@@ -24,7 +24,7 @@ public:
     explicit BuffTracker(int64_t predict_duration);
     ~BuffTracker();
 
-    std::unique_ptr<TargetInterface>
+    std::shared_ptr<TargetInterface>
         Update(const BuffPlate3d& buff, std::chrono::steady_clock::time_point timestamp);
 
     void ResetAll(const rmcs_description::Tf& tf);

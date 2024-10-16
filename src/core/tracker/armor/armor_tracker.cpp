@@ -4,9 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
-#include <iostream>
 #include <memory>
-#include <ostream>
 #include <random>
 #include <vector>
 
@@ -248,7 +246,7 @@ public:
         const TrackerUnit& tracker_;
     };
 
-    std::unique_ptr<TargetInterface> Update(
+    std::shared_ptr<TargetInterface> Update(
         const std::vector<ArmorPlate3d>& armors,
         const std::chrono::steady_clock::time_point& timestamp, const rmcs_description::Tf& tf) {
         //
@@ -400,7 +398,7 @@ public:
             }
         }
         if (selected_tracker) {
-            return std::make_unique<Target>(*selected_tracker);
+            return std::make_shared<Target>(*selected_tracker);
         } else {
             return nullptr;
         }
@@ -421,7 +419,7 @@ private:
 ArmorTracker::ArmorTracker(const int64_t& predict_duration, const bool& debug)
     : pImpl_(new Impl{predict_duration, debug}) {}
 
-std::unique_ptr<TargetInterface> ArmorTracker::Update(
+std::shared_ptr<TargetInterface> ArmorTracker::Update(
     const std::vector<ArmorPlate3d>& armors, const std::chrono::steady_clock::time_point& timestamp,
     const rmcs_description::Tf& tf) {
     return pImpl_->Update(armors, timestamp, tf);

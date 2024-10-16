@@ -14,7 +14,7 @@ public:
     explicit Impl(int64_t predict_duration)
         : predict_duration_(predict_duration) {}
 
-    std::unique_ptr<TargetInterface>
+    std::shared_ptr<TargetInterface>
         Update(const BuffPlate3d& buff, std::chrono::steady_clock::time_point timestamp) {
         if (!angle_array_.empty()
             && timestamp - last_update_ > std::chrono::milliseconds(predict_duration_)) {
@@ -218,7 +218,7 @@ private:
 BuffTracker::BuffTracker(int64_t predict_duration)
     : pImpl_(new Impl{predict_duration}) {}
 
-std::unique_ptr<TargetInterface>
+std::shared_ptr<TargetInterface>
     BuffTracker::Update(const BuffPlate3d& buff, std::chrono::steady_clock::time_point timestamp) {
     return pImpl_->Update(buff, timestamp);
 }

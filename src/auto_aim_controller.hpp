@@ -191,8 +191,7 @@ private:
 
     std::chrono::steady_clock::time_point timestamp_;
 
-    std::atomic<bool> target_updated_{false};
-    std::unique_ptr<TargetInterface> target_{nullptr};
+    std::shared_ptr<TargetInterface> target_{nullptr};
     rmcs_description::OdomImu::Position pnp_result_;
     OutputInterface<Eigen::Vector3d> control_direction_;
 
