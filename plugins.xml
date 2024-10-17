@@ -1,5 +1,8 @@
 <library path="rmcs_auto_aim">
+  <class type="rmcs_auto_aim::ArmorIdentifierNode" base_class_type="rmcs_executor::Component">
+    <description>You know it? You know it</description>
+  </class>
   <class type="rmcs_auto_aim::Controller" base_class_type="rmcs_executor::Component">
-    <description>Test plugin.</description>
+    <description>Fuck all.</description>
   </class>
 </library>

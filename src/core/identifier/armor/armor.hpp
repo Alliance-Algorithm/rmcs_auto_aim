@@ -10,6 +10,7 @@
  */
 #pragma once
 
+#include <cstdint>
 #include <stdexcept>
 #include <utility>
 
@@ -52,5 +53,16 @@ struct ArmorPlate {
     rmcs_msgs::ArmorID id;
     bool is_large_armor;
 };
+
+namespace blacklist_code {
+constexpr uint8_t Hero        = 0x1;
+constexpr uint8_t Engineer    = 0x2;
+constexpr uint8_t InfantryIII = 0x4;
+constexpr uint8_t InfantryIV  = 0x8;
+constexpr uint8_t InfantryV   = 0x10;
+constexpr uint8_t Sentry      = 0x20;
+constexpr uint8_t Outpost     = 0x40;
+constexpr uint8_t Base        = 0x80;
+} // namespace blacklist_code
 
 } // namespace rmcs_auto_aim

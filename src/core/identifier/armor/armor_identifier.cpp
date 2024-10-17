@@ -185,7 +185,8 @@ private:
                 auto roi = img(b_rect);
                 for (int i = 0; i < roi.rows; i++) {
                     for (int j = 0; j < roi.cols; j++) {
-                        if (cv::pointPolygonTest(contour, cv::Point2i(j + b_rect.x, i + b_rect.y), false)
+                        if (cv::pointPolygonTest(
+                                contour, cv::Point2i(j + b_rect.x, i + b_rect.y), false)
                             >= 0) {
                             sum += roi.at<cv::Vec3b>(i, j)[0];
                             sum -= roi.at<cv::Vec3b>(i, j)[2];

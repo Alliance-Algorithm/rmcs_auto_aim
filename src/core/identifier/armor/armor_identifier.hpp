@@ -8,11 +8,10 @@
 #include <rmcs_msgs/robot_color.hpp>
 
 #include "core/identifier/armor/armor.hpp"
-#include "core/identifier/identifier.hpp"
 
 namespace rmcs_auto_aim {
 
-class ArmorIdentifier : public ArmorIdentifierInterface {
+class ArmorIdentifier {
 public:
     explicit ArmorIdentifier(const std::string& model_path);
     ~ArmorIdentifier();

@@ -1,7 +1,7 @@
 /**
  * @file color_identifier.hpp
  * @author Lorenzo Feng (lorenzo.feng@njust.edu.cn)
- * @brief
+ * @brief 
  * @version 0.1
  * @date 2024-06-07
  *
