@@ -4,7 +4,6 @@
 #include <cstdint>
 #include <memory>
 #include <opencv2/core/mat.hpp>
-#include <optional>
 #include <rclcpp/node.hpp>
 #include <rclcpp/publisher.hpp>
 #include <rclcpp/subscription.hpp>
@@ -25,10 +24,10 @@ public:
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)) {
         register_input("/predefined/update_count", update_count_);
-        register_input("/auto_aim/target_color", target_color_, false); // TODO: register_output
-        // register_input("/auto_aim/blacklist", blacklist_);
+        register_input("/auto_aim/target_color", target_color_);
+        register_input("/auto_aim/blacklist", blacklist_);
 
-        // register_output("/auto_aim/armor_plates", armor_plates_, std::nullopt);
+        register_output("/auto_aim/armor_plates", armor_plates_);
 
         armor_identifier_ = std::make_unique<ArmorIdentifier>(
             ament_index_cpp::get_package_share_directory("rmcs_auto_aim")
@@ -37,13 +36,15 @@ public:
 
     void update() override {
         if (!img_->empty()) {
-            auto result = armor_identifier_->Identify(*img_, *target_color_, *blacklist_);
+            auto result    = armor_identifier_->Identify(*img_, *target_color_, *blacklist_);
+            *armor_plates_ = result;
         }
     }
 
 private:
     // rclcpp::Publisher<>
     InputInterface<cv::Mat> img_;
+
     InputInterface<rmcs_msgs::RobotColor> target_color_;
     InputInterface<size_t> update_count_;
     InputInterface<uint8_t> blacklist_;
