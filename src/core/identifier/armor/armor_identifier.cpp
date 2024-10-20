@@ -13,7 +13,6 @@
 #include <rmcs_msgs/robot_color.hpp>
 
 #include "core/identifier/armor/armor.hpp"
-#include "core/identifier/armor/color_identifier.hpp"
 #include "core/identifier/armor/number_identifier.hpp"
 
 #include "armor_identifier.hpp"
@@ -24,9 +23,7 @@ class ArmorIdentifier::Impl {
 public:
     template <class... Args>
     explicit Impl(Args&&... args)
-        : _blueIdentifier(BlueLightBarHue)
-        , _redIdentifier(RedLightBarHue)
-        , _numberIdentifier(std::forward<Args>(args)...) {}
+        : _numberIdentifier(std::forward<Args>(args)...) {}
 
     std::vector<ArmorPlate> Identify(
         const cv::Mat& img, const rmcs_msgs::RobotColor& target_color, const uint8_t& blacklist) {
@@ -90,7 +87,6 @@ public:
     }
 
 private:
-    ColorIdentifier _blueIdentifier, _redIdentifier;
     NumberIdentifier _numberIdentifier;
 
     inline static constexpr const double maxArmorLightRatio = 1.5;
