@@ -1,9 +1,13 @@
 #include <chrono>
-#include <hikcamera/image_capturer.hpp>
 #include <memory>
-#include <rclcpp/node.hpp>
-#include <rmcs_executor/component.hpp>
 #include <thread>
+
+#include <opencv2/core/mat.hpp>
+#include <rclcpp/node.hpp>
+
+#include <hikcamera/image_capturer.hpp>
+#include <rmcs_executor/component.hpp>
+
 namespace rmcs_auto_aim {
 class Capturer
     : public rmcs_executor::Component
@@ -16,6 +20,7 @@ public:
         RCLCPP_INFO(this->get_logger(), "Capturer init");
 
         register_input("/predefined/update_count", update_count_);
+        register_output("/auto_aim/camera", img_);
 
         hikcamera::ImageCapturer::CameraProfile profile;
         profile.invert_image  = get_parameter("invert_image").as_bool();
@@ -36,14 +41,24 @@ public:
             thread_ = std::thread([this] {
                 while (true) {
                     auto img = capturer_->read();
+                    if (!img.empty()) {
+                        buffer[!buffer_index_.load()] = img;
+                        buffer_index_.store(!buffer_index_.load());
+                    }
                 }
             });
         }
+        *img_ = get_image();
     }
 
+    cv::Mat get_image() { return buffer[buffer_index_.load()]; }
+
 private:
+    cv::Mat buffer[2];
+    std::atomic<bool> buffer_index_{false};
     std::thread thread_;
     InputInterface<size_t> update_count_;
+    OutputInterface<cv::Mat> img_;
     std::unique_ptr<hikcamera::ImageCapturer> capturer_;
 };
 } // namespace rmcs_auto_aim

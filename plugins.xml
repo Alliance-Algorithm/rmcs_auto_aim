@@ -1,8 +1,15 @@
 <library path="rmcs_auto_aim">
+  <class type="rmcs_auto_aim::AutoAimTest" base_class_type="rmcs_executor::Component">
+    <description>Start Fucking test.</description>
+  </class>
+  <class type="rmcs_auto_aim::Capturer" base_class_type="rmcs_executor::Component">
+    <description>Get the fucking image</description>
+  </class>
   <class type="rmcs_auto_aim::ArmorIdentifierNode" base_class_type="rmcs_executor::Component">
     <description>You know it? You know it</description>
   </class>
   <class type="rmcs_auto_aim::AutoAimInitializer" base_class_type="rmcs_executor::Component">
     <description>Start Fucking.</description>
   </class>
+
 </library>
