@@ -1,4 +1,5 @@
 
+#include "util/fps_counter.hpp"
 #include <opencv2/core/mat.hpp>
 #include <opencv2/highgui.hpp>
 #include <rclcpp/node.hpp>
@@ -24,14 +25,17 @@ public:
 
     void update() override {
         if (rclcpp::ok() && !img_->empty()) {
-            cv::imshow("test", *img_);
-            cv::waitKey();
-            // TODO : FPS counter
+            // cv::imshow("test", *img_);
+            // cv::waitKey();
+            if (fps_counter_.Count()) {
+                RCLCPP_INFO(get_logger(), "fps: %d", fps_counter_.GetFPS());
+            }
         }
     }
 
 private:
     InputInterface<cv::Mat> img_;
+    FPSCounter fps_counter_;
 };
 } // namespace rmcs_auto_aim
 

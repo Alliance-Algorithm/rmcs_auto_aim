@@ -17,7 +17,6 @@ public:
         : rclcpp::Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)) {
-        RCLCPP_INFO(this->get_logger(), "Capturer init");
 
         register_input("/predefined/update_count", update_count_);
         register_output("/auto_aim/camera", img_);
@@ -28,6 +27,8 @@ public:
         profile.exposure_time = std::chrono::milliseconds(get_parameter("exposure_time").as_int());
 
         capturer_ = std::make_unique<hikcamera::ImageCapturer>(profile);
+
+        RCLCPP_INFO(this->get_logger(), "Capturer initialized");
     }
 
     ~Capturer() {
@@ -39,7 +40,7 @@ public:
     void update() override {
         if (*update_count_ == 0) {
             thread_ = std::thread([this] {
-                while (true) {
+                while (rclcpp::ok()) {
                     auto img = capturer_->read();
                     if (!img.empty()) {
                         buffer[!buffer_index_.load()] = img;
@@ -51,15 +52,18 @@ public:
         *img_ = get_image();
     }
 
-    cv::Mat get_image() { return buffer[buffer_index_.load()]; }
+    cv::Mat get_image() const { return buffer[buffer_index_.load()]; }
 
 private:
-    cv::Mat buffer[2];
     std::atomic<bool> buffer_index_{false};
     std::thread thread_;
+
+    std::unique_ptr<hikcamera::ImageCapturer> capturer_;
+
+    cv::Mat buffer[2];
+
     InputInterface<size_t> update_count_;
     OutputInterface<cv::Mat> img_;
-    std::unique_ptr<hikcamera::ImageCapturer> capturer_;
 };
 } // namespace rmcs_auto_aim
 

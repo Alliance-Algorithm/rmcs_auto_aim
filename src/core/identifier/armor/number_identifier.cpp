@@ -1,9 +1,8 @@
 #include <cstdint>
-#include <opencv2/highgui.hpp>
-#include <std_msgs/msg/detail/int8__struct.hpp>
 #include <stdexcept>
 #include <string>
 
+#include <opencv2/highgui.hpp>
 #include <opencv2/opencv.hpp>
 
 #include "core/identifier/armor/armor.hpp"
@@ -19,7 +18,7 @@ NumberIdentifier::NumberIdentifier(const std::string& model_path) {
 }
 
 bool NumberIdentifier::Identify(
-    const cv::Mat& imgGray, ArmorPlate& armor, const uint8_t& blacklist) {
+    const cv::Mat& imgGray, ArmorPlate& armor, const uint8_t& whitelist) {
 
     static const int light_length      = 12;
     static const int warp_height       = 28;
@@ -76,49 +75,49 @@ bool NumberIdentifier::Identify(
     switch (label_id) {
     case 8: return false;
     case 0:
-        if (!(blacklist & rmcs_auto_aim::blacklist_code::Hero)) {
+        if (!(whitelist & rmcs_auto_aim::whitelist_code::Hero)) {
             return false;
         }
         armor.id = rmcs_msgs::ArmorID::Hero;
         break;
     case 1:
-        if (!(blacklist & rmcs_auto_aim::blacklist_code::Engineer)) {
+        if (!(whitelist & rmcs_auto_aim::whitelist_code::Engineer)) {
             return false;
         }
         armor.id = rmcs_msgs::ArmorID::Engineer;
         break;
     case 2:
-        if (!(blacklist & rmcs_auto_aim::blacklist_code::InfantryIII)) {
+        if (!(whitelist & rmcs_auto_aim::whitelist_code::InfantryIII)) {
             return false;
         }
         armor.id = rmcs_msgs::ArmorID::InfantryIII;
         break;
     case 3:
-        if (!(blacklist & rmcs_auto_aim::blacklist_code::InfantryIV)) {
+        if (!(whitelist & rmcs_auto_aim::whitelist_code::InfantryIV)) {
             return false;
         }
         armor.id = rmcs_msgs::ArmorID::InfantryIV;
         break;
     case 4:
-        if (!(blacklist & rmcs_auto_aim::blacklist_code::InfantryV)) {
+        if (!(whitelist & rmcs_auto_aim::whitelist_code::InfantryV)) {
             return false;
         }
         armor.id = rmcs_msgs::ArmorID::InfantryV;
         break;
     case 5:
-        if (!(blacklist & rmcs_auto_aim::blacklist_code::Outpost)) {
+        if (!(whitelist & rmcs_auto_aim::whitelist_code::Outpost)) {
             return false;
         }
         armor.id = rmcs_msgs::ArmorID::Outpost;
         break;
     case 6:
-        if (!(blacklist & rmcs_auto_aim::blacklist_code::Sentry)) {
+        if (!(whitelist & rmcs_auto_aim::whitelist_code::Sentry)) {
             return false;
         }
         armor.id = rmcs_msgs::ArmorID::Sentry;
         break;
     case 7:
-        if (!(blacklist & rmcs_auto_aim::blacklist_code::Base)) {
+        if (!(whitelist & rmcs_auto_aim::whitelist_code::Base)) {
             return false;
         }
         armor.id = rmcs_msgs::ArmorID::Base;
