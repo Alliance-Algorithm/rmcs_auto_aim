@@ -55,6 +55,7 @@ public:
                 }
                 armor_plates_pub_->publish(msg);
             }
+            last_frame_id_ = frame_->frame_id;
         }
     }
 
