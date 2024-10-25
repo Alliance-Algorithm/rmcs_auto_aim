@@ -9,6 +9,7 @@
 #include "core/identifier/armor/armor.hpp"
 
 namespace rmcs_auto_aim {
+
 class AutoAimInitializer
     : public rmcs_executor::Component
     , public rclcpp::Node {
@@ -21,7 +22,7 @@ public:
         register_input("/referee/id", robot_msg_, false);
 
         register_output("/auto_aim/target_color", target_color_);
-        register_output("/auto_aim/blacklist", whitelist_);
+        register_output("/auto_aim/whitelist", whitelist_);
 
         RCLCPP_INFO(this->get_logger(), "AutoAimInitializer initialized.");
     }
