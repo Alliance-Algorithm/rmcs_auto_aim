@@ -1,4 +1,5 @@
 #include <chrono>
+#include <cstddef>
 #include <memory>
 #include <opencv2/videoio.hpp>
 #include <thread>
@@ -9,7 +10,10 @@
 #include <hikcamera/image_capturer.hpp>
 #include <rmcs_executor/component.hpp>
 
+#include "frame.h"
+
 namespace rmcs_auto_aim {
+
 class Capturer
     : public rmcs_executor::Component
     , public rclcpp::Node {
@@ -20,7 +24,7 @@ public:
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)) {
 
         register_input("/predefined/update_count", update_count_);
-        register_output("/auto_aim/camera", img_);
+        register_output("/auto_aim/camera", frame_);
 
         mode_ = CapturerMode{get_parameter("use_video").as_bool()};
 
@@ -57,6 +61,7 @@ public:
     void update() override {
         if (*update_count_ == 0) {
             thread_ = std::thread([this] {
+                size_t frame_id = 0;
                 while (rclcpp::ok()) {
                     cv::Mat img;
 
@@ -67,16 +72,17 @@ public:
                     }
 
                     if (!img.empty()) {
-                        buffer[!buffer_index_.load()] = img;
+                        buffer[!buffer_index_.load()].img      = img;
+                        buffer[!buffer_index_.load()].frame_id = ++frame_id;
                         buffer_index_.store(!buffer_index_.load());
                     }
                 }
             });
         }
-        *img_ = get_image();
+        *frame_ = get_frame();
     }
 
-    cv::Mat get_image() const { return buffer[buffer_index_.load()]; }
+    struct Frame get_frame() const { return buffer[buffer_index_.load()]; }
 
 private:
     std::atomic<bool> buffer_index_{false};
@@ -85,10 +91,10 @@ private:
     std::unique_ptr<hikcamera::ImageCapturer> camera_capturer_;
     std::unique_ptr<cv::VideoCapture> video_capture_;
 
-    cv::Mat buffer[2];
+    struct Frame buffer[2];
 
     InputInterface<size_t> update_count_;
-    OutputInterface<cv::Mat> img_;
+    OutputInterface<struct Frame> frame_;
 
     enum class CapturerMode { CameraMode = false, VideoMode = true } mode_;
 };
