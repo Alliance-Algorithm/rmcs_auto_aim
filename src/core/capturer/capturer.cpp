@@ -31,8 +31,8 @@ public:
         if (mode_ == CapturerMode::VideoMode) {
             RCLCPP_INFO(this->get_logger(), "Video mode is on.");
 
-            video_capture_ =
-                std::make_unique<cv::VideoCapture>(get_parameter("video_path").as_string());
+            video_capture_ = std::make_unique<cv::VideoCapture>(
+                get_parameter("video_path").as_string(), cv::CAP_FFMPEG);
 
             if (!video_capture_->isOpened()) {
                 RCLCPP_ERROR(this->get_logger(), "Video file not found.");
@@ -55,7 +55,9 @@ public:
         if (thread_.joinable()) {
             thread_.join();
         }
-        video_capture_->release();
+        if (video_capture_->isOpened()) {
+            video_capture_->release();
+        }
     }
 
     void update() override {
