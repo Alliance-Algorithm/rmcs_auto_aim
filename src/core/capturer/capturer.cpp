@@ -10,7 +10,7 @@
 #include <hikcamera/image_capturer.hpp>
 #include <rmcs_executor/component.hpp>
 
-#include "frame.h"
+#include "core/frame.hpp"
 
 namespace rmcs_auto_aim {
 
@@ -74,8 +74,8 @@ public:
                     }
 
                     if (!img.empty()) {
-                        buffer[!buffer_index_.load()].img      = img;
-                        buffer[!buffer_index_.load()].frame_id = ++frame_id;
+                        buffer[!buffer_index_.load()].data_     = img;
+                        buffer[!buffer_index_.load()].frame_id_ = ++frame_id;
                         buffer_index_.store(!buffer_index_.load());
                     }
                 }
@@ -84,7 +84,7 @@ public:
         *frame_ = get_frame();
     }
 
-    struct Frame get_frame() const { return buffer[buffer_index_.load()]; }
+    struct Frame<cv::Mat> get_frame() const { return buffer[buffer_index_.load()]; }
 
 private:
     std::atomic<bool> buffer_index_{false};
@@ -93,10 +93,10 @@ private:
     std::unique_ptr<hikcamera::ImageCapturer> camera_capturer_;
     std::unique_ptr<cv::VideoCapture> video_capture_;
 
-    struct Frame buffer[2];
+    struct Frame<cv::Mat> buffer[2];
 
     InputInterface<size_t> update_count_;
-    OutputInterface<struct Frame> frame_;
+    OutputInterface<struct Frame<cv::Mat>> frame_;
 
     enum class CapturerMode { CameraMode = false, VideoMode = true } mode_;
 };

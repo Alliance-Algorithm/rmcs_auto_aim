@@ -50,8 +50,7 @@ public:
         for (size_t i = 0; i < lightBarsSize; ++i) {
             float Isize         = P2PDis(lightBars[i].top, lightBars[i].bottom);
             cv::Point2f Icenter = (lightBars[i].top + lightBars[i].bottom) / 2;
-            for (size_t j = i + 1; j < lightBarsSize; ++j) { // 一些筛选条件
-
+            for (size_t j = i + 1; j < lightBarsSize; ++j) {
                 float Jsize = P2PDis(lightBars[j].top, lightBars[j].bottom);
                 if (fmax(Isize, Jsize) / fmin(Isize, Jsize) > maxArmorLightRatio)
                     continue;
@@ -75,11 +74,12 @@ public:
                 if (_numberIdentifier.Identify(img, armor, blacklist)) {
                     result.push_back(armor);
 
-                    cv::rectangle(
-                        img, cv::Rect{armor.points[0], armor.points[2]}, cv::Scalar(0, 255, 0), 2);
-                    cv::putText(
-                        img, std::to_string((int)armor.id), armor.center(), 2, 2,
-                        cv::Scalar(0, 255, 0), 2);
+                    // cv::rectangle(
+                    //     img, cv::Rect{armor.points[0], armor.points[2]}, cv::Scalar(0, 255, 0),
+                    //     2);
+                    // cv::putText(
+                    //     img, std::to_string((int)armor.id), armor.center(), 2, 2,
+                    //     cv::Scalar(0, 255, 0), 2);
                 }
             }
         }

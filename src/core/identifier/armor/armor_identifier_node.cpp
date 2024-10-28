@@ -1,3 +1,4 @@
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -13,7 +14,7 @@
 #include <rmcs_msgs/msg/armor_plate_array.hpp>
 #include <robot_color.hpp>
 
-#include "core/capturer/frame.h"
+#include "core/frame.hpp"
 #include "core/identifier/armor/armor.hpp"
 #include "core/identifier/armor/armor_identifier.hpp"
 
@@ -30,13 +31,13 @@ public:
         register_input("/auto_aim/target_color", target_color_);
         register_input("/auto_aim/whitelist", blacklist_);
 
-        register_output("/auto_aim/armor_plates", armor_plates_);
+        register_output("/auto_aim/armor_plates", frame_output_);
 
         armor_identifier_ = std::make_unique<ArmorIdentifier>(
             ament_index_cpp::get_package_share_directory("rmcs_auto_aim")
             + get_parameter("armor_model_path").as_string());
 
-        publish_topic = get_parameter("publish_topic").as_bool();
+        publish_topic_ = get_parameter("publish_topic").as_bool();
 
         armor_plates_pub_ = create_publisher<rmcs_msgs::msg::ArmorPlateArray>(
             get_parameter("topic_name").as_string(), 10);
@@ -45,34 +46,38 @@ public:
     }
 
     void update() override {
-        if (frame_->frame_id != last_frame_id_) {
-            auto result    = armor_identifier_->Identify(frame_->img, *target_color_, *blacklist_);
-            *armor_plates_ = result;
-            if (publish_topic) {
-                rmcs_msgs::msg::ArmorPlateArray msg;
-                for (auto& plate : result) {
-                    msg.armor_plate_array.push_back((rmcs_msgs::msg::ArmorPlate)plate);
+        if (frame_input_->frame_id_ != last_frame_id_) {
+            auto result =
+                armor_identifier_->Identify(frame_input_->data_, *target_color_, *blacklist_);
+            if (!result.empty()) {
+                frame_output_->data_     = result;
+                frame_output_->frame_id_ = frame_input_->frame_id_;
+                if (publish_topic_) {
+                    rmcs_msgs::msg::ArmorPlateArray msg;
+                    for (auto& plate : result) {
+                        msg.armor_plate_array.push_back((rmcs_msgs::msg::ArmorPlate)plate);
+                    }
+                    armor_plates_pub_->publish(msg);
                 }
-                armor_plates_pub_->publish(msg);
+                last_frame_id_ = frame_input_->frame_id_;
             }
-            last_frame_id_ = frame_->frame_id;
         }
     }
 
 private:
-    bool publish_topic{false};
+    bool publish_topic_{false};
     size_t last_frame_id_{0};
 
     std::unique_ptr<ArmorIdentifier> armor_identifier_;
 
     rclcpp::Publisher<rmcs_msgs::msg::ArmorPlateArray>::SharedPtr armor_plates_pub_;
 
-    InputInterface<struct rmcs_auto_aim::Frame> frame_;
+    InputInterface<struct rmcs_auto_aim::Frame<cv::Mat>> frame_input_;
     InputInterface<size_t> update_count_;
     InputInterface<uint8_t> blacklist_;
     InputInterface<rmcs_msgs::RobotColor> target_color_;
 
-    OutputInterface<std::vector<ArmorPlate>> armor_plates_;
+    OutputInterface<struct rmcs_auto_aim::Frame<std::vector<ArmorPlate>>> frame_output_;
 };
 } // namespace rmcs_auto_aim
 
