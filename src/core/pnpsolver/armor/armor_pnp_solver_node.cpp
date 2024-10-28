@@ -1,8 +1,8 @@
 #include <cstddef>
-#include <rmcs_description/tf_description.hpp>
 #include <vector>
 
 #include <rclcpp/node.hpp>
+#include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
 
 #include "core/frame.hpp"
@@ -24,13 +24,13 @@ public:
 
         register_output("/auto_aim/armor_plates_3d", frame_output_);
 
-        fx_ = declare_parameter<double>("fx");
-        fy_ = declare_parameter<double>("fy");
-        cx_ = declare_parameter<double>("cx");
-        cy_ = declare_parameter<double>("cy");
-        k1_ = declare_parameter<double>("k1");
-        k2_ = declare_parameter<double>("k2");
-        k3_ = declare_parameter<double>("k3");
+        fx_ = get_parameter("fx").as_double();
+        fy_ = get_parameter("fy").as_double();
+        cx_ = get_parameter("cx").as_double();
+        cy_ = get_parameter("cy").as_double();
+        k1_ = get_parameter("k1").as_double();
+        k2_ = get_parameter("k2").as_double();
+        k3_ = get_parameter("k3").as_double();
 
         RCLCPP_INFO(get_logger(), "Pnp Solver Node Initialized");
     }
