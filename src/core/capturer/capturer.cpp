@@ -33,6 +33,7 @@ public:
 
             video_capture_ = std::make_unique<cv::VideoCapture>(
                 get_parameter("video_path").as_string(), cv::CAP_FFMPEG);
+            // get_parameter("video_path").as_string());
 
             if (!video_capture_->isOpened()) {
                 RCLCPP_ERROR(this->get_logger(), "Video file not found.");

@@ -11,5 +11,8 @@
   <class type="rmcs_auto_aim::AutoAimInitializer" base_class_type="rmcs_executor::Component">
     <description>Start Fucking.</description>
   </class>
+  <class type="rmcs_auto_aim::BuffIdentifierNode" base_class_type="rmcs_executor::Component">
+    <description>Function as Above.</description>
+  </class>
 
 </library>
