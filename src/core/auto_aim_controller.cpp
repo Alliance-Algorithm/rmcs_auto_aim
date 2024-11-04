@@ -1,17 +1,21 @@
 #include <atomic>
 #include <memory>
-#include <rmcs_description/tf_description.hpp>
 #include <thread>
 #include <vector>
 
 #include <ament_index_cpp/get_package_share_directory.hpp>
 #include <rclcpp/node.hpp>
+#include <rmcs_description/tf_description.hpp>
 
-#include "core/pnpsolver/armor/armor_pnp_solver.hpp"
-#include "rmcs_executor/component.hpp"
 #include <hikcamera/image_capturer.hpp>
+#include <rmcs_executor/component.hpp>
 
-#include "identifier/armor/armor_identifier.hpp"
+#include "core/identifier/armor/armor_identifier.hpp"
+#include "core/pnpsolver/armor/armor_pnp_solver.hpp"
+#include "core/tracker/armor/armor_tracker.hpp"
+#include "core/tracker/armor/target.hpp"
+#include "core/trajectory/trajectory_solvor.hpp"
+#include "util/utils.hpp"
 
 namespace rmcs_auto_aim {
 class AutoAimController
@@ -29,6 +33,9 @@ public:
         register_input("/auto_aim/whitelist", whitelist_);
         register_input("/tf", tf_);
 
+        register_output(
+            "/gimbal/auto_aim/control_direction", control_direction_, Eigen::Vector3d::Zero());
+
         fx_ = get_parameter("fx").as_double();
         fy_ = get_parameter("fy").as_double();
         cx_ = get_parameter("cx").as_double();
@@ -36,6 +43,11 @@ public:
         k1_ = get_parameter("k1").as_double();
         k2_ = get_parameter("k2").as_double();
         k3_ = get_parameter("k3").as_double();
+
+        yaw_error_      = get_parameter("yaw_error").as_double();
+        pitch_error_    = get_parameter("pitch_error").as_double();
+        shoot_velocity_ = get_parameter("shoot_velocity").as_double();
+        predict_sec_    = get_parameter("predict_sec").as_double();
 
         RCLCPP_INFO(get_logger(), "Armor Identifier Node Initialized");
     }
@@ -50,6 +62,10 @@ public:
     }
 
     void update() override {
+
+        tf_buffer_[!tf_index_.load()] = *tf_;
+        tf_index_.store(!tf_index_.load());
+
         if (*update_count_ == 0) {
             if (!target_color_.ready()) {
                 RCLCPP_WARN(get_logger(), "target_color_ not ready");
@@ -68,39 +84,112 @@ public:
                 auto armor_identifier = std::make_unique<ArmorIdentifier>(
                     ament_index_cpp::get_package_share_directory("rmcs_auto_aim")
                     + "/models/mlp.onnx");
+                auto armor_tracker = rmcs_auto_aim::ArmorTracker(100); // TODO
+
+                rmcs_auto_aim::util::FPSCounter fps;
 
                 while (rclcpp::ok()) {
-                    auto image = capturer->read();
+
+                    auto timestamp = std::chrono::steady_clock::now();
+                    auto image     = capturer->read();
 
                     auto armor_plates =
                         armor_identifier->Identify(image, *target_color_, *whitelist_);
                     auto armor3d = ArmorPnPSolver::SolveAll(
-                        armor_plates, tf_buffer_[tf_index_], fx_, fy_, cx_, cy_, k1_, k2_, k3_);
+                        armor_plates, tf_buffer_[tf_index_.load()], fx_, fy_, cx_, cy_, k1_, k2_,
+                        k3_);
 
                     if (armor3d.size() > 0) {
                         RCLCPP_INFO(
                             get_logger(), "Armor3D: %hu", static_cast<uint16_t>(armor3d[0].id));
+
+                        if (auto target = armor_tracker.Update(
+                                armor3d, timestamp, tf_buffer_[tf_index_.load()])) {
+                            armor_target_buffer_[!armor_target_index_.load()].target_ =
+                                std::move(target);
+                            armor_target_buffer_[!armor_target_index_.load()].timestamp_ =
+                                timestamp;
+                            armor_target_index_.store(!armor_target_index_.load());
+                        }
+                    }
+
+                    if (fps.Count()) {
+                        RCLCPP_INFO(get_logger(), "FPS: %d", fps.GetFPS());
                     }
                 }
             });
         }
-        tf_buffer_[!tf_index_] = *tf_;
-        tf_index_              = !tf_index_;
+
+        auto frame = armor_target_buffer_[armor_target_index_.load()];
+        if (!frame.target_) {
+            *control_direction_ = Eigen::Vector3d::Zero();
+            return;
+        }
+        using namespace std::chrono_literals;
+        auto diff = std::chrono::steady_clock::now() - frame.timestamp_;
+        if (diff > std::chrono::milliseconds(500)) {                   // TODO
+            *control_direction_ = Eigen::Vector3d::Zero();
+            RCLCPP_INFO(get_logger(), "Target timeout");
+            return;
+        }
+
+        auto offset = fast_tf::cast<rmcs_description::OdomImu>(
+            rmcs_description::MuzzleLink::Position{0, 0, 0}, *tf_);
+
+        double fly_time = 0;
+        for (int i = 5; i-- > 0;) {
+            auto pos = frame.target_->Predict(
+                static_cast<std::chrono::duration<double>>(diff).count() + fly_time + predict_sec_);
+            auto aiming_direction = *trajectory_.GetShotVector(
+                {pos->x() - offset->x(), pos->y() - offset->y(), pos->z() - offset->z()},
+                shoot_velocity_, fly_time);
+
+            auto yaw_axis = fast_tf::cast<rmcs_description::PitchLink>(
+                                rmcs_description::OdomImu::DirectionVector(0, 0, 1), *tf_)
+                                ->normalized();
+            auto pitch_axis = fast_tf::cast<rmcs_description::PitchLink>(
+                                  rmcs_description::OdomImu::DirectionVector(0, 1, 0), *tf_)
+                                  ->normalized();
+            auto delta_yaw   = Eigen::AngleAxisd{yaw_error_, yaw_axis};
+            auto delta_pitch = Eigen::AngleAxisd{pitch_error_, pitch_axis};
+            aiming_direction = delta_pitch * (delta_yaw * (aiming_direction));
+
+            if (i == 0) {
+                *control_direction_ = aiming_direction;
+                break;
+            }
+        }
     }
 
 private:
+    struct TargetFrame {
+        std::shared_ptr<rmcs_auto_aim::ArmorTarget> target_;
+        std::chrono::steady_clock::time_point timestamp_;
+    };
+
+    TrajectorySolver trajectory_;
+
     double fx_, fy_, cx_, cy_, k1_, k2_, k3_;
+    double pitch_error_;
+    double yaw_error_;
+    double shoot_velocity_;
+    double predict_sec_;
 
     std::vector<std::thread> threads_;
 
     rmcs_description::Tf tf_buffer_[2];
     std::atomic<bool> tf_index_{false};
-    // rclcpp::Publisher<rmcs_msgs::msg::ArmorPlateArray>::SharedPtr armor_plates_pub_;
+
+    // rmcs_auto_aim::Target target_;
+    struct TargetFrame armor_target_buffer_[2];
+    std::atomic<bool> armor_target_index_{false};
 
     InputInterface<size_t> update_count_;
     InputInterface<uint8_t> whitelist_;
     InputInterface<rmcs_msgs::RobotColor> target_color_;
     InputInterface<rmcs_description::Tf> tf_;
+
+    OutputInterface<Eigen::Vector3d> control_direction_;
 };
 } // namespace rmcs_auto_aim
 
