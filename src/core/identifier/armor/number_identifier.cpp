@@ -6,7 +6,7 @@
 #include <opencv2/opencv.hpp>
 
 #include "core/identifier/armor/armor.hpp"
-#include "number_identifier.hpp"
+#include "core/identifier/armor/number_identifier.hpp"
 
 using namespace rmcs_auto_aim;
 
