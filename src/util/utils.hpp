@@ -11,7 +11,11 @@
 
 #pragma once
 #include <chrono>
+#include <numbers>
 
+#include "core/pnpsolver/armor/armor3d.hpp"
+
+namespace rmcs_auto_aim::util {
 class FPSCounter {
 public:
     bool Count() {
@@ -35,3 +39,22 @@ private:
     int _count = 0, _lastFPS;
     std::chrono::steady_clock::time_point _timingStart;
 };
+
+static inline constexpr double Pi = std::numbers::pi;
+
+static inline double GetArmorYaw(const ArmorPlate3d& armor) {
+    Eigen::Vector3d normal = (*armor.rotation) * Eigen::Vector3d{1, 0, 0};
+    return atan2(normal.y(), normal.x());
+}
+
+static inline double GetMinimumAngleDiff(double a, double b) {
+    double diff = std::fmod(a - b, 2 * Pi);
+    if (diff < -Pi) {
+        diff += 2 * Pi;
+    } else if (diff > Pi) {
+        diff -= 2 * Pi;
+    }
+    return diff;
+}
+
+} // namespace rmcs_auto_aim::util
