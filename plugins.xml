@@ -1,5 +1,11 @@
 <library path="rmcs_auto_aim">
-  <class type="rmcs_auto_aim::Controller" base_class_type="rmcs_executor::Component">
-    <description>Test plugin.</description>
+  <class type="rmcs_auto_aim::AutoAimTest" base_class_type="rmcs_executor::Component">
+    <description>Start Fxxking test.</description>
+  </class>
+  <class type="rmcs_auto_aim::AutoAimInitializer" base_class_type="rmcs_executor::Component">
+    <description>Start Fxxking.</description>
+  </class>
+  <class type="rmcs_auto_aim::AutoAimController" base_class_type="rmcs_executor::Component">
+    <description>Fxxk all.</description>
   </class>
 </library>

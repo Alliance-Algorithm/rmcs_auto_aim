@@ -16,17 +16,16 @@
 #include <memory>
 
 #include "core/pnpsolver/armor/armor3d.hpp"
-#include "core/tracker/target.hpp"
-#include "core/tracker/tracker.hpp"
+#include "core/tracker/armor/target.hpp"
 
 namespace rmcs_auto_aim {
 
-class ArmorTracker : public TrackerInterface {
+class ArmorTracker {
 public:
-    explicit ArmorTracker(const int64_t& predict_duration, const bool& debug);
+    explicit ArmorTracker(const int64_t& predict_duration);
     ~ArmorTracker();
 
-    std::shared_ptr<TargetInterface> Update(
+    std::shared_ptr<ArmorTarget> Update(
         const std::vector<ArmorPlate3d>& armors,
         const std::chrono::steady_clock::time_point& timestamp, const rmcs_description::Tf& tf);
 
@@ -34,4 +33,5 @@ private:
     class Impl;
     std::unique_ptr<Impl> pImpl_;
 };
+
 } // namespace rmcs_auto_aim

@@ -1,12 +1,12 @@
 #include <cstdint>
-#include <opencv2/highgui.hpp>
-#include <std_msgs/msg/detail/int8__struct.hpp>
 #include <stdexcept>
 #include <string>
 
+#include <opencv2/highgui.hpp>
 #include <opencv2/opencv.hpp>
 
-#include "number_identifier.hpp"
+#include "core/identifier/armor/armor.hpp"
+#include "core/identifier/armor/number_identifier.hpp"
 
 using namespace rmcs_auto_aim;
 
@@ -17,7 +17,8 @@ NumberIdentifier::NumberIdentifier(const std::string& model_path) {
     }
 }
 
-bool NumberIdentifier::Identify(const cv::Mat& imgGray, ArmorPlate& armor, const uint8_t& blacklist) {
+bool NumberIdentifier::Identify(
+    const cv::Mat& imgGray, ArmorPlate& armor, const uint8_t& whitelist) {
 
     static const int light_length      = 12;
     static const int warp_height       = 28;
@@ -25,7 +26,7 @@ bool NumberIdentifier::Identify(const cv::Mat& imgGray, ArmorPlate& armor, const
     static const int large_armor_width = 54;
     static const int top_light_y       = (warp_height - light_length) / 2 - 1;
     static const int bottom_light_y    = top_light_y + light_length;
-    static const int warp_width        = armor.is_large_armor ? large_armor_width : small_armor_width;
+    static const int warp_width = armor.is_large_armor ? large_armor_width : small_armor_width;
     static const cv::Size roi_size(20, 28);
 
     static const std::vector<cv::Point2f> dst = {
@@ -74,43 +75,53 @@ bool NumberIdentifier::Identify(const cv::Mat& imgGray, ArmorPlate& armor, const
     switch (label_id) {
     case 8: return false;
     case 0:
-        if (!(blacklist & 0x1)) {
+        if (!(whitelist & rmcs_auto_aim::whitelist_code::Hero)) {
             return false;
         }
         armor.id = rmcs_msgs::ArmorID::Hero;
         break;
     case 1:
-        if (!(blacklist & 0x2)) {
+        if (!(whitelist & rmcs_auto_aim::whitelist_code::Engineer)) {
             return false;
         }
         armor.id = rmcs_msgs::ArmorID::Engineer;
         break;
     case 2:
-        if (!(blacklist & 0x4)) {
+        if (!(whitelist & rmcs_auto_aim::whitelist_code::InfantryIII)) {
             return false;
         }
         armor.id = rmcs_msgs::ArmorID::InfantryIII;
         break;
     case 3:
-        if (!(blacklist & 0x8)) {
+        if (!(whitelist & rmcs_auto_aim::whitelist_code::InfantryIV)) {
             return false;
         }
         armor.id = rmcs_msgs::ArmorID::InfantryIV;
         break;
     case 4:
-        if (!(blacklist & 0x10)) {
+        if (!(whitelist & rmcs_auto_aim::whitelist_code::InfantryV)) {
             return false;
         }
         armor.id = rmcs_msgs::ArmorID::InfantryV;
         break;
-    case 5: armor.id = rmcs_msgs::ArmorID::Outpost; break;
+    case 5:
+        if (!(whitelist & rmcs_auto_aim::whitelist_code::Outpost)) {
+            return false;
+        }
+        armor.id = rmcs_msgs::ArmorID::Outpost;
+        break;
     case 6:
-        if (!(blacklist & 0x20)) {
+        if (!(whitelist & rmcs_auto_aim::whitelist_code::Sentry)) {
             return false;
         }
         armor.id = rmcs_msgs::ArmorID::Sentry;
         break;
-    case 7: armor.id = rmcs_msgs::ArmorID::Base; break;
+    case 7:
+        if (!(whitelist & rmcs_auto_aim::whitelist_code::Base)) {
+            return false;
+        }
+        armor.id = rmcs_msgs::ArmorID::Base;
+        break;
     default: return false;
     }
 

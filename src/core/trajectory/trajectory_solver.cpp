@@ -11,7 +11,6 @@ public:
     [[nodiscard]] static rmcs_description::OdomImu::DirectionVector GetShotVector(
         const rmcs_description::OdomImu::Position& target_pos, const double& speed,
         double& fly_time) {
-        // 不考虑空气阻力
 
         const double& x = target_pos->x();
         const double& y = target_pos->y();

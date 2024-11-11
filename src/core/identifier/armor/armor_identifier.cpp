@@ -13,7 +13,6 @@
 #include <rmcs_msgs/robot_color.hpp>
 
 #include "core/identifier/armor/armor.hpp"
-#include "core/identifier/armor/color_identifier.hpp"
 #include "core/identifier/armor/number_identifier.hpp"
 
 #include "armor_identifier.hpp"
@@ -24,9 +23,7 @@ class ArmorIdentifier::Impl {
 public:
     template <class... Args>
     explicit Impl(Args&&... args)
-        : _blueIdentifier(BlueLightBarHue)
-        , _redIdentifier(RedLightBarHue)
-        , _numberIdentifier(std::forward<Args>(args)...) {}
+        : _numberIdentifier(std::forward<Args>(args)...) {}
 
     std::vector<ArmorPlate> Identify(
         const cv::Mat& img, const rmcs_msgs::RobotColor& target_color, const uint8_t& blacklist) {
@@ -53,8 +50,7 @@ public:
         for (size_t i = 0; i < lightBarsSize; ++i) {
             float Isize         = P2PDis(lightBars[i].top, lightBars[i].bottom);
             cv::Point2f Icenter = (lightBars[i].top + lightBars[i].bottom) / 2;
-            for (size_t j = i + 1; j < lightBarsSize; ++j) { // 一些筛选条件
-
+            for (size_t j = i + 1; j < lightBarsSize; ++j) {
                 float Jsize = P2PDis(lightBars[j].top, lightBars[j].bottom);
                 if (fmax(Isize, Jsize) / fmin(Isize, Jsize) > maxArmorLightRatio)
                     continue;
@@ -78,11 +74,12 @@ public:
                 if (_numberIdentifier.Identify(img, armor, blacklist)) {
                     result.push_back(armor);
 
-                    cv::rectangle(
-                        img, cv::Rect{armor.points[0], armor.points[2]}, cv::Scalar(0, 255, 0), 2);
-                    cv::putText(
-                        img, std::to_string((int)armor.id), armor.center(), 2, 2,
-                        cv::Scalar(0, 255, 0), 2);
+                    // cv::rectangle(
+                    //     img, cv::Rect{armor.points[0], armor.points[2]}, cv::Scalar(0, 255, 0),
+                    //     2);
+                    // cv::putText(
+                    //     img, std::to_string((int)armor.id), armor.center(), 2, 2,
+                    //     cv::Scalar(0, 255, 0), 2);
                 }
             }
         }
@@ -90,7 +87,6 @@ public:
     }
 
 private:
-    ColorIdentifier _blueIdentifier, _redIdentifier;
     NumberIdentifier _numberIdentifier;
 
     inline static constexpr const double maxArmorLightRatio = 1.5;
@@ -185,7 +181,8 @@ private:
                 auto roi = img(b_rect);
                 for (int i = 0; i < roi.rows; i++) {
                     for (int j = 0; j < roi.cols; j++) {
-                        if (cv::pointPolygonTest(contour, cv::Point2i(j + b_rect.x, i + b_rect.y), false)
+                        if (cv::pointPolygonTest(
+                                contour, cv::Point2i(j + b_rect.x, i + b_rect.y), false)
                             >= 0) {
                             sum += roi.at<cv::Vec3b>(i, j)[0];
                             sum -= roi.at<cv::Vec3b>(i, j)[2];

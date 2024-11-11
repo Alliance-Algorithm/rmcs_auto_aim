@@ -5,7 +5,6 @@
 #include <eigen3/Eigen/Dense>
 #include <opencv2/opencv.hpp>
 
-#include <fast_tf/impl/cast.hpp>
 #include <fast_tf/rcl.hpp>
 #include <rmcs_description/tf_description.hpp>
 
