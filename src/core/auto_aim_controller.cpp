@@ -90,27 +90,19 @@ public:
 
                 while (rclcpp::ok()) {
 
-                    auto timestamp = std::chrono::steady_clock::now();
                     auto image     = capturer->read();
-
+                    auto timestamp = std::chrono::steady_clock::now();
+                    auto tf        = tf_buffer_[tf_index_.load()];
                     auto armor_plates =
                         armor_identifier->Identify(image, *target_color_, *whitelist_);
                     auto armor3d = ArmorPnPSolver::SolveAll(
-                        armor_plates, tf_buffer_[tf_index_.load()], fx_, fy_, cx_, cy_, k1_, k2_,
-                        k3_);
+                        armor_plates, tf, fx_, fy_, cx_, cy_, k1_, k2_, k3_);
 
-                    if (armor3d.size() > 0) {
-                        RCLCPP_INFO(
-                            get_logger(), "Armor3D: %hu", static_cast<uint16_t>(armor3d[0].id));
-
-                        if (auto target = armor_tracker.Update(
-                                armor3d, timestamp, tf_buffer_[tf_index_.load()])) {
-                            armor_target_buffer_[!armor_target_index_.load()].target_ =
-                                std::move(target);
-                            armor_target_buffer_[!armor_target_index_.load()].timestamp_ =
-                                timestamp;
-                            armor_target_index_.store(!armor_target_index_.load());
-                        }
+                    if (auto target = armor_tracker.Update(armor3d, timestamp, tf)) {
+                        armor_target_buffer_[!armor_target_index_.load()].target_ =
+                            std::move(target);
+                        armor_target_buffer_[!armor_target_index_.load()].timestamp_ = timestamp;
+                        armor_target_index_.store(!armor_target_index_.load());
                     }
 
                     if (fps.Count()) {
@@ -125,16 +117,15 @@ public:
             *control_direction_ = Eigen::Vector3d::Zero();
             return;
         }
+        auto offset = fast_tf::cast<rmcs_description::OdomImu>(
+            rmcs_description::MuzzleLink::Position{0, 0, 0}, *tf_);
+
         using namespace std::chrono_literals;
         auto diff = std::chrono::steady_clock::now() - frame.timestamp_;
         if (diff > std::chrono::milliseconds(500)) {                   // TODO
             *control_direction_ = Eigen::Vector3d::Zero();
-            RCLCPP_INFO(get_logger(), "Target timeout");
             return;
         }
-
-        auto offset = fast_tf::cast<rmcs_description::OdomImu>(
-            rmcs_description::MuzzleLink::Position{0, 0, 0}, *tf_);
 
         double fly_time = 0;
         for (int i = 5; i-- > 0;) {
@@ -144,17 +135,16 @@ public:
                 {pos->x() - offset->x(), pos->y() - offset->y(), pos->z() - offset->z()},
                 shoot_velocity_, fly_time);
 
-            auto yaw_axis = fast_tf::cast<rmcs_description::PitchLink>(
-                                rmcs_description::OdomImu::DirectionVector(0, 0, 1), *tf_)
-                                ->normalized();
-            auto pitch_axis = fast_tf::cast<rmcs_description::PitchLink>(
-                                  rmcs_description::OdomImu::DirectionVector(0, 1, 0), *tf_)
-                                  ->normalized();
-            auto delta_yaw   = Eigen::AngleAxisd{yaw_error_, yaw_axis};
-            auto delta_pitch = Eigen::AngleAxisd{pitch_error_, pitch_axis};
-            aiming_direction = delta_pitch * (delta_yaw * (aiming_direction));
-
             if (i == 0) {
+                auto yaw_axis = fast_tf::cast<rmcs_description::PitchLink>(
+                                    rmcs_description::OdomImu::DirectionVector(0, 0, 1), *tf_)
+                                    ->normalized();
+                auto pitch_axis = fast_tf::cast<rmcs_description::PitchLink>(
+                                      rmcs_description::OdomImu::DirectionVector(0, 1, 0), *tf_)
+                                      ->normalized();
+                auto delta_yaw      = Eigen::AngleAxisd{yaw_error_, yaw_axis};
+                auto delta_pitch    = Eigen::AngleAxisd{pitch_error_, pitch_axis};
+                aiming_direction    = delta_pitch * (delta_yaw * (aiming_direction));
                 *control_direction_ = aiming_direction;
                 break;
             }
