@@ -17,12 +17,12 @@ class EKF {
 public:
     EKF() {
         Eigen::DiagonalMatrix<double, 9> p;
-        p.setIdentity();
+        p.diagonal() << 1, 1, 1, 1, 1, 1, 1, 1, 1;
         P_ = p;
     };
 
     void Predict(double t) {
-        Eigen::MatrixXd F = jacobian_f(x_, t), Q = get_Q(t);
+        Eigen::MatrixXd F = jacobian_f(t), Q = get_Q(t);
 
         x_ = f(x_, t);
         P_ = F * P_ * F.transpose() + Q;
@@ -32,17 +32,17 @@ public:
 
     void Update(const Eigen::VectorXd& z) {
         Eigen::MatrixXd H = jacobian_h(x_), R = get_R(z);
-        Eigen::MatrixXd I = Eigen::MatrixXd::Identity(9, 9);
 
         Eigen::MatrixXd K = P_ * H.transpose() * (H * P_ * H.transpose() + R).inverse();
         x_                = x_ + K * (z - h(x_));
-        P_                = (I - K * H) * P_;
+        P_                = (I_ - K * H) * P_ * (I_ - K * H).transpose() + K * R * K.transpose();
     }
 
     Eigen::Matrix<double, 9, 1> x_;
     Eigen::Matrix<double, 9, 9> P_;
 
 private:
+    const Eigen::MatrixXd I_              = Eigen::MatrixXd::Identity(9, 9);
     static constexpr double sigma2_q_xyz_ = 20.0;
     static constexpr double sigma2_q_yaw_ = 100.0;
     static constexpr double sigma2_q_r_   = 800.0;
@@ -60,12 +60,19 @@ private:
     }
 
     // J_f - Jacobian of process function
-    static Eigen::MatrixXd jacobian_f(const Eigen::VectorXd& x, double dt) {
-        (void)x;
+    static Eigen::MatrixXd jacobian_f(double dt) {
         Eigen::MatrixXd f(9, 9);
-        f << 1, dt, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, dt, 0, 0, 0, 0, 0, 0,
-            0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, dt, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 1, dt, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1;
+        // clang-format off
+        f << 1, dt, 0, 0, 0, 0, 0, 0, 0,
+             0, 1, 0, 0, 0, 0, 0, 0, 0, 
+             0, 0, 1, dt, 0, 0, 0, 0, 0, 
+             0, 0, 0, 1, 0, 0, 0, 0, 0, 
+             0, 0, 0, 0, 1, dt, 0, 0, 0, 
+             0, 0, 0, 0, 0, 1, 0, 0, 0, 
+             0, 0, 0, 0, 0, 0, 1, dt, 0, 
+             0, 0, 0, 0, 0, 0, 0, 1, 0, 
+             0, 0, 0, 0, 0, 0, 0, 0, 1;
+        // clang-format on
         return f;
     };
 
@@ -86,7 +93,7 @@ private:
         double yaw = x(6), r = x(8);
         // clang-format off
         //    xc   v_xc yc   v_yc za   v_za yaw         v_yaw r
-        h << 1, 0, 0, 0, 0, 0, r* sin(yaw), 0, -cos(yaw),
+        h <<    1, 0, 0, 0, 0, 0, r* sin(yaw), 0, -cos(yaw),
                 0, 0, 1, 0, 0, 0, -r * cos(yaw), 0, -sin(yaw),
                 0, 0, 0, 0, 1, 0, 0, 0, 0,
                 0, 0, 0, 0, 0, 0, 1, 0, 0;
@@ -123,8 +130,4 @@ private:
         r.diagonal() << abs(x * z[0]), abs(x * z[1]), abs(x * z[2]), r_yaw_;
         return r;
     };
-
-    // P - error estimate covariance matrix
-    // static Eigen::DiagonalMatrix<double, 9> get_P() {
-    //}
 };

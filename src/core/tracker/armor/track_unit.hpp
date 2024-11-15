@@ -1,6 +1,5 @@
 #pragma once
 #include <chrono>
-#include <random>
 
 #include "core/pnpsolver/armor/armor3d.hpp"
 #include "core/tracker/ekf.hpp"
@@ -21,14 +20,6 @@ struct TrackerUnit {
         const double& za = armor.position->z();
         // xc  v_xc  yc  v_yc  za  v_za  yaw  v_yaw  r
         ekf.x_ << xc, 0, yc, 0, za, 0, yaw, 0, r;
-
-        std::random_device rd;
-        auto gen = std::default_random_engine(rd());
-        std::uniform_real_distribution<float> dis(0.0, 1.0);
-
-        color_r = dis(gen);
-        color_g = dis(gen);
-        color_b = dis(gen);
     }
 
     void Predict(double dt) {
@@ -126,10 +117,6 @@ struct TrackerUnit {
     bool armor_newly_updated[armor_count]{false, false, false, false};
 
     double tracked_duration = 0, tracked_times = 0, tracking_density = 0;
-
-    int ros_marker_id;
-    float color_r, color_g, color_b;
-
     bool collision = false;
 
     Eigen::Vector3d measurement_pos;
