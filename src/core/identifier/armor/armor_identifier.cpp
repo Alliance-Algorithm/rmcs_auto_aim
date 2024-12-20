@@ -14,6 +14,7 @@
 
 #include "core/identifier/armor/armor.hpp"
 #include "core/identifier/armor/number_identifier.hpp"
+#include "core/parameters/parameters.hpp"
 
 #include "armor_identifier.hpp"
 
@@ -23,7 +24,7 @@ class ArmorIdentifier::Impl {
 public:
     template <class... Args>
     explicit Impl(Args&&... args)
-        : _numberIdentifier(std::forward<Args>(args)...) {}
+        : numberIdentifier_(std::forward<Args>(args)...) {}
 
     std::vector<ArmorPlate> Identify(
         const cv::Mat& img, const rmcs_msgs::RobotColor& target_color, const uint8_t& blacklist) {
@@ -39,12 +40,14 @@ public:
         for (const auto& contour : contours) {
             if (auto&& lightBarOpt = _solveToLightbar(img, contour, target_color)) {
                 lightBars.push_back(*lightBarOpt);
-
-                std::sort(lightBars.begin(), lightBars.end(), [](LightBar& a, LightBar& b) {
-                    return a.top.x < b.top.x;
-                });
             }
         }
+
+        // Untested code start
+        std::sort(lightBars.begin(), lightBars.end(), [](LightBar& a, LightBar& b) {
+            return a.top.x < b.top.x;
+        });
+        // end
 
         size_t&& lightBarsSize = lightBars.size();
         for (size_t i = 0; i < lightBarsSize; ++i) {
@@ -71,15 +74,11 @@ public:
                     lightBars[i], lightBars[j], rmcs_msgs::ArmorID::Unknown,
                     lightBarDis > minbigArmorDis);
 
-                if (_numberIdentifier.Identify(img, armor, blacklist)) {
+                if (numberIdentifier_.Identify(img, armor, blacklist)) {
                     result.push_back(armor);
-
-                    // cv::rectangle(
-                    //     img, cv::Rect{armor.points[0], armor.points[2]}, cv::Scalar(0, 255, 0),
-                    //     2);
-                    // cv::putText(
-                    //     img, std::to_string((int)armor.id), armor.center(), 2, 2,
-                    //     cv::Scalar(0, 255, 0), 2);
+                    // if (Parameters::getInstance()->getBoolParam("identify_debug")) {
+                    //     // TODO: Debug information
+                    // }
                 }
             }
         }
@@ -87,7 +86,7 @@ public:
     }
 
 private:
-    NumberIdentifier _numberIdentifier;
+    NumberIdentifier numberIdentifier_;
 
     inline static constexpr const double maxArmorLightRatio = 1.5;
     inline static constexpr const double maxdAngle          = 9.5;

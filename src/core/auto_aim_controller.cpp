@@ -1,5 +1,6 @@
-#include <atomic>
+#include <cmath>
 #include <memory>
+#include <rclcpp/logging.hpp>
 #include <thread>
 #include <vector>
 
@@ -63,8 +64,8 @@ public:
 
     void update() override {
 
-        tf_buffer_[!tf_index_.load()] = *tf_;
-        tf_index_.store(!tf_index_.load());
+        tf_buffer_.Set(*tf_);
+        tf_buffer_.Switch();
 
         if (*update_count_ == 0) {
             if (!target_color_.ready()) {
@@ -89,20 +90,21 @@ public:
                 rmcs_auto_aim::util::FPSCounter fps;
 
                 while (rclcpp::ok()) {
-
+                    if (!tf_buffer_.isReady()) {
+                        RCLCPP_WARN(get_logger(), "tf_buffer_ not ready");
+                        continue;
+                    }
                     auto image     = capturer->read();
                     auto timestamp = std::chrono::steady_clock::now();
-                    auto tf        = tf_buffer_[tf_index_.load()];
+                    auto tf        = tf_buffer_.Get();
                     auto armor_plates =
                         armor_identifier->Identify(image, *target_color_, *whitelist_);
                     auto armor3d = ArmorPnPSolver::SolveAll(
                         armor_plates, tf, fx_, fy_, cx_, cy_, k1_, k2_, k3_);
 
                     if (auto target = armor_tracker.Update(armor3d, timestamp, tf)) {
-                        armor_target_buffer_[!armor_target_index_.load()].target_ =
-                            std::move(target);
-                        armor_target_buffer_[!armor_target_index_.load()].timestamp_ = timestamp;
-                        armor_target_index_.store(!armor_target_index_.load());
+                        armor_target_buffer_.Set({std::move(target), timestamp});
+                        armor_target_buffer_.Switch();
                     }
 
                     if (fps.Count()) {
@@ -112,7 +114,12 @@ public:
             });
         }
 
-        auto frame = armor_target_buffer_[armor_target_index_.load()];
+        if (!armor_target_buffer_.isReady()) {
+            *control_direction_ = Eigen::Vector3d::Zero();
+            return;
+        }
+
+        auto frame = armor_target_buffer_.Get();
         if (!frame.target_) {
             *control_direction_ = Eigen::Vector3d::Zero();
             return;
@@ -127,7 +134,8 @@ public:
             return;
         }
 
-        double fly_time = 0;
+        double fly_time      = 0;
+        double last_fly_time = 0;
         for (int i = 5; i-- > 0;) {
             auto pos = frame.target_->Predict(
                 static_cast<std::chrono::duration<double>>(diff).count() + fly_time + predict_sec_);
@@ -135,7 +143,7 @@ public:
                 {pos->x() - offset->x(), pos->y() - offset->y(), pos->z() - offset->z()},
                 shoot_velocity_, fly_time);
 
-            if (i == 0) {
+            if (fabs(fly_time - last_fly_time) < 0.05 || i == 0) {
                 auto yaw_axis = fast_tf::cast<rmcs_description::PitchLink>(
                                     rmcs_description::OdomImu::DirectionVector(0, 0, 1), *tf_)
                                     ->normalized();
@@ -148,6 +156,7 @@ public:
                 *control_direction_ = aiming_direction;
                 break;
             }
+            last_fly_time = fly_time;
         }
     }
 
@@ -167,12 +176,10 @@ private:
 
     std::vector<std::thread> threads_;
 
-    rmcs_description::Tf tf_buffer_[2];
-    std::atomic<bool> tf_index_{false};
+    util::DoubleBufferUnit<rmcs_description::Tf> tf_buffer_;
 
     // rmcs_auto_aim::Target target_;
-    struct TargetFrame armor_target_buffer_[2];
-    std::atomic<bool> armor_target_index_{false};
+    util::DoubleBufferUnit<struct TargetFrame> armor_target_buffer_;
 
     InputInterface<size_t> update_count_;
     InputInterface<uint8_t> whitelist_;

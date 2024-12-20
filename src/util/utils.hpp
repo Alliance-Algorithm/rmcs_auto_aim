@@ -10,6 +10,7 @@
  */
 
 #pragma once
+#include <atomic>
 #include <chrono>
 #include <numbers>
 
@@ -56,5 +57,37 @@ static inline double GetMinimumAngleDiff(double a, double b) {
     }
     return diff;
 }
+
+template <typename T>
+class DoubleBufferUnit {
+public:
+    DoubleBufferUnit()
+        : index_(false) {}
+
+    T& Get() { return buffer_[index_.load()]; }
+
+    const T& Get() const {
+        if (!isReady_) {
+            throw std::runtime_error("DoubleBufferUnit is not ready yet!");
+        }
+        return buffer_[index_.load()];
+    }
+
+    void Set(const T& value) {
+        buffer_[index_.load()] = value;
+        if (!isReady_) {
+            isReady_.store(true);
+        }
+    }
+
+    void Switch() { index_.store(!index_.load()); }
+
+    bool isReady() const { return isReady_.load(); }
+
+private:
+    T buffer_[2];
+    std::atomic<bool> index_;
+    std::atomic<bool> isReady_{false};
+};
 
 } // namespace rmcs_auto_aim::util

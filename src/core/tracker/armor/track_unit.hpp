@@ -1,9 +1,11 @@
 #pragma once
 #include <chrono>
+#include <vector>
 
 #include "core/pnpsolver/armor/armor3d.hpp"
 #include "core/tracker/ekf.hpp"
 
+#include "core/tracker/imm.hpp"
 #include "util/utils.hpp"
 
 namespace rmcs_auto_aim {
@@ -18,12 +20,37 @@ struct TrackerUnit {
         double xc        = armor.position->x() + r * cos(yaw);
         double yc        = armor.position->y() + r * sin(yaw);
         const double& za = armor.position->z();
-        // xc  v_xc  yc  v_yc  za  v_za  yaw  v_yaw  r
-        ekf.x_ << xc, 0, yc, 0, za, 0, yaw, 0, r;
+
+        /*
+        目标平移状态	目标旋转状态	   s2qxyz	       s2qyaw
+            无            无 	        ■■■■■	        ■■■■■
+            无	         低速	         ■■■	        ■■■■■
+            无	         高速	          ■	            ■■■■■
+            低速	      无	        ■■■■■	        ■■■
+            低速	     低速	         ■■■	        ■■■
+            低速	     高速	          ■	            ■■■
+            高速	      无	        ■■■■■	        ■
+            高速	     低速	         ■■■	        ■
+            高速	     高速	          ■	            ■
+        */
+
+        ekfs.emplace_back(20.0, 100.0);
+        ekfs.emplace_back(20.0, 100.0);
+
+        for (auto& ekf : ekfs) {
+            // xc  v_xc  yc  v_yc  za  v_za  yaw  v_yaw  r
+            ekf.x_ << xc, 0, yc, 0, za, 0, yaw, 0, r;
+        }
+
+        transitionProbabilities = Eigen::MatrixXd::Identity(
+            static_cast<Eigen::Index>(ekfs.size()), static_cast<Eigen::Index>(ekfs.size()));
+        transitionProbabilities << 0.9, 0.1, 0.1, 0.9;
+        imm = IMM(ekfs, transitionProbabilities);
     }
 
     void Predict(double dt) {
-        ekf.Predict(dt);
+        // ekf.Predict(dt);
+        imm.predict(dt);
         tracked_duration += dt;
         for (bool& updated : armor_newly_updated) {
             updated = false;
@@ -42,7 +69,7 @@ struct TrackerUnit {
             collision = false;
         }
 
-        double &v_za = ekf.x_(5), &model_yaw = ekf.x_(6), &r = ekf.x_(8);
+        double &v_za = imm.getState()(5), &model_yaw = imm.getState()(6), &r = imm.getState()(8);
         double yaw = rmcs_auto_aim::util::GetArmorYaw(armor);
 
         constexpr double legal_range = rmcs_auto_aim::util::Pi / 4;
@@ -67,7 +94,7 @@ struct TrackerUnit {
 
             Eigen::Vector4d measurement = {
                 armor.position->x(), armor.position->y(), armor.position->z(), yaw};
-            ekf.Update(measurement);
+            imm.update(measurement);
             last_update = timestamp;
 
             v_za = 0;
@@ -104,13 +131,13 @@ struct TrackerUnit {
         return {Eigen::Vector3d(xa, ya, za), yaw};
     }
 
-    [[nodiscard]] std::tuple<Eigen::Vector3d, double> GetArmorState(size_t index) const {
-        Eigen::VectorXd x = ekf.x_;
+    [[nodiscard]] std::tuple<Eigen::Vector3d, double> GetArmorState(size_t index) {
+        Eigen::VectorXd x = imm.getState();
         x(8)              = r_list[index];
         return GetArmorState(x, index);
     }
 
-    EKF ekf;
+    // EKF ekf{20.0, 100.0, 800.0, 0.05, 0.02};
     static constexpr size_t armor_count = 4;
     std::chrono::steady_clock::time_point last_update;
     double r_list[armor_count]{-0.26, -0.26, -0.26, -0.26};
@@ -120,5 +147,8 @@ struct TrackerUnit {
     bool collision = false;
 
     Eigen::Vector3d measurement_pos;
+    IMM imm;
+    std::vector<EKF> ekfs;
+    Eigen::MatrixXd transitionProbabilities;
 };
 } // namespace rmcs_auto_aim

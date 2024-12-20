@@ -15,17 +15,20 @@
 
 class EKF {
 public:
-    EKF() {
+    EKF(const double& sigma2_q_xyz, const double& sigma2_q_yaw)
+        : sigma2_q_xyz_(sigma2_q_xyz)
+        , sigma2_q_yaw_(sigma2_q_yaw) {
         Eigen::DiagonalMatrix<double, 9> p;
         p.diagonal() << 1, 1, 1, 1, 1, 1, 1, 1, 1;
         P_ = p;
     };
 
-    void Predict(double t) {
+    Eigen::MatrixXd Predict(double t) {
         Eigen::MatrixXd F = jacobian_f(t), Q = get_Q(t);
 
         x_ = f(x_, t);
         P_ = F * P_ * F.transpose() + Q;
+        return x_;
     }
 
     [[nodiscard]] Eigen::VectorXd PredictConst(double t) const { return f(x_, t); }
@@ -42,12 +45,12 @@ public:
     Eigen::Matrix<double, 9, 9> P_;
 
 private:
-    const Eigen::MatrixXd I_              = Eigen::MatrixXd::Identity(9, 9);
-    static constexpr double sigma2_q_xyz_ = 20.0;
-    static constexpr double sigma2_q_yaw_ = 100.0;
-    static constexpr double sigma2_q_r_   = 800.0;
-    static constexpr double r_xyz_factor_ = 0.05;
-    static constexpr double r_yaw_        = 0.02;
+    const Eigen::MatrixXd I_ = Eigen::MatrixXd::Identity(9, 9);
+    const double sigma2_q_xyz_; //= 20.0;
+    const double sigma2_q_yaw_; //= 100.0;
+    const double sigma2_q_r_   = 800.0;
+    const double r_xyz_factor_ = 0.05;
+    const double r_yaw_        = 0.02;
 
     // f - Process function
     static Eigen::VectorXd f(const Eigen::VectorXd& x, double dt) {
@@ -102,7 +105,7 @@ private:
     };
 
     // Q - process noise covariance matrixEigen::Vector3d
-    static Eigen::MatrixXd get_Q(double dt) {
+    Eigen::MatrixXd get_Q(double dt) const {
         Eigen::MatrixXd q(9, 9);
         double t = dt, x = sigma2_q_xyz_, y = sigma2_q_yaw_, r = sigma2_q_r_;
         double q_x_x = pow(t, 4) / 4 * x, q_x_vx = pow(t, 3) / 2 * x, q_vx_vx = pow(t, 2) * x;
@@ -124,7 +127,7 @@ private:
     };
 
     // R - measurement noise covariance matrix
-    static Eigen::DiagonalMatrix<double, 4> get_R(const Eigen::VectorXd& z) {
+    Eigen::DiagonalMatrix<double, 4> get_R(const Eigen::VectorXd& z) {
         Eigen::DiagonalMatrix<double, 4> r;
         double x = r_xyz_factor_;
         r.diagonal() << abs(x * z[0]), abs(x * z[1]), abs(x * z[2]), r_yaw_;

@@ -8,4 +8,7 @@
   <class type="rmcs_auto_aim::AutoAimController" base_class_type="rmcs_executor::Component">
     <description>Fxxk all.</description>
   </class>
+  <class type="rmcs_auto_aim::ParametersNode" base_class_type="rmcs_executor::Component">
+    <description>Fxxk parameters.</description>
+  </class>
 </library>

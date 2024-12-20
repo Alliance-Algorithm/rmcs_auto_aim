@@ -1,8 +1,10 @@
 
 #include <chrono>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <initializer_list>
 #include <limits>
 #include <memory>
 #include <vector>
@@ -23,13 +25,13 @@ class ArmorTracker::Impl {
 public:
     explicit Impl(const int64_t& predict_duration)
         : predict_duration_(predict_duration) {
-        tracker_map_[rmcs_msgs::ArmorID::Hero]        = {};
-        tracker_map_[rmcs_msgs::ArmorID::Engineer]    = {};
-        tracker_map_[rmcs_msgs::ArmorID::InfantryIII] = {};
-        tracker_map_[rmcs_msgs::ArmorID::InfantryIV]  = {};
-        tracker_map_[rmcs_msgs::ArmorID::InfantryV]   = {};
-        tracker_map_[rmcs_msgs::ArmorID::Sentry]      = {};
-        tracker_map_[rmcs_msgs::ArmorID::Outpost]     = {};
+        tracker_map_[rmcs_msgs::ArmorID::Hero]        = std::vector<TrackerUnit>{};
+        tracker_map_[rmcs_msgs::ArmorID::Engineer]    = std::vector<TrackerUnit>{};
+        tracker_map_[rmcs_msgs::ArmorID::InfantryIII] = std::vector<TrackerUnit>{};
+        tracker_map_[rmcs_msgs::ArmorID::InfantryIV]  = std::vector<TrackerUnit>{};
+        tracker_map_[rmcs_msgs::ArmorID::InfantryV]   = std::vector<TrackerUnit>{};
+        tracker_map_[rmcs_msgs::ArmorID::Sentry]      = std::vector<TrackerUnit>{};
+        tracker_map_[rmcs_msgs::ArmorID::Outpost]     = std::vector<TrackerUnit>{};
     }
 
     ~Impl() {}
@@ -63,12 +65,10 @@ public:
                 if (tracker_array.empty()) {
                     tracker_array.emplace_back(armor, timestamp);
                 } else {
-                    auto& tracker = tracker_array[0];
-                    tracker.Update(armor, timestamp);
+                    UpdateTracker(tracker_array, armor, timestamp);
                 }
             }
         }
-        // return;
 
         TrackerUnit* selected_tracker = nullptr;
         int selected_level            = 0;
@@ -85,7 +85,8 @@ public:
 
                 auto center = *fast_tf::cast<rmcs_description::MuzzleLink>(
                     rmcs_description::OdomImu::Position{
-                        tracker.ekf.x_(0), tracker.ekf.x_(2), tracker.ekf.x_(4)},
+                        tracker.imm.getState()(0), tracker.imm.getState()(2),
+                        tracker.imm.getState()(4)},
                     tf);
 
                 if (center.norm() <= 0.8) {
@@ -119,8 +120,28 @@ public:
     }
 
 private:
+    // untested code start
+    static inline void UpdateTracker(
+        std::vector<TrackerUnit>& tracker_array, const ArmorPlate3d& armor,
+        const std::chrono::steady_clock::time_point& timestamp) {
+        double min_distance   = std::numeric_limits<double>::infinity();
+        size_t selected_index = 0;
+        for (int index = 0; auto& tracker : tracker_array) {
+            const auto vector =
+                tracker.measurement_pos
+                - Eigen::Vector3d{armor.position->x(), armor.position->y(), armor.position->z()};
+            const auto distance = vector.norm();
+            if (distance < min_distance) {
+                min_distance   = distance;
+                selected_index = index;
+            }
+            index++;
+        }
+        tracker_array[selected_index].Update(armor, timestamp);
+    }
+    // end
+
     const int64_t predict_duration_;
-    static inline int ros_marker_id_global_ = 0;
 
     std::chrono::steady_clock::time_point last_update_;
 

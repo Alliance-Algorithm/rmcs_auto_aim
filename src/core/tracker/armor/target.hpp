@@ -15,7 +15,7 @@ public:
             return rmcs_description::OdomImu::Position{tracker_.measurement_pos};
         }
         // xc0  v_xc1  yc2  v_yc3  za4  v_za5  yaw6  v_yaw7  r8
-        Eigen::VectorXd x = tracker_.ekf.PredictConst(sec);
+        Eigen::VectorXd x = tracker_.imm.predictSecond(sec);
         const double &xc = x(0), &yc = x(2), &za = x(4), &v_yaw = x(7);
         const double &vc = x(1), &vy = x(3);
         const double sigma_v = sqrt(pow(vc, 2) + pow(vy, 2));
