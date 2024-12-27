@@ -15,6 +15,8 @@
 #include "core/tracker/armor/armor_tracker.hpp"
 #include "core/tracker/armor/target.hpp"
 #include "core/trajectory/trajectory_solvor.hpp"
+#include "core/transform_optimizer/armor/armor.hpp"
+#include "core/transform_optimizer/armor/squad.hpp"
 #include "util/utils.hpp"
 
 namespace rmcs_auto_aim {
@@ -97,7 +99,13 @@ public:
                         armor_identifier->Identify(image, *target_color_, *whitelist_);
                     auto armor3d = ArmorPnPSolver::SolveAll(
                         armor_plates, tf, fx_, fy_, cx_, cy_, k1_, k2_, k3_);
-
+                    for (auto& armor3dTmp : armor3d) {
+                        transform_optimizer::Squad3d::darw_squad(
+                            fx_, fy_, cx_, cx_, k1_, k2_, k3_, *tf_, image,
+                            transform_optimizer::Squad3d(armor3dTmp), false, {255, 0, 0});
+                    }
+                    transform_optimizer::transform_optimize(
+                        armor_plates, armor3d, *tf_, fx_, fy_, cx_, cy_, k1_, k2_, k3_);
                     if (auto target = armor_tracker.Update(armor3d, timestamp, tf)) {
                         armor_target_buffer_[!armor_target_index_.load()].target_ =
                             std::move(target);

@@ -1,6 +1,7 @@
 
 #include <cassert>
 #include <cmath>
+#include <numbers>
 #include <rmcs_description/tf_description.hpp>
 #include <vector>
 
@@ -30,14 +31,17 @@ static void transform_optimize(
     assert(inArmor2d.size() == inOutArmor3d.size());
 
     for (int i = 0, len = (int)inArmor2d.size(); i < len; i++) {
-        auto squad2d  = Squad(inArmor2d[i]);
-        auto armor3d  = inOutArmor3d[i];
-        auto rotation = armor3d.rotation;
+        auto squad2d = Squad(inArmor2d[i]);
+        auto armor3d = inOutArmor3d[i];
+
+        auto rotation = rmcs_description::OdomImu::Rotation(
+            Eigen::AngleAxis(1.5 * std::numbers::pi, Eigen::Vector3d::UnitZ())
+            * Eigen::AngleAxis(90 + 15 * std::numbers::pi, Eigen::Vector3d::UnitY()));
 
         auto cameraMatrix = (cv::Mat)(cv::Mat_<double>(3, 3) << fx, 0, cx, 0, fy, cy, 0, 0, 1);
         auto distCoeffs   = (cv::Mat)(cv::Mat_<double>(1, 5) << k1, k2, 0, 0, k3);
         auto angle        = optimizer::Fibonacci::optimizer(
-            -M_PI_2, M_PI_2, epsilone,
+            -std::numbers::pi, std::numbers::pi, epsilone,
             [&squad2d, &armor3d, &rotation, &cameraMatrix, &distCoeffs,
              &tf](double angle) -> double {
                 armor3d.rotation = set_armor3d_angle(rotation, angle);
