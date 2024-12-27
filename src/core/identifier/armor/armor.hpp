@@ -44,6 +44,13 @@ struct ArmorPlate {
         points.push_back(right.top);
     }
 
+    explicit ArmorPlate(
+        std::vector<cv::Point2f>&& points, rmcs_msgs::ArmorID armorId = rmcs_msgs::ArmorID::Unknown,
+        bool isLargeArmor = false)
+        : points(points)
+        , id(armorId)
+        , is_large_armor(isLargeArmor) {}
+
     explicit operator rmcs_msgs::msg::ArmorPlate() const {
         assert(points.size() == 4);
         rmcs_msgs::msg::ArmorPlate armor;
