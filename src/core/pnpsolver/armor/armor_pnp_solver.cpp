@@ -4,8 +4,8 @@
 #include <fast_tf/impl/cast.hpp>
 #include <rmcs_description/tf_description.hpp>
 
+#include "armor_pnp_solver.hpp"
 #include "core/pnpsolver/armor/armor3d.hpp"
-#include "core/pnpsolver/armor/armor_pnp_solver.hpp"
 
 using namespace rmcs_auto_aim;
 

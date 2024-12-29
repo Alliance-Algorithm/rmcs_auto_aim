@@ -162,7 +162,7 @@ private:
                     angle_k = 180 - angle_k;
                 }
             }
-            if (angle_k > 35.0) {
+            if (angle_k > 70.0) {
                 return std::nullopt;
             }
 

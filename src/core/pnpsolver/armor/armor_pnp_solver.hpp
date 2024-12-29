@@ -9,6 +9,7 @@
  *
  */
 #pragma once
+#include <opencv2/core/mat.hpp>
 #include <vector>
 
 #include "core/identifier/armor/armor.hpp"
