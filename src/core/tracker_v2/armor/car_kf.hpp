@@ -9,69 +9,67 @@
 
 namespace rmcs_auto_aim ::tracker2 {
 
-class CarKF : public EKF<8, 4> {
+class CarKF : public EKF<6, 3> {
 public:
     CarKF()
         : EKF() {
         // clang-format off
-        P_k <<  .1, 1. , 0., 0. , 0., 0. , 0., 0., // 1
-                1., 10., 0., 0. , 0., 0. , 0., 0.,   // 2
-                0., 0. , .1, 1. , 0., 0. , 0., 0.,    // 3
-                0., 0. , 1., 10., 0., 0. , 0., 0.,   // 4
-                0., 0. , 0., 0. , .1, 1. , 0., 0.,   // 5
-                0., 0. , 0., 0. , 1., 10., 0., 0.,   // 6
-                0., 0. , 0., 0. , 0., 0. , .1, 1.,     // 7
-                0., 0. , 0., 0. , 0., 0. , 1., 10.;     // 8
-        // clang format on
+        P_k <<  .1, 1. , 0., 0. , 0., 0. ,  // 1
+                1., 10., 0., 0. , 0., 0. ,  // 2
+                0., 0. , .1, 1. , 0., 0. ,  // 3
+                0., 0. , 1., 10., 0., 0. ,  // 4
+                0., 0. , 0., 0. , .1, 1. ,  // 5
+                0., 0. , 0., 0. , 1., 10.;  // 6
+        // clang-format on
+
         P_k *= 0.1;
-        x_ = Eigen::VectorXd::Zero(8);
-        z_ = Eigen::VectorXd::Zero(4);
+        x_.setZero();
+        z_.setZero();
 
-        a_ = Eigen::MatrixXd::Identity(8, 8);
+        a_.setIdentity();
 
-        w_ = Eigen::MatrixXd::Identity(8, 8);
+        w_.setZero();
 
-        h_       = Eigen::MatrixXd::Zero(4, 8);
+        h_.setZero();
         h_(0, 0) = 1;
         h_(1, 2) = 1;
         h_(2, 4) = 1;
-        h_(3, 6) = 1;
 
-        v_ = Eigen::MatrixXd::Identity(4, 4);
-
+        v_.setZero();
         // q_ = Eigen::MatrixXd::Identity(8, 8) * 0.01;
-        r_ = Eigen::MatrixXd::Identity(4, 4) * 0.01;
+        r_.setIdentity();
+        r_ *= 0.01;
     };
 
 protected:
-    [[nodiscard]] XVec f(const XVec& X_k, const UVec&, const WVec& w_k, const double& dt) override {
-        for (int i = 0; i < 8; i += 2) {
-            x_(i)     = X_k(i) + X_k(i + 1) * dt + w_k(i);
-            x_(i + 1) = X_k(i + 1) + w_k(i + 1);
+    [[nodiscard]] XVec f(const XVec& X_k, const UVec&, const WVec&, const double& dt) override {
+        for (int i = 0; i < 6; i += 2) {
+            x_(i)     = X_k(i) + X_k(i + 1) * dt;
+            x_(i + 1) = X_k(i + 1);
         }
         return x_;
     }
 
     [[nodiscard]] ZVec h(const XVec& X_k, const VVec&) override {
-        z_ << X_k(0), X_k(2), X_k(4), X_k(6);
+        z_ << X_k(0), X_k(2), X_k(4);
         return z_;
     }
 
     [[nodiscard]] AMat A(const XVec&, const UVec&, const WVec&, const double& dt) override {
 
-        for (int i = 0; i < 8; i += 2)
+        for (int i = 0; i < 6; i += 2)
             a_(i, i + 1) = dt;
         return a_;
     }
     [[nodiscard]] ZVec process_z(const ZVec& z_k) override {
-        auto err = z_k(3) - X_k(6);
+        auto err = z_k(2) - X_k(4);
         while (err > std::numbers::pi)
             err -= std::numbers::pi * 2;
         while (err < -std::numbers::pi)
             err += std::numbers::pi * 2;
-        ZVec z_new {};
+        ZVec z_new{};
         z_new << z_k;
-        z_new(3)   = err + X_k(6);
+        z_new(2) = err + X_k(4);
         return z_new;
     }
     [[nodiscard]] WMat W(const XVec&, const UVec&, const WVec&) override { return w_; }
@@ -81,28 +79,25 @@ protected:
     [[nodiscard]] VMat V(const XVec&, const VVec&) override { return v_; }
     [[nodiscard]] QMat Q(const double& dt) override {
 
-        double t = dt, x = sigma2_q_xyz_, y = sigma2_q_yaw_;
+        double t = dt, x = sigma2_q_xy_, y = sigma2_q_yaw_;
         double q_x_x = pow(t, 4) / 4 * x, q_x_vx = pow(t, 3) / 2 * x, q_vx_vx = pow(t, 2) * x;
         double q_y_y = pow(t, 4) / 4 * y, q_y_vy = pow(t, 3) / 2 * x, q_vy_vy = pow(t, 2) * y;
         // clang-format off
-        //    xc      v_xc    yc      v_yc    za      v_za    yaw     v_yaw   r
-        q_ << q_x_x, q_x_vx, 0, 0,  0, 0, 0, 0,
-                q_x_vx, q_vx_vx, 0, 0, 0, 0, 0, 0,
-                0, 0, q_x_x, q_x_vx, 0, 0, 0, 0,
-                0, 0, q_x_vx, q_vx_vx, 0, 0, 0, 0,
-                0, 0, 0, 0, q_x_x , q_x_vx  , 0, 0,
-                0, 0, 0, 0, q_x_vx  , q_vx_vx  ,  0, 0,
-                0, 0, 0, 0, 0, 0, q_y_y, q_y_vy, 
-                0, 0, 0, 0, 0, 0, q_y_vy, q_vy_vy;
+        //      xc      ,vxc        ,yc     ,vyc        ,theta  ,omega
+        q_ <<   q_x_x   ,q_x_vx     ,0      ,0          ,0      ,0      ,
+                q_x_vx  ,q_vx_vx    ,0      ,0          ,0      ,0      ,
+                0       ,0          ,q_x_x  ,q_x_vx     ,0      ,0      ,
+                0       ,0          ,q_x_vx ,q_vx_vx    ,0      ,0      ,
+                0       ,0          ,0      ,0          ,q_y_y  ,q_y_vy ,
+                0       ,0          ,0      ,0          ,q_y_vy ,q_vy_vy;
         // clang-format on
         return q_;
     }
     [[nodiscard]] RMat R(const double&) override { return r_; }
 
 private:
-    static constexpr double sigma2_q_xyz_ = 300;
+    static constexpr double sigma2_q_xy_  = 300;
     static constexpr double sigma2_q_yaw_ = 100.0;
-    static constexpr double sigma2_q_r_   = 800.0;
 
     static constexpr inline const double conv_y     = 0.01;
     static constexpr inline const double conv_p     = 0.01;

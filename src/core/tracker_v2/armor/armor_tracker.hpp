@@ -64,38 +64,35 @@ public:
         get_grouped_armor(grouped_armor, armors);
         for (const auto& [armorID, car] : car_trackers) {
             auto len = grouped_armor[armorID].size();
-            ArmorEKF::ZVec z_armor;
-            z_armor = z_armor.Zero();
+            ArmorEKF::ZVec z_armor{};
+            double l1_ = 0;
+            double l2_ = 0;
+            z_armor.setIdentity();
             if (len == 1) {
-                auto [z, armor_ekf, offset] =
+                auto [z, armor_ekf, l, offset] =
                     single_armor_update(grouped_armor[armorID], car, armorID, tf);
-
+                l1_ = l;
+                l2_ = l;
                 ArmorEKF::XVec out;
                 out << armor_ekf.OutPut();
                 armor_ekf.Update(z, {}, dt);
-                z_armor = armor_get_car_input({armor_ekf, armor_ekf}, {offset, offset});
-                // RCLCPP_INFO(
-                //     rclcpp::get_logger("in"), "x:%lf,y:%lf,z:%lf,dt:%lf", z(0), z(1), z(2),
-                //     z(3));
-                // RCLCPP_INFO(
-                //     rclcpp::get_logger("OUT"), "x:%lf,y:%lf,z:%lf,dt:%lf", out(0), out(2),
-                //     out(4), out(6));
+                z_armor =
+                    combine_armor_out({armor_ekf, armor_ekf}, {offset, offset}, {l1_, l2_}, tf);
 
             } else if (len == 2) {
-                auto [z1, armor_ekf1, offset1, z2, armor_ekf2, offset2] =
+                auto [z1, armor_ekf1, l1, offset1, z2, armor_ekf2, l2, offset2] =
                     double_armor_update(grouped_armor[armorID], car, armorID, tf);
                 armor_ekf1.Update(z1, {}, dt);
                 armor_ekf2.Update(z2, {}, dt);
-                z_armor = armor_get_car_input({armor_ekf1, armor_ekf2}, {offset1, offset2});
+                l1_ = l1;
+                l2_ = l2;
+                z_armor =
+                    combine_armor_out({armor_ekf1, armor_ekf2}, {offset1, offset2}, {l1, l2}, tf);
             } else
                 continue;
-            auto pos = fast_tf::cast<rmcs_description::OdomImu>(
-                rmcs_description::CameraLink::Position{z_armor(0), z_armor(1), z_armor(2)}, tf);
-            z_armor(0) = pos->x();
-            z_armor(1) = pos->y();
-            z_armor(2) = pos->z();
+
             CarKF::ZVec z_car{};
-            z_car << armor_to_car(z_armor), z_armor(3);
+            z_car << z_armor(0), z_armor(1), z_armor(3);
 
             // RCLCPP_INFO(
             //     rclcpp::get_logger("OUT"), "x:%lf,y:%lf,z:%lf,dt:%lf", z_car(0), z_car(1),
@@ -142,7 +139,7 @@ private:
             grouped_armor[armor.id].push_back(armor);
     }
 
-    std::tuple<ArmorEKF::ZVec, ArmorEKF&, double> single_armor_update(
+    std::tuple<ArmorEKF::ZVec, ArmorEKF&, double, double> single_armor_update(
         const std::vector<ArmorPlate3d>& armors, const std::shared_ptr<CarTracker>& car,
         const rmcs_msgs::ArmorID& id, const rmcs_description::Tf& tf) {
         auto car_armors = car->get_armor();
@@ -157,8 +154,9 @@ private:
                 }
             }
         }
-        auto& tracker    = armor_trackers[id][index];
-        ArmorEKF::ZVec z = Eigen::VectorXd::Zero(5);
+        auto& tracker = armor_trackers[id][index];
+        ArmorEKF::ZVec z{};
+        z.setZero();
         auto a0_position = fast_tf::cast<rmcs_description::CameraLink>(armors[0].position, tf);
 
         auto [l1, l2] = car->get_frame();
@@ -167,11 +165,11 @@ private:
             l = l2;
         index = 0;
         z << a0_position->x(), a0_position->y(), a0_position->z(),
-            transform_optimizer::get_yaw_from_quaternion(*armors[0].rotation), l;
+            transform_optimizer::get_yaw_from_quaternion(*armors[0].rotation);
 
-        return {z, tracker, -index * std::numbers::pi / 2};
+        return {z, tracker, l, -index * std::numbers::pi / 2};
     }
-    std::tuple<ArmorEKF::ZVec, ArmorEKF&, double, ArmorEKF::ZVec, ArmorEKF&, double>
+    std::tuple<ArmorEKF::ZVec, ArmorEKF&, double, double, ArmorEKF::ZVec, ArmorEKF&, double, double>
         double_armor_update(
             std::vector<ArmorPlate3d>& armors, const std::shared_ptr<CarTracker>& car,
             const rmcs_msgs::ArmorID& id, const rmcs_description::Tf& tf) {
@@ -219,42 +217,53 @@ private:
                 min    = distance;
             }
         }
-        auto& tracker1    = armor_trackers[id][index1];
-        ArmorEKF::ZVec z1 = Eigen::VectorXd::Zero(5);
-        auto a1_position  = fast_tf::cast<rmcs_description::CameraLink>(armor1.position, tf);
+        auto& tracker1 = armor_trackers[id][index1];
+        ArmorEKF::ZVec z1{};
+        z1.setZero();
+        auto a1_position = fast_tf::cast<rmcs_description::CameraLink>(armor1.position, tf);
         z1 << a1_position->x(), a1_position->y(), a1_position->z(),
-            transform_optimizer::get_yaw_from_quaternion(*armor1.rotation), l1;
+            transform_optimizer::get_yaw_from_quaternion(*armor1.rotation);
 
-        auto& tracker2    = armor_trackers[id][index2];
-        ArmorEKF::ZVec z2 = Eigen::VectorXd::Zero(5);
-        auto a2_position  = fast_tf::cast<rmcs_description::CameraLink>(armor2.position, tf);
+        auto& tracker2 = armor_trackers[id][index2];
+        ArmorEKF::ZVec z2{};
+        z2.setZero();
+        auto a2_position = fast_tf::cast<rmcs_description::CameraLink>(armor2.position, tf);
         z2 << a2_position->x(), a2_position->y(), a2_position->z(),
-            transform_optimizer::get_yaw_from_quaternion(*armor2.rotation), l2;
+            transform_optimizer::get_yaw_from_quaternion(*armor2.rotation);
 
-        return {z1, tracker1, -index1 * std::numbers::pi / 2,
-                z2, tracker2, -index2 * std::numbers::pi / 2};
+        return {z1, tracker1, l1, -index1 * std::numbers::pi / 2,
+                z2, tracker2, l2, -index2 * std::numbers::pi / 2};
     }
 
-    static ArmorEKF::ZVec armor_get_car_input(
-        std::tuple<ArmorEKF&, ArmorEKF&> armors, std::tuple<double, double> offset) {
+    static ArmorEKF::ZVec combine_armor_out(
+        std::tuple<ArmorEKF&, ArmorEKF&> armors, std::tuple<double, double> offset,
+        std::tuple<double, double> l, const rmcs_description::Tf& tf) {
         const auto& [a1, a2]           = armors;
         const auto& [offset1, offset2] = offset;
+        const auto& [l1, l2]           = l;
 
-        auto z1 = a1.h(a1.OutPut(), Eigen::Vector<double, 5>{0.0, 0.0, 0.0, 0.0, 0.0});
-        auto z2 = a2.h(a2.OutPut(), Eigen::Vector<double, 5>{0.0, 0.0, 0.0, 0.0, 0.0});
+        auto z1 = a1.h(a1.OutPut(), {});
+        auto z2 = a2.h(a2.OutPut(), {});
 
+        auto z1pos = fast_tf::cast<rmcs_description::OdomImu>(
+            rmcs_description::CameraLink::Position{z1(0), z1(0), z1(2)}, tf);
+        auto z2pos = fast_tf::cast<rmcs_description::OdomImu>(
+            rmcs_description::CameraLink::Position{z2(0), z2(0), z2(2)}, tf);
+        z1 << *z1pos, z1(3);
+        z2 << *z2pos, z2(3);
+        auto p1 = armor_to_car(z1, l1);
+        auto p2 = armor_to_car(z2, l2);
         return ArmorEKF::ZVec{
-            (z1.x() + z2.x()) / 2, (z1.y() + z2.y()) / 2, (z1.z() + z2.z()) / 2,
-            (z1(3) + z2(3) + offset1 + offset2) / 2 + std::numbers::pi, (z1(4) + z2(4)) / 2};
+            (p1.x() + p2.x()) / 2, (p1.y() + p2.y()) / 2, (p1.z() + p2.z()) / 2,
+            (z1(3) + z2(3) + offset1 + offset2) / 2 + std::numbers::pi};
     }
 
-    static Eigen::Vector3d armor_to_car(const ArmorEKF::ZVec& z1) {
+    static Eigen::Vector3d armor_to_car(const ArmorEKF::ZVec& z1, const double& l) {
         return Eigen::Vector3d{z1(0), z1(1), z1(2)}
              + *rmcs_description::OdomImu::DirectionVector(
                    Eigen::AngleAxisd(15, Eigen::Vector3d::UnitY()).toRotationMatrix()
                    * Eigen::AngleAxisd(z1(3), Eigen::Vector3d::UnitZ()).toRotationMatrix()
-                   * Eigen::Vector3d::UnitX())
-                   * z1(4);
+                   * Eigen::Vector3d::UnitX() * l);
     }
 
     static double armor_get_odom_z(ArmorEKF& ekf, const rmcs_description::Tf& tf) {
