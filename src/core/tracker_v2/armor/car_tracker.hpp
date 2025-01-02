@@ -1,6 +1,8 @@
+#pragma once
 
-#include <memory>
 #include <numbers>
+#include <rclcpp/logger.hpp>
+#include <rclcpp/logging.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <robot_id.hpp>
 #include <tuple>
@@ -17,22 +19,34 @@ namespace rmcs_auto_aim::tracker2 {
 class CarTracker {
 public:
     CarTracker()
-        : car_kf_() {}
+        : car_kf_()
+        , armors_() {}
 
-    void update_car(const Eigen::MatrixXd& X_k, const double& dt) {
-        car_kf_.Update(X_k, Eigen::VectorXd::Zero(8), dt);
+    void update_car(const CarKF::ZVec& zk, const double& dt) {
+        CarKF::XVec out{};
+        out << car_kf_.OutPut();
+        RCLCPP_INFO(
+            rclcpp::get_logger("out"), "x:%lf,y:%lf,z:%lf,dt:%lf", out(0), out(2), out(4), out(6));
+        RCLCPP_INFO(
+            rclcpp::get_logger("in"), "x:%lf,y:%lf,z:%lf,dt:%lf", zk(0), zk(1), zk(2), zk(3));
+        car_kf_.Update(zk, {}, dt);
     }
-    std::shared_ptr<std::vector<ArmorPlate3d>> get_armor(double dt = 0) {
-        auto armors = std::make_shared<std::vector<ArmorPlate3d>>();
-        auto X      = car_kf_.OutPut();
+    std::vector<ArmorPlate3d> get_armor(double dt = 0) {
+        armors_.clear();
+        auto X = car_kf_.OutPut();
 
-        Eigen::Vector3d center{X(0) + X(1) * dt, X(2) + X(3) * dt, X(4) * dt};
+        Eigen::Vector3d center{X(0) + X(1) * dt, X(2) + X(3) * dt, X(4) + X(5) * dt};
 
-        auto forward_car   = Eigen::AngleAxisd(X(5), Eigen::Vector3d::UnitZ());
-        auto forward_armor = Eigen::AngleAxisd(X(5) + std::numbers::pi, Eigen::Vector3d::UnitZ());
-        armors->emplace_back(
+        // RCLCPP_INFO(
+        //     rclcpp::get_logger(""), "x:%lf,y:%lf,z:%lf,dt:%lf", center.x(), center.y(),
+        //     center.z(), dt * 1000);
+
+        auto angle         = X(6) + dt * X(7);
+        auto forward_car   = Eigen::AngleAxisd(angle, Eigen::Vector3d::UnitZ());
+        auto forward_armor = Eigen::AngleAxisd(angle + std::numbers::pi, Eigen::Vector3d::UnitZ());
+        armors_.emplace_back(
             rmcs_msgs::ArmorID::Unknown,
-            rmcs_description::OdomImu::DirectionVector(
+            rmcs_description::OdomImu::Position(
                 center + forward_car.toRotationMatrix() * Eigen::Vector3d::UnitX() * l1
                 + Eigen::Vector3d::UnitZ() * z1),
             rmcs_description::OdomImu::Rotation(forward_armor));
@@ -40,18 +54,18 @@ public:
         forward_car = Eigen::AngleAxisd(X(5) + std::numbers::pi / 2, Eigen::Vector3d::UnitZ());
         forward_armor =
             Eigen::AngleAxisd(X(5) + 3 * std::numbers::pi / 2, Eigen::Vector3d::UnitZ());
-        armors->emplace_back(
+        armors_.emplace_back(
             rmcs_msgs::ArmorID::Unknown,
-            rmcs_description::OdomImu::DirectionVector(
+            rmcs_description::OdomImu::Position(
                 center + forward_car.toRotationMatrix() * Eigen::Vector3d::UnitX() * l2
                 + Eigen::Vector3d::UnitZ() * z2),
             rmcs_description::OdomImu::Rotation(forward_armor));
 
         forward_car   = Eigen::AngleAxisd(X(5) + std::numbers::pi, Eigen::Vector3d::UnitZ());
         forward_armor = Eigen::AngleAxisd(X(5) + 2 * std::numbers::pi, Eigen::Vector3d::UnitZ());
-        armors->emplace_back(
+        armors_.emplace_back(
             rmcs_msgs::ArmorID::Unknown,
-            rmcs_description::OdomImu::DirectionVector(
+            rmcs_description::OdomImu::Position(
                 center + forward_car.toRotationMatrix() * Eigen::Vector3d::UnitX() * l1
                 + Eigen::Vector3d::UnitZ() * z3),
             rmcs_description::OdomImu::Rotation(forward_armor));
@@ -59,14 +73,14 @@ public:
         forward_car = Eigen::AngleAxisd(X(5) + 3 * std::numbers::pi / 2, Eigen::Vector3d::UnitZ());
         forward_armor =
             Eigen::AngleAxisd(X(5) + 5 * std::numbers::pi / 2, Eigen::Vector3d::UnitZ());
-        armors->emplace_back(
+        armors_.emplace_back(
             rmcs_msgs::ArmorID::Unknown,
-            rmcs_description::OdomImu::DirectionVector(
+            rmcs_description::OdomImu::Position(
                 center + forward_car.toRotationMatrix() * Eigen::Vector3d::UnitX() * l2
                 + Eigen::Vector3d::UnitZ() * z4),
             rmcs_description::OdomImu::Rotation(forward_armor));
 
-        return armors;
+        return armors_;
     }
 
     void update_frame(double l1, double l2) {
@@ -86,5 +100,7 @@ private:
     CarKF car_kf_;
     double l1 = 0.6, l2 = 0.6;
     double z1 = 0, z2 = 0, z3 = 0, z4 = 0;
+
+    std::vector<ArmorPlate3d> armors_;
 };
 } // namespace rmcs_auto_aim::tracker2

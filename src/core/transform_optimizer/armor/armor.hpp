@@ -1,3 +1,4 @@
+#pragma once
 
 #include <cassert>
 #include <cmath>
@@ -18,8 +19,10 @@ namespace rmcs_auto_aim::transform_optimizer {
 constexpr inline static double epsilone = 0.001;
 
 constexpr inline auto set_armor3d_angle(const auto& inOutArmor3d, const double& angle) {
-    return rmcs_description::OdomImu::Rotation(Eigen::AngleAxis(
-        angle, *rmcs_description::OdomImu::DirectionVector(Eigen::Vector3d::UnitZ())));
+    return rmcs_description::OdomImu::Rotation(
+        *inOutArmor3d
+        * Eigen::AngleAxis(
+            angle, *rmcs_description::OdomImu::DirectionVector(Eigen::Vector3d::UnitZ())));
 }
 
 static inline double get_yaw_from_quaternion(const Eigen::Quaterniond& quaternion) {

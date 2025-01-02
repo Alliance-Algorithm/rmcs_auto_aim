@@ -12,8 +12,8 @@
 
 #include "core/identifier/armor/armor_identifier.hpp"
 #include "core/pnpsolver/armor/armor_pnp_solver.hpp"
-#include "core/tracker/armor/armor_tracker.hpp"
 #include "core/tracker/armor/target.hpp"
+#include "core/tracker_v2/armor/armor_tracker.hpp"
 #include "core/trajectory/trajectory_solvor.hpp"
 #include "core/transform_optimizer/armor/armor.hpp"
 #include "core/transform_optimizer/armor/squad.hpp"
@@ -86,7 +86,7 @@ public:
                 auto armor_identifier = std::make_unique<ArmorIdentifier>(
                     ament_index_cpp::get_package_share_directory("rmcs_auto_aim")
                     + "/models/mlp.onnx");
-                auto armor_tracker = rmcs_auto_aim::ArmorTracker(100); // TODO
+                auto armor_tracker = tracker2::armor::ArmorTracker(); // TODO
 
                 rmcs_auto_aim::util::FPSCounter fps;
 
@@ -106,36 +106,20 @@ public:
                             transform_optimizer::Squad3d(armor3dTmp), false, {255, 0, 0}, 1,
                             cv::LineTypes::LINE_4);
                     }
-                    // for (auto& armor2dTmp : armor_plates) {
-                    //     cv::line(image, armor2dTmp.points[0], armor2dTmp.points[1], {0, 255, 0});
-                    //     cv::line(image, armor2dTmp.points[1], armor2dTmp.points[2], {0, 255, 0});
-                    //     cv::line(image, armor2dTmp.points[2], armor2dTmp.points[3], {0, 255, 0});
-                    //     cv::line(image, armor2dTmp.points[3], armor2dTmp.points[0], {0, 255, 0});
-                    // }
 
                     transform_optimizer::transform_optimize(
                         armor_plates, armor3d, tf, fx_, fy_, cx_, cy_, k1_, k2_, k3_);
 
-                    for (auto& armor3dTmp : armor3d) {
-                        transform_optimizer::Squad3d::darw_squad(
-                            fx_, fy_, cx_, cy_, k1_, k2_, k3_, tf, image,
-                            transform_optimizer::Squad3d(armor3dTmp), false, {0, 0, 255});
-
-                        cv::putText(
-                            image,
-                            std::to_string(
-                                transform_optimizer::get_yaw_from_quaternion(*armor3dTmp.rotation)),
-                            {200, 700}, 1, 3, {255, 0, 255});
-                    }
-
-                    cv::imshow("squad", image);
-                    cv::waitKey(1);
                     if (auto target = armor_tracker.Update(armor3d, timestamp, tf)) {
                         armor_target_buffer_[!armor_target_index_.load()].target_ =
                             std::move(target);
                         armor_target_buffer_[!armor_target_index_.load()].timestamp_ = timestamp;
                         armor_target_index_.store(!armor_target_index_.load());
                     }
+                    armor_tracker.draw_armors(
+                        fx_, fx_, cx_, cx_, k1_, k2_, k3_, tf, image, {255, 0, 255});
+                    cv::imshow("squad", image);
+                    cv::waitKey(1);
 
                     if (fps.Count()) {
                         RCLCPP_INFO(get_logger(), "FPS: %d", fps.GetFPS());
@@ -154,7 +138,7 @@ public:
 
         using namespace std::chrono_literals;
         auto diff = std::chrono::steady_clock::now() - frame.timestamp_;
-        if (diff > std::chrono::milliseconds(500)) { // TODO
+        if (diff > std::chrono::milliseconds(500)) {                  // TODO
             *control_direction_ = Eigen::Vector3d::Zero();
             return;
         }
