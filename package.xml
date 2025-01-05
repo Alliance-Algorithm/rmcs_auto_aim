@@ -18,7 +18,6 @@
   <depend>pluginlib</depend>
   <depend>geometry_msgs</depend>
   <depend>visualization_msgs</depend>
-  <depend>serial</depend>
   <depend>hikcamera</depend>
   <depend>rmcs_msgs</depend>
   <depend>rmcs_executor</depend>
