@@ -28,18 +28,23 @@ public:
 
         a_.setIdentity();
 
-        w_.setZero();
+        w_.setIdentity();
 
         h_.setZero();
         h_(0, 0) = 1;
         h_(1, 2) = 1;
         h_(2, 4) = 1;
 
-        v_.setZero();
+        v_.setIdentity();
         // q_ = Eigen::MatrixXd::Identity(8, 8) * 0.01;
         r_.setIdentity();
-        r_ *= 0.01;
+        r_ *= 0.1;
     };
+
+    [[nodiscard]] ZVec h(const XVec& X_k, const VVec&) override {
+        z_ << X_k(0), X_k(2), X_k(4);
+        return z_;
+    }
 
 protected:
     [[nodiscard]] XVec f(const XVec& X_k, const UVec&, const WVec&, const double& dt) override {
@@ -48,11 +53,6 @@ protected:
             x_(i + 1) = X_k(i + 1);
         }
         return x_;
-    }
-
-    [[nodiscard]] ZVec h(const XVec& X_k, const VVec&) override {
-        z_ << X_k(0), X_k(2), X_k(4);
-        return z_;
     }
 
     [[nodiscard]] AMat A(const XVec&, const UVec&, const WVec&, const double& dt) override {
@@ -93,25 +93,31 @@ protected:
         // clang-format on
         return q_;
     }
-    [[nodiscard]] RMat R(const double&) override { return r_; }
+    RMat R(const ZVec& z) override {
+        double x = r_xyz_factor_;
+        r_.diagonal() << abs(x * sqrt(z[0] * z[0] + z[1] * z[1])),
+            abs(x * sqrt(z[0] * z[0] + z[1] * z[1])), r_(2, 2);
+        return r_;
+    };
 
 private:
-    static constexpr double sigma2_q_xy_  = 300;
+    static constexpr double sigma2_q_xy_  = 300.0;
     static constexpr double sigma2_q_yaw_ = 100.0;
+    static constexpr double r_xyz_factor_ = 0.025;
 
     static constexpr inline const double conv_y     = 0.01;
     static constexpr inline const double conv_p     = 0.01;
     static constexpr inline const double conv_d     = 0.5;
     static constexpr inline const double conv_theta = 0.1;
 
-    XVec x_;
-    ZVec z_;
-    AMat a_;
-    WMat w_;
-    HMat h_;
-    VMat v_;
-    QMat q_;
-    RMat r_;
+    XVec x_{};
+    ZVec z_{};
+    AMat a_{};
+    WMat w_{};
+    HMat h_{};
+    VMat v_{};
+    QMat q_{};
+    RMat r_{};
 };
 
 } // namespace rmcs_auto_aim::tracker2

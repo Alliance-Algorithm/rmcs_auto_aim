@@ -20,15 +20,15 @@ constexpr inline static double epsilone = 0.001;
 
 constexpr inline auto set_armor3d_angle(const auto& inOutArmor3d, const double& angle) {
     return rmcs_description::OdomImu::Rotation(
-        *inOutArmor3d
-        * Eigen::AngleAxis(
-            angle, *rmcs_description::OdomImu::DirectionVector(Eigen::Vector3d::UnitZ())));
+        Eigen::AngleAxis(angle, Eigen::Vector3d::UnitZ()) * inOutArmor3d);
 }
 
 static inline double get_yaw_from_quaternion(const Eigen::Quaterniond& quaternion) {
-    Eigen::Matrix3d rotationMatrix = quaternion.toRotationMatrix();
 
-    double yaw = std::atan2(rotationMatrix(1, 0), rotationMatrix(0, 0));
+    double yaw = atan2(
+        2.0 * (quaternion.w() * quaternion.z() + quaternion.x() * quaternion.y()),
+        1.0 - 2.0 * (quaternion.y() * quaternion.y() + quaternion.z() * quaternion.z()));
+
     return yaw;
 }
 
@@ -43,8 +43,9 @@ static void transform_optimize(
         auto squad2d = Squad(inArmor2d[i]);
         auto armor3d = inOutArmor3d[i];
 
-        auto rotation = rmcs_description::OdomImu::Rotation(
-            Eigen::AngleAxis(15.0 / 180.0 * std::numbers::pi, Eigen::Vector3d::UnitY()));
+        auto rotation = Eigen::AngleAxis(
+            165. / 180.0 * std::numbers::pi,
+            *rmcs_description::OdomImu::DirectionVector(Eigen::Vector3d::UnitY()));
 
         auto cameraMatrix = (cv::Mat)(cv::Mat_<double>(3, 3) << fx, 0, cx, 0, fy, cy, 0, 0, 1);
         auto distCoeffs   = (cv::Mat)(cv::Mat_<double>(1, 5) << k1, k2, 0, 0, k3);

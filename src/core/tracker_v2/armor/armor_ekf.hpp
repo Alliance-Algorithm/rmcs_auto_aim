@@ -15,6 +15,7 @@ public:
     ArmorEKF()
         : EKF() {
         // clang-format off
+        P_k = {};
         P_k.setIdentity();
         P_k *= 0.1;
         // clang-format on
@@ -23,11 +24,11 @@ public:
 
         a_.setIdentity();
 
-        w_.setZero();
+        w_.setIdentity();
 
         h_.setZero();
 
-        v_.setZero();
+        v_.setIdentity();
         r_.setIdentity();
         q_.setIdentity();
         r_ *= 0.01;
@@ -88,7 +89,11 @@ public:
         // clang-format on
         return q_;
     }
-    [[nodiscard]] RMat R(const double&) override { return r_; }
+    [[nodiscard]]
+    RMat R(const ZVec&) override {
+        r_.diagonal() << 0.01, 0.01, 0.03, 0.01;
+        return r_;
+    }
 
 protected:
 private:
@@ -102,14 +107,14 @@ private:
     static constexpr double sigma2_q_yaw_ = 100.0;
     static constexpr double sigma2_q_r_   = 800.0;
 
-    XVec x_;
-    ZVec z_;
-    AMat a_;
-    WMat w_;
-    HMat h_;
-    VMat v_;
-    QMat q_;
-    RMat r_;
+    XVec x_{};
+    ZVec z_{};
+    AMat a_{};
+    WMat w_{};
+    HMat h_{};
+    VMat v_{};
+    QMat q_{};
+    RMat r_{};
 };
 
 } // namespace rmcs_auto_aim::tracker2

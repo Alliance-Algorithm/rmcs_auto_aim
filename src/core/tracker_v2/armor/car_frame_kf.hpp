@@ -20,15 +20,15 @@ public:
 
         a_.setIdentity();
 
-        w_.setZero();
+        w_.setIdentity();
 
         h_.setIdentity();
 
-        v_.setZero();
+        v_.setIdentity();
         q_.setIdentity();
         q_ *= 0.01;
         r_.setIdentity();
-        r_ *= 0.01;
+        r_ *= 0.5;
     };
 
 protected:
@@ -47,7 +47,10 @@ protected:
 
     [[nodiscard]] VMat V(const XVec&, const VVec&) override { return v_; }
     [[nodiscard]] QMat Q(const double&) override { return q_; }
-    [[nodiscard]] RMat R(const double&) override { return r_; }
+    [[nodiscard]]
+    RMat R(const ZVec&) override {
+        return r_;
+    }
 
 private:
     static constexpr double sigma2_q_xy_  = 300;

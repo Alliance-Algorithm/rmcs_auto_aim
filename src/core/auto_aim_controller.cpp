@@ -97,26 +97,31 @@ public:
                     auto tf        = tf_buffer_[tf_index_.load()];
                     auto armor_plates =
                         armor_identifier->Identify(image, *target_color_, *whitelist_);
+                    for (const auto& armor : armor_plates) {
+                        transform_optimizer::Squad::darw_squad(
+                            image, transform_optimizer::Squad(armor), {0, 0, 255});
+                    }
                     auto armor3d = ArmorPnPSolver::SolveAll(
                         armor_plates, tf, fx_, fy_, cx_, cy_, k1_, k2_, k3_);
 
-                    for (auto& armor3dTmp : armor3d) {
-                        transform_optimizer::Squad3d::darw_squad(
-                            fx_, fy_, cx_, cy_, k1_, k2_, k3_, tf, image,
-                            transform_optimizer::Squad3d(armor3dTmp), false, {255, 0, 0}, 1,
-                            cv::LineTypes::LINE_4);
-                    }
                     transform_optimizer::transform_optimize(
                         armor_plates, armor3d, tf, fx_, fy_, cx_, cy_, k1_, k2_, k3_);
 
+                    cv::Scalar color_ = {0, 255, 255};
+                    for (auto& armor3dTmp : armor3d) {
+                        transform_optimizer::Squad3d::darw_squad(
+                            fx_, fy_, cx_, cy_, k1_, k2_, k3_, tf, image,
+                            transform_optimizer::Squad3d(armor3dTmp), false, color_ *= 0.7, 1,
+                            cv::LineTypes::LINE_4);
+                    }
                     if (auto target = armor_tracker.Update(armor3d, timestamp, tf)) {
                         armor_target_buffer_[!armor_target_index_.load()].target_ =
                             std::move(target);
                         armor_target_buffer_[!armor_target_index_.load()].timestamp_ = timestamp;
                         armor_target_index_.store(!armor_target_index_.load());
                     }
-                    // armor_tracker.draw_armors(
-                    //     fx_, fx_, cx_, cx_, k1_, k2_, k3_, tf, image, {255, 0, 255});
+                    armor_tracker.draw_armors(
+                        fx_, fx_, cx_, cy_, k1_, k2_, k3_, tf, image, {255, 0, 255});
                     cv::imshow("squad", image);
                     cv::waitKey(1);
 
@@ -137,7 +142,7 @@ public:
 
         using namespace std::chrono_literals;
         auto diff = std::chrono::steady_clock::now() - frame.timestamp_;
-        if (diff > std::chrono::milliseconds(500)) { // TODO
+        if (diff > std::chrono::milliseconds(500)) {                  // TODO
             *control_direction_ = Eigen::Vector3d::Zero();
             return;
         }

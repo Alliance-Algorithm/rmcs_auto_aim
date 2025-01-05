@@ -19,13 +19,39 @@ struct Squad {
     explicit Squad(ArmorPlate armorRef)
         : armor(std::move(armorRef)) {}
 
-    double operator-(Squad s2) const {
+    static constexpr double ratio(const auto& point) { return atan2(point.y, point.x); }
+
+    double operator-(Squad s2d) const {
+        auto p1 = s2d.armor.points[0] - s2d.armor.points[1];
+        auto p2 = s2d.armor.points[2] - s2d.armor.points[3];
+
+        auto p3 = armor.points[1] - armor.points[0];
+        auto p4 = armor.points[3] - armor.points[2];
+
+        auto ratio1 = ratio(p1) - ratio(p3);
+        auto ratio2 = ratio(p2) - ratio(p4);
+
+        while (ratio1 > std::numbers::pi)
+            ratio1 -= std::numbers::pi * 2;
+        while (ratio1 < -std::numbers::pi)
+            ratio1 += std::numbers::pi * 2;
+
+        while (ratio2 > std::numbers::pi)
+            ratio2 -= std::numbers::pi * 2;
+        while (ratio2 < -std::numbers::pi)
+            ratio2 += std::numbers::pi * 2;
+
+        // if (ratio1 > ratio2)
+        //     std::swap(ratio1, ratio2);
+
         double tmp = 0;
         for (int i = 0; i < 4; i++) {
-            auto p = (s2.armor.points[i] - armor.points[i]);
-            tmp += log(sqrt(p.x * p.x + p.y * p.y));
+            auto p = (s2d.armor.points[i] - armor.points[(5 - i) % 4]);
+            tmp += log(sqrt(p.x * p.x + p.y * p.y) + 1);
         }
         return tmp;
+
+        return abs(ratio2) + abs(ratio1);
     }
     constexpr inline bool is_large_armor() const { return armor.is_large_armor; }
     inline static void darw_squad(
@@ -84,15 +110,16 @@ struct Squad3d {
     inline std::vector<cv::Point3f>
         get_objective_point(rmcs_description::Tf const& tf, bool isLargeArmor) const {
         auto positionInCamera = fast_tf::cast<rmcs_description::CameraLink>(armor3d.position, tf);
-        auto rotationInCamera = fast_tf::cast<rmcs_description::CameraLink>(armor3d.rotation, tf);
 
         std::vector<cv::Point3f> points{};
         auto& objectPoints = isLargeArmor ? LargeArmorObjectPoints : NormalArmorObjectPoints;
 
         for (int i = 0; i < 4; i++) {
-            auto pos =
-                ((rotationInCamera->toRotationMatrix() * objectPoints[i]) + *positionInCamera)
-                * 1000;
+            auto rotationInCamera = fast_tf::cast<rmcs_description::CameraLink>(
+                rmcs_description::OdomImu::DirectionVector(
+                    armor3d.rotation->toRotationMatrix() * objectPoints[i]),
+                tf);
+            auto pos = (*rotationInCamera + *positionInCamera) * 1000;
             points.emplace_back(-pos.y(), -pos.z(), pos.x());
         }
         return points;

@@ -45,17 +45,22 @@ public:
         auto V_k   = V(x_k_n, v_zero);
 
         P_k_n << A_k * P_k * A_k.transpose() + W_k * Q(dt) * W_k.transpose();
+        // std::cout << P_k_n << std::endl;
         y_k << process_z(z_k) - h(x_k_n, v_zero);
-        S_k << H_k * P_k_n * H_k.transpose() + V_k * R(dt) * V_k.transpose();
+        // std::cout << y_k << std::endl;
+        S_k << H_k * P_k_n * H_k.transpose() + V_k * R(z_k) * V_k.transpose();
+        // std::cout << S_k << std::endl;
         K_t << P_k_n * H_k.transpose() * S_k.inverse();
+        // std::cout << K_t << std::endl;
         X_k << x_k_n + K_t * y_k;
+        // std::cout << x_k_n << std::endl;
+        // std::cout << std::endl;
+        // std::cout << X_k << std::endl;
         X_k << normalize_x(X_k);
         tmpK << Eye_K - K_t * H_k;
-        std::cout << std::endl;
-        std::cout << P_k << std::endl;
-        std::cout << std::endl;
-        std::cout << tmpK << std::endl;
-        std::cout << std::endl;
+        // std::cout << std::endl;
+        // std::cout << tmpK << std::endl;
+        // std::cout << std::endl;
 
         P_k << tmpK * P_k_n;
     }
@@ -73,11 +78,11 @@ public:
     [[nodiscard]] virtual VMat V(const XVec&, const VVec&) = 0;
 
     [[nodiscard]] virtual QMat Q(const double& t) = 0;
-    [[nodiscard]] virtual RMat R(const double& t) = 0;
+    [[nodiscard]] virtual RMat R(const ZVec& z)   = 0;
 
     static inline const WVec w_zero = Eigen::VectorXd::Zero(xn);
     static inline const VVec v_zero = Eigen::VectorXd::Zero(zn);
-    static inline const PMat Eye_K  = Eigen::MatrixXd::Zero(xn, xn);
+    static inline const PMat Eye_K  = Eigen::MatrixXd::Identity(xn, xn);
 
 protected:
     EKF() {
