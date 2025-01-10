@@ -15,8 +15,9 @@
 
 #include "core/pnpsolver/armor/armor3d.hpp"
 #include "core/tracker_v2/armor/armor_ekf.hpp"
+#include "core/tracker_v2/armor/armor_target.hpp"
 #include "core/tracker_v2/armor/car_tracker.hpp"
-#include "core/tracker_v2/armor/i_tracker.hpp"
+#include "core/tracker_v2/tracker_interface.hpp"
 #include "core/transform_optimizer/armor/armor.hpp"
 #include "core/transform_optimizer/armor/squad.hpp"
 #include <fast_tf/impl/cast.hpp>
@@ -52,10 +53,13 @@ public:
         grouped_armor[rmcs_msgs::ArmorID::Outpost]     = {};
     }
 
-    std::shared_ptr<ArmorTarget> Update(
+    std::shared_ptr<ITarget> Update(
         const std::vector<ArmorPlate3d>& armors,
         const std::chrono::steady_clock::time_point& timestamp,
         const rmcs_description::Tf& tf) override {
+
+        std::shared_ptr<ITarget> target = nullptr;
+        auto target_min                 = 1e7;
 
         double dt    = std::chrono::duration<double>(timestamp - last_update_).count();
         last_update_ = timestamp;
@@ -100,7 +104,6 @@ public:
             z_car << z_armor(0), z_armor(1), z_armor(3);
 
             car->update_car(z_car, dt);
-            auto [l1, l2] = car->get_frame();
             car->update_z(
                 armor_get_odom_z(armor_trackers[armorID][0], tf),
                 armor_get_odom_z(armor_trackers[armorID][1], tf),
@@ -108,8 +111,28 @@ public:
                 armor_get_odom_z(armor_trackers[armorID][3], tf));
 
             last_armors = car->get_armor();
+            auto min    = 1e7;
+            auto index  = 0;
+            for (int i = 0; i < 4; i++) {
+                auto vec =
+                    Eigen::Vector2d{last_armors[i].position->x(), last_armors[i].position->y()};
+                auto norm = vec.norm();
+                if (norm < min) {
+                    index = i;
+                    min   = norm;
+                }
+            }
+
+            if (target == nullptr) {
+                target     = std::make_shared<ArmorTarget>(CarTracker{*car}, index);
+                target_min = min;
+            } else if (target_min > min) {
+                target     = std::make_shared<ArmorTarget>(CarTracker{*car}, index);
+                target_min = min;
+            }
         }
-        return nullptr;
+
+        return target;
     }
 
     void draw_armors(

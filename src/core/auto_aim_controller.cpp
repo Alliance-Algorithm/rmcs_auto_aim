@@ -19,6 +19,9 @@
 #include "core/transform_optimizer/armor/squad.hpp"
 #include "util/utils.hpp"
 
+#include <cv_bridge/cv_bridge.h>
+#include <std_msgs/msg/header.hpp>
+
 namespace rmcs_auto_aim {
 class AutoAimController
     : public rmcs_executor::Component
@@ -50,7 +53,7 @@ public:
         pitch_error_    = get_parameter("pitch_error").as_double();
         shoot_velocity_ = get_parameter("shoot_velocity").as_double();
         predict_sec_    = get_parameter("predict_sec").as_double();
-
+        publisher_      = this->create_publisher<sensor_msgs::msg::Image>("rmcs_auto_aim/test", 10);
         RCLCPP_INFO(get_logger(), "Armor Identifier Node Initialized");
     }
 
@@ -122,8 +125,11 @@ public:
                     }
                     armor_tracker.draw_armors(
                         fx_, fx_, cx_, cy_, k1_, k2_, k3_, tf, image, {255, 0, 255});
-                    cv::imshow("squad", image);
-                    cv::waitKey(1);
+                    auto output_msg =
+                        cv_bridge::CvImage(
+                            std_msgs::msg::Header(), sensor_msgs::image_encodings::BGR8, image)
+                            .toImageMsg();
+                    // publisher_->publish(*output_msg);
 
                     if (fps.Count()) {
                         RCLCPP_INFO(get_logger(), "FPS: %d", fps.GetFPS());
@@ -142,7 +148,7 @@ public:
 
         using namespace std::chrono_literals;
         auto diff = std::chrono::steady_clock::now() - frame.timestamp_;
-        if (diff > std::chrono::milliseconds(500)) {                  // TODO
+        if (diff > std::chrono::milliseconds(500)) { // TODO
             *control_direction_ = Eigen::Vector3d::Zero();
             return;
         }
@@ -173,7 +179,7 @@ public:
 
 private:
     struct TargetFrame {
-        std::shared_ptr<rmcs_auto_aim::ArmorTarget> target_;
+        std::shared_ptr<rmcs_auto_aim::tracker2::ITarget> target_;
         std::chrono::steady_clock::time_point timestamp_;
     };
 
@@ -200,6 +206,8 @@ private:
     InputInterface<rmcs_description::Tf> tf_;
 
     OutputInterface<Eigen::Vector3d> control_direction_;
+
+    rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr publisher_;
 };
 } // namespace rmcs_auto_aim
 

@@ -1,16 +1,18 @@
 #pragma once
+#include "core/tracker_v2/target_interface.hpp"
 #include "track_unit.hpp"
 
 namespace rmcs_auto_aim {
 
-class ArmorTarget {
+class ArmorTarget : public tracker2::ITarget {
 public:
     explicit ArmorTarget(const TrackerUnit& tracker)
-        : tracker_(tracker) {}
+        : tracker2::ITarget{}
+        , tracker_(tracker) {}
 
     ~ArmorTarget() {}
 
-    [[nodiscard]] rmcs_description::OdomImu::Position Predict(double sec) const {
+    [[nodiscard]] rmcs_description::OdomImu::Position Predict(double sec) override {
         if (tracker_.collision) {
             return rmcs_description::OdomImu::Position{tracker_.measurement_pos};
         }

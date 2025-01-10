@@ -51,7 +51,7 @@ static void transform_optimize(
         auto distCoeffs   = (cv::Mat)(cv::Mat_<double>(1, 5) << k1, k2, 0, 0, k3);
         double yaw        = get_yaw_from_quaternion(*armor3d.rotation);
         auto angle        = optimizer::Fibonacci::optimizer(
-            yaw - std::numbers::pi / 3, yaw + std::numbers::pi / 3, epsilone,
+            yaw - std::numbers::pi / 6, yaw + std::numbers::pi / 6, epsilone,
             [&squad2d, &armor3d, &rotation, &cameraMatrix, &distCoeffs,
              &tf](double angle) -> double {
                 armor3d.rotation = set_armor3d_angle(rotation, angle);

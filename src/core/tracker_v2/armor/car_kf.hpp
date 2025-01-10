@@ -101,9 +101,9 @@ protected:
     };
 
 private:
-    static constexpr double sigma2_q_xy_  = 300.0;
+    static constexpr double sigma2_q_xy_  = 20.0;
     static constexpr double sigma2_q_yaw_ = 100.0;
-    static constexpr double r_xyz_factor_ = 0.025;
+    static constexpr double r_xyz_factor_ = 0.020;
 
     static constexpr inline const double conv_y     = 0.01;
     static constexpr inline const double conv_p     = 0.01;

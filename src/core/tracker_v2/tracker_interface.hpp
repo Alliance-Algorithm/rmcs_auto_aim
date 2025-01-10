@@ -8,7 +8,7 @@
 
 namespace rmcs_auto_aim::tracker2::armor {
 class ITracker {
-    virtual std::shared_ptr<ArmorTarget> Update(
+    virtual std::shared_ptr<ITarget> Update(
         const std::vector<ArmorPlate3d>& armors,
         const std::chrono::steady_clock::time_point& timestamp, const rmcs_description::Tf& tf) = 0;
 };

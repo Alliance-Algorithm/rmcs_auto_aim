@@ -28,7 +28,7 @@ public:
         q_.setIdentity();
         q_ *= 0.01;
         r_.setIdentity();
-        r_ *= 0.5;
+        r_ *= 0.4;
     };
 
 protected:
