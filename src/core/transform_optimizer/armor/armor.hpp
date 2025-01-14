@@ -32,7 +32,7 @@ static inline double get_yaw_from_quaternion(const Eigen::Quaterniond& quaternio
     return yaw;
 }
 
-static void transform_optimize(
+static inline void transform_optimize(
     const std::vector<ArmorPlate>& inArmor2d, std::vector<ArmorPlate3d>& inOutArmor3d,
     const rmcs_description::Tf& tf, const double& fx, const double& fy, const double& cx,
     const double& cy, const double& k1, const double& k2, const double& k3) {

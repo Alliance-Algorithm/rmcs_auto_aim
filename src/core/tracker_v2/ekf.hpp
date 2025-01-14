@@ -31,7 +31,7 @@ public:
     [[nodiscard]] inline XVec OutPut() { return X_k; }
 
     void Update(const ZVec& z_k, const UVec& u_k, const double& dt) {
-
+        dt_   = dt;
         P_k_n = P_k_n.Zero();
         S_k   = S_k.Zero();
         y_k   = y_k.Zero();
@@ -91,6 +91,8 @@ protected:
     };
     XVec X_k;
     PMat P_k;
+
+    double dt_;
 
 private:
     PMat P_k_n{};

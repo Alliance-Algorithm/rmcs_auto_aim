@@ -12,7 +12,8 @@ public:
 
     ~ArmorTarget() {}
 
-    [[nodiscard]] rmcs_description::OdomImu::Position Predict(double sec) override {
+    [[nodiscard]] rmcs_description::OdomImu::Position
+        Predict(double sec, rmcs_description::Tf) override {
         if (tracker_.collision) {
             return rmcs_description::OdomImu::Position{tracker_.measurement_pos};
         }

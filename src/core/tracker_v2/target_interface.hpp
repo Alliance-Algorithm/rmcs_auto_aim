@@ -7,6 +7,7 @@ namespace rmcs_auto_aim::tracker2 {
 class ITarget {
 
 public:
-    [[nodiscard]] virtual rmcs_description::OdomImu::Position Predict(double sec) = 0;
+    [[nodiscard]] virtual rmcs_description::OdomImu::Position
+        Predict(double sec, rmcs_description::Tf tf) = 0;
 };
 } // namespace rmcs_auto_aim::tracker2

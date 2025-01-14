@@ -59,7 +59,6 @@ public:
         const rmcs_description::Tf& tf) override {
 
         std::shared_ptr<ITarget> target = nullptr;
-        auto target_min                 = 1e7;
 
         double dt    = std::chrono::duration<double>(timestamp - last_update_).count();
         last_update_ = timestamp;
@@ -72,19 +71,21 @@ public:
             double l2_ = 0;
             z_armor.setIdentity();
             if (len == 1) {
-                auto [z, armor_ekf, l, offset] =
-                    single_armor_update(grouped_armor[armorID], car, armorID, tf, dt);
+                last_car_id_                   = armorID;
+                auto [z, armor_ekf, l, offset] = single_armor_update(
+                    grouped_armor[armorID], car, armorID, tf, dt, car->omega() >= 0.0);
                 // auto x        = armor_ekf.h(armor_ekf.OutPut(), {});
                 // auto odom_pos = fast_tf::cast<rmcs_description::OdomImu>(
                 //     rmcs_description::CameraLink::Position(x.x(), x.y(), x.z()), tf, dt);
 
                 l1_ = l;
                 l2_ = l;
-                ArmorEKF::XVec out;
-                out << armor_ekf.OutPut();
                 armor_ekf.Update(z, {}, dt);
                 z_armor =
                     combine_armor_out({armor_ekf, armor_ekf}, {offset, offset}, {l1_, l2_}, tf);
+                // RCLCPP_INFO(
+                //     rclcpp::get_logger(""), "%lf,%lf,%lf,%lf", z_armor(0), z_armor(1),
+                //     z_armor(2), z_armor(3));
 
             } else if (len == 2) {
                 auto [z1, armor_ekf1, l1, offset1, z2, armor_ekf2, l2, offset2] =
@@ -103,35 +104,20 @@ public:
             CarKF::ZVec z_car{};
             z_car << z_armor(0), z_armor(1), z_armor(3);
 
-            car->update_car(z_car, dt);
-            car->update_z(
-                armor_get_odom_z(armor_trackers[armorID][0], tf),
-                armor_get_odom_z(armor_trackers[armorID][1], tf),
-                armor_get_odom_z(armor_trackers[armorID][2], tf),
-                armor_get_odom_z(armor_trackers[armorID][3], tf));
+            auto car_z = car->get_z();
 
-            last_armors = car->get_armor();
-            auto min    = 1e7;
-            auto index  = 0;
-            for (int i = 0; i < 4; i++) {
-                auto vec =
-                    Eigen::Vector2d{last_armors[i].position->x(), last_armors[i].position->y()};
-                auto norm = vec.norm();
-                if (norm < min) {
-                    index = i;
-                    min   = norm;
-                }
-            }
+            car->update_car(z_car, dt, index1);
+            for (int i = 0; i < 4; i++)
+                if (i == index1 || i == index2)
+                    car_z(i) = armor_get_odom_z(armor_trackers[armorID][i], tf);
+            car->update_z(car_z(0), car_z(1), car_z(2), car_z(3));
+            Eigen::Vector2d vec{};
 
-            if (target == nullptr) {
-                target     = std::make_shared<ArmorTarget>(CarTracker{*car}, index);
-                target_min = min;
-            } else if (target_min > min) {
-                target     = std::make_shared<ArmorTarget>(CarTracker{*car}, index);
-                target_min = min;
-            }
+            target = std::make_shared<ArmorTarget>(CarTracker{*car}, index1);
         }
 
+        last_armors1 = car_trackers[last_car_id_]->get_armor(dt);
+        last_armors2 = car_trackers[last_car_id_]->get_armor();
         return target;
     }
 
@@ -140,14 +126,19 @@ public:
         const double& k2, const double& k3, const rmcs_description::Tf& tf,
         cv::InputOutputArray image, const cv::Scalar& color, int thickness = 1,
         int lineType = cv::LINE_8, int shift = 0) {
-        if (last_armors.empty())
+        if (last_armors1.empty())
             return;
         auto color_ = color;
-        for (const auto& armor3d : last_armors) {
+        for (const auto& armor3d : last_armors1) {
             transform_optimizer::Squad3d::darw_squad(
                 fx, fy, cx, cy, k1, k2, k3, tf, image, transform_optimizer::Squad3d(armor3d), false,
                 color_, thickness, lineType, shift);
             color_ = color_ / 1.2;
+        }
+        for (const auto& armor3d : last_armors2) {
+            transform_optimizer::Squad3d::darw_squad(
+                fx, fy, cx, cy, k1, k2, k3, tf, image, transform_optimizer::Squad3d(armor3d), false,
+                {0, 0, 255}, thickness, lineType, shift);
         }
     }
 
@@ -171,7 +162,8 @@ private:
         const Eigen::Vector3d& t1, const Eigen::Quaterniond& q1, const Eigen::Vector3d& t2,
         const Eigen::Quaterniond& q2) {
         // 计算位移差异
-        Eigen::Vector3d vec = t1 - t2;
+        Eigen::Vector3d vec{};
+        vec << t1 - t2;
 
         // 计算旋转差异
         double rotationDifference = -cos(
@@ -179,44 +171,70 @@ private:
             - transform_optimizer::get_yaw_from_quaternion(q2));
         // 综合相似度（可以根据需要调整权重）
 
-        // RCLCPP_INFO(
-        //     rclcpp::get_logger("armor"), "x:%lf,y:%lf,z:%lf,w:%lf,px:%lf,py:%lf,pz:%lf", vec.x(),
-        //     vec.y(), vec.z(), transform_optimizer::get_yaw_from_quaternion(q1),
-        //     transform_optimizer::get_yaw_from_quaternion(q2));
+        auto z                       = vec.z();
         vec.z()                      = 0;
         double translationDifference = vec.norm();
-        double similarity            = translationDifference + rotationDifference * 10;
+        double similarity =
+            translationDifference * 1 + std::clamp(z, -0.1, 0.1) + rotationDifference * 5;
         return similarity;
     }
     constexpr static int distance_in_four(int a, int b) {
         auto err1 = a - b;
         auto err2 = b - a;
-        if (err1 < 0)
+        while (err1 < 0)
             err1 += 4;
-        if (err2 < 0)
+        while (err2 < 0)
             err2 += 4;
         return err1 > err2 ? err2 : err1;
     }
     std::tuple<ArmorEKF::ZVec, ArmorEKF&, double, double> single_armor_update(
         const std::vector<ArmorPlate3d>& armors, const std::shared_ptr<CarTracker>& car,
-        const rmcs_msgs::ArmorID& id, const rmcs_description::Tf& tf, const double& dt) {
+        const rmcs_msgs::ArmorID& id, const rmcs_description::Tf& tf, const double& dt,
+        const bool& clockwise) {
         auto car_armors = car->get_armor(dt);
         int index       = index1;
-        for (auto& armor : armors) {
-            double min = 1e7;
-            for (int i = 0; i < 4; i++) {
-                if (distance_in_four(i, index1) > 1 && distance_in_four(i, index2) > 1)
-                    continue;
-                auto distance = calculateSimilarity(
-                    *car_armors[i].position, Eigen::Quaterniond{*car_armors[i].rotation},
-                    *armor.position, Eigen::Quaterniond{*armor.rotation});
-                if (distance < min) {
-                    index = i;
-                    min   = distance;
+
+        if (car->check_armor_tracked() && index1 == index2)
+            index = index1;
+        else {
+            for (auto& armor : armors) {
+                double min = 1e7;
+                for (int i = 0; i < 4; i++) {
+                    if (distance_in_four(i, index1 + (clockwise ? 1 : -1)) > 0
+                        && distance_in_four(i, index1) > 0)
+                        continue;
+                    auto distance = calculateSimilarity(
+                        *car_armors[i].position, Eigen::Quaterniond{*car_armors[i].rotation},
+                        *armor.position, Eigen::Quaterniond{*armor.rotation});
+                    if (distance < min) {
+                        index = i;
+                        min   = distance;
+                    }
                 }
             }
         }
-        // RCLCPP_INFO(rclcpp::get_logger("l"), "l1:%d", index);
+        // RCLCPP_INFO(
+        //     rclcpp::get_logger("l"), "l1:%lf",
+        // transform_optimizer::get_yaw_from_quaternion(Eigen::Quaterniond(*armors[0].rotation)));
+        if (index != index1 && index1 == index2) {
+            Eigen::Vector2d p1{};
+            p1 << car_armors[index1].position->x(), car_armors[index1].position->y();
+            Eigen::Vector2d p2{};
+            p2 << armors[0].position->x(), armors[0].position->y();
+            Eigen::Vector3d f1{};
+            f1 << car_armors[index1].rotation->toRotationMatrix() * Eigen::Vector3d::UnitX();
+            Eigen::Vector3d f2{};
+            f2 << armors[0].rotation->toRotationMatrix() * Eigen::Vector3d::UnitX();
+            Eigen::Vector2d diffp{};
+            diffp << p1 - p2;
+
+            auto l1 = abs(diffp.dot(Eigen::Vector2d{f1.x(), f1.y()}.normalized()));
+            auto l2 = abs(diffp.dot(Eigen::Vector2d{f2.x(), f2.y()}.normalized()));
+
+            if (index1 % 2 != 0)
+                std::swap(l1, l2);
+            car->update_frame(l1, l2);
+        }
 
         index1 = index2 = index;
 
@@ -249,17 +267,22 @@ private:
 
         Eigen::Vector2d p1 = {armor1.position->x(), armor1.position->y()};
         Eigen::Vector2d p2 = {armor2.position->x(), armor2.position->y()};
-        auto f1            = armor1.rotation->toRotationMatrix() * Eigen::Vector3d::UnitX();
-        auto f2            = armor2.rotation->toRotationMatrix() * Eigen::Vector3d::UnitX();
-        auto diffp         = p1 - p2;
-        auto l1            = abs(diffp.dot(Eigen::Vector2d{f1.x(), f1.y()}.normalized()));
-        auto l2            = abs(diffp.dot(Eigen::Vector2d{f2.x(), f2.y()}.normalized()));
+        Eigen::Vector3d f1{};
+        f1 << armor1.rotation->toRotationMatrix() * Eigen::Vector3d::UnitX();
+        Eigen::Vector3d f2{};
+        f2 << armor2.rotation->toRotationMatrix() * Eigen::Vector3d::UnitX();
+        Eigen::Vector2d diffp{};
+        diffp << p1 - p2;
+        auto l1 = abs(diffp.dot(Eigen::Vector2d{f1.x(), f1.y()}.normalized()));
+        auto l2 = abs(diffp.dot(Eigen::Vector2d{f2.x(), f2.y()}.normalized()));
 
         auto car_armors = car->get_armor(dt);
         int index1 = this->index1, index2 = this->index2;
         double min1 = 1e7;
         double min2 = 1e7;
         do {
+            if (index1 != index2)
+                break;
             for (int i = 0; i < 4; i++) {
                 if (distance_in_four(i, this->index1) > 1)
                     continue;
@@ -322,8 +345,8 @@ private:
         const auto& [offset1, offset2] = offset;
         const auto& [l1, l2]           = l;
 
-        auto z1 = a1.h(a1.OutPut(), {});
-        auto z2 = a2.h(a2.OutPut(), {});
+        auto z1 = a1.h(a1.OutPut(), ArmorEKF::VVec{});
+        auto z2 = a2.h(a2.OutPut(), ArmorEKF::VVec{});
 
         auto z1pos = fast_tf::cast<rmcs_description::OdomImu>(
             rmcs_description::CameraLink::Position{z1(0), z1(1), z1(2)}, tf);
@@ -360,9 +383,13 @@ private:
     std::map<rmcs_msgs::ArmorID, std::vector<ArmorEKF>> armor_trackers;
     std::chrono::steady_clock::time_point last_update_;
 
-    std::vector<ArmorPlate3d> last_armors;
+    std::vector<ArmorPlate3d> last_armors1;
+    std::vector<ArmorPlate3d> last_armors2;
     std::map<rmcs_msgs::ArmorID, std::vector<ArmorPlate3d>> grouped_armor;
 
+    // 改为多车 这是测试版本
     int index1 = 0, index2 = 0;
+    rmcs_msgs::ArmorID last_car_id_ = rmcs_msgs::ArmorID::Hero;
+    double angle                    = 0;
 };
 } // namespace rmcs_auto_aim::tracker2::armor

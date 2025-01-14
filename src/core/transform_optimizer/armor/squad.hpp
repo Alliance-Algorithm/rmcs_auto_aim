@@ -31,27 +31,27 @@ struct Squad {
         auto ratio1 = ratio(p1) - ratio(p3);
         auto ratio2 = ratio(p2) - ratio(p4);
 
-        while (ratio1 > std::numbers::pi)
-            ratio1 -= std::numbers::pi * 2;
-        while (ratio1 < -std::numbers::pi)
-            ratio1 += std::numbers::pi * 2;
+        while (ratio1 >= std::numbers::pi)
+            ratio1 -= std::numbers::pi;
+        while (ratio1 <= -std::numbers::pi)
+            ratio1 += std::numbers::pi;
 
-        while (ratio2 > std::numbers::pi)
-            ratio2 -= std::numbers::pi * 2;
-        while (ratio2 < -std::numbers::pi)
-            ratio2 += std::numbers::pi * 2;
+        while (ratio2 >= std::numbers::pi)
+            ratio2 -= std::numbers::pi;
+        while (ratio2 <= -std::numbers::pi)
+            ratio2 += std::numbers::pi;
 
         // if (ratio1 > ratio2)
         //     std::swap(ratio1, ratio2);
 
-        double tmp = 0;
-        for (int i = 0; i < 4; i++) {
-            auto p = (s2d.armor.points[i] - armor.points[(5 - i) % 4]);
-            tmp += log(sqrt(p.x * p.x + p.y * p.y) + 1);
-        }
-        return tmp;
+        // double tmp = 0;
+        // for (int i = 0; i < 4; i++) {
+        //     auto p = (s2d.armor.points[i] - armor.points[(5 - i) % 4]);
+        //     tmp += log(sqrt(p.x * p.x + p.y * p.y) + 1);
+        // }
+        // return tmp;
 
-        return abs(ratio2) + abs(ratio1);
+        return (abs(ratio2) + abs(ratio1));
     }
     constexpr inline bool is_large_armor() const { return armor.is_large_armor; }
     inline static void darw_squad(

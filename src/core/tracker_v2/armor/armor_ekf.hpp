@@ -15,7 +15,6 @@ public:
     ArmorEKF()
         : EKF() {
         // clang-format off
-        P_k = {};
         P_k.setIdentity();
         P_k *= 0.1;
         // clang-format on
@@ -31,6 +30,7 @@ public:
         v_.setIdentity();
         r_.setIdentity();
         q_.setIdentity();
+
         r_ *= 0.01;
     };
 
@@ -87,11 +87,12 @@ public:
     [[nodiscard]] VMat V(const XVec&, const VVec&) override { return v_; }
     [[nodiscard]] QMat Q(const double&) override {
         // clang-format on
+        q_.diagonal() << 1, 1, 1, 1e-2;
         return q_;
     }
     [[nodiscard]]
     RMat R(const ZVec&) override {
-        r_.diagonal() << 0.01, 0.01, 0.03, 0.01;
+        r_.diagonal() << 1e-5, 1e-5, 1e-5, 1e-5;
         return r_;
     }
 

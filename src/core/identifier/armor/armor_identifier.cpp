@@ -89,7 +89,7 @@ public:
 private:
     NumberIdentifier _numberIdentifier;
 
-    inline static constexpr const double maxArmorLightRatio = 1.5;
+    inline static constexpr const double maxArmorLightRatio = 2;
     inline static constexpr const double maxdAngle          = 9.5;
     inline static constexpr const double maxMalposition     = 0.7;
     inline static constexpr const double maxLightDy         = 0.9;

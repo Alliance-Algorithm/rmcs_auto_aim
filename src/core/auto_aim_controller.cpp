@@ -12,7 +12,6 @@
 
 #include "core/identifier/armor/armor_identifier.hpp"
 #include "core/pnpsolver/armor/armor_pnp_solver.hpp"
-#include "core/tracker/armor/target.hpp"
 #include "core/tracker_v2/armor/armor_tracker.hpp"
 #include "core/trajectory/trajectory_solvor.hpp"
 #include "core/transform_optimizer/armor/armor.hpp"
@@ -100,10 +99,10 @@ public:
                     auto tf        = tf_buffer_[tf_index_.load()];
                     auto armor_plates =
                         armor_identifier->Identify(image, *target_color_, *whitelist_);
-                    for (const auto& armor : armor_plates) {
-                        transform_optimizer::Squad::darw_squad(
-                            image, transform_optimizer::Squad(armor), {0, 0, 255});
-                    }
+                    // for (const auto& armor : armor_plates) {
+                    //     transform_optimizer::Squad::darw_squad(
+                    //         image, transform_optimizer::Squad(armor), {0, 0, 255});
+                    // }
                     auto armor3d = ArmorPnPSolver::SolveAll(
                         armor_plates, tf, fx_, fy_, cx_, cy_, k1_, k2_, k3_);
 
@@ -111,20 +110,20 @@ public:
                         armor_plates, armor3d, tf, fx_, fy_, cx_, cy_, k1_, k2_, k3_);
 
                     cv::Scalar color_ = {0, 255, 255};
-                    for (auto& armor3dTmp : armor3d) {
-                        transform_optimizer::Squad3d::darw_squad(
-                            fx_, fy_, cx_, cy_, k1_, k2_, k3_, tf, image,
-                            transform_optimizer::Squad3d(armor3dTmp), false, color_ *= 0.7, 1,
-                            cv::LineTypes::LINE_4);
-                    }
+                    // for (auto& armor3dTmp : armor3d) {
+                    //     transform_optimizer::Squad3d::darw_squad(
+                    //         fx_, fy_, cx_, cy_, k1_, k2_, k3_, tf, image,
+                    //         transform_optimizer::Squad3d(armor3dTmp), false, color_ *= 0.7, 1,
+                    //         cv::LineTypes::LINE_4);
+                    // }
                     if (auto target = armor_tracker.Update(armor3d, timestamp, tf)) {
                         armor_target_buffer_[!armor_target_index_.load()].target_ =
                             std::move(target);
                         armor_target_buffer_[!armor_target_index_.load()].timestamp_ = timestamp;
                         armor_target_index_.store(!armor_target_index_.load());
                     }
-                    armor_tracker.draw_armors(
-                        fx_, fx_, cx_, cy_, k1_, k2_, k3_, tf, image, {255, 0, 255});
+                    // armor_tracker.draw_armors(
+                    //     fx_, fx_, cx_, cy_, k1_, k2_, k3_, tf, image, {255, 0, 255});
                     auto output_msg =
                         cv_bridge::CvImage(
                             std_msgs::msg::Header(), sensor_msgs::image_encodings::BGR8, image)
@@ -156,7 +155,8 @@ public:
         double fly_time = 0;
         for (int i = 5; i-- > 0;) {
             auto pos = frame.target_->Predict(
-                static_cast<std::chrono::duration<double>>(diff).count() + fly_time + predict_sec_);
+                static_cast<std::chrono::duration<double>>(diff).count() + fly_time + predict_sec_,
+                *tf_);
             auto aiming_direction = *trajectory_.GetShotVector(
                 {pos->x() - offset->x(), pos->y() - offset->y(), pos->z() - offset->z()},
                 shoot_velocity_, fly_time);

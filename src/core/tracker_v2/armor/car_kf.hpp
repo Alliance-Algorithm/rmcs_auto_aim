@@ -42,7 +42,7 @@ public:
     };
 
     [[nodiscard]] ZVec h(const XVec& X_k, const VVec&) override {
-        z_ << X_k(0), X_k(2), X_k(4);
+        z_ << X_k(0) + X_k(1) * dt_, X_k(2) + X_k(3) * dt_, X_k(4) + X_k(5) * dt_;
         return z_;
     }
 
@@ -74,7 +74,11 @@ protected:
     }
     [[nodiscard]] WMat W(const XVec&, const UVec&, const WVec&) override { return w_; }
 
-    [[nodiscard]] HMat H(const XVec&, const VVec&) override { return h_; }
+    [[nodiscard]] HMat H(const XVec&, const VVec&) override {
+        for (int i = 0; i < 3; i += 1)
+            h_(i, i * 2 + 1) = dt_;
+        return h_;
+    }
 
     [[nodiscard]] VMat V(const XVec&, const VVec&) override { return v_; }
     [[nodiscard]] QMat Q(const double& dt) override {
@@ -93,17 +97,17 @@ protected:
         // clang-format on
         return q_;
     }
-    RMat R(const ZVec& z) override {
+    RMat R(const ZVec&) override {
         double x = r_xyz_factor_;
-        r_.diagonal() << abs(x * sqrt(z[0] * z[0] + z[1] * z[1])),
-            abs(x * sqrt(z[0] * z[0] + z[1] * z[1])), r_(2, 2);
+        r_.diagonal() << x, x, r_ywq_factor_;
         return r_;
     };
 
 private:
-    static constexpr double sigma2_q_xy_  = 20.0;
-    static constexpr double sigma2_q_yaw_ = 100.0;
-    static constexpr double r_xyz_factor_ = 0.020;
+    static constexpr double sigma2_q_xy_  = 20;
+    static constexpr double sigma2_q_yaw_ = 20;
+    static constexpr double r_xyz_factor_ = 0.01;
+    static constexpr double r_ywq_factor_ = 0.01;
 
     static constexpr inline const double conv_y     = 0.01;
     static constexpr inline const double conv_p     = 0.01;
