@@ -2,16 +2,15 @@
 
 #pragma once
 
-#include "core/tracker_v2/ekf.hpp"
 #include <Eigen/Eigen>
-#include <Eigen/src/Core/DiagonalMatrix.h>
-#include <Eigen/src/Core/Matrix.h>
 
-namespace rmcs_auto_aim ::tracker2 {
+#include "core/tracker/ekf.hpp"
 
-class CarFrameZKF : public EKF<4, 4> {
+namespace rmcs_auto_aim ::tracker {
+
+class CarFrameKF : public EKF<2, 2> {
 public:
-    CarFrameZKF()
+    CarFrameKF()
         : EKF() {
         P_k.setIdentity();
         P_k *= 0.01;
@@ -26,9 +25,9 @@ public:
 
         v_.setIdentity();
         q_.setIdentity();
-        q_ *= 10;
+        q_ *= 0.1;
         r_.setIdentity();
-        r_ *= 0.0000001;
+        r_ *= 1;
     };
 
 protected:
@@ -71,4 +70,4 @@ private:
     RMat r_;
 };
 
-} // namespace rmcs_auto_aim::tracker2
+} // namespace rmcs_auto_aim::tracker

@@ -2,15 +2,14 @@
 
 #pragma once
 
-#include "core/tracker_v2/ekf.hpp"
 #include <Eigen/Eigen>
-#include <Eigen/src/Core/DiagonalMatrix.h>
-#include <Eigen/src/Core/Matrix.h>
 #include <cmath>
 
-namespace rmcs_auto_aim::tracker2 {
+#include "core/tracker/ekf.hpp"
 
-class ArmorEKF : public EKF<4, 4> {
+namespace rmcs_auto_aim::tracker {
+
+class ArmorEKF final : public EKF<4, 4> {
 public:
     ArmorEKF()
         : EKF() {
@@ -118,4 +117,4 @@ private:
     RMat r_{};
 };
 
-} // namespace rmcs_auto_aim::tracker2
+} // namespace rmcs_auto_aim::tracker

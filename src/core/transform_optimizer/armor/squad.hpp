@@ -1,17 +1,19 @@
 #pragma once
 
 #include <cmath>
-#include <fast_tf/impl/cast.hpp>
+#include <vector>
 
 #include <opencv2/calib3d.hpp>
 #include <opencv2/core/mat.hpp>
 #include <opencv2/core/types.hpp>
 #include <opencv2/opencv.hpp>
+
+#include <fast_tf/impl/cast.hpp>
 #include <rmcs_description/tf_description.hpp>
-#include <vector>
 
 #include "core/identifier/armor/armor.hpp"
 #include "core/pnpsolver/armor/armor3d.hpp"
+
 namespace rmcs_auto_aim::transform_optimizer {
 
 struct Squad {
@@ -54,7 +56,7 @@ struct Squad {
         return (abs(ratio2) + abs(ratio1));
     }
     constexpr inline bool is_large_armor() const { return armor.is_large_armor; }
-    inline static void darw_squad(
+    inline static void draw_squad(
         cv::InputOutputArray image, const Squad& squad, const cv::Scalar& color, int thickness = 1,
         int lineType = cv::LINE_8, int shift = 0) {
         // cv::line(
@@ -134,7 +136,7 @@ struct Squad3d {
         cv::projectPoints(objectPoints, t, r, cameraMatrix, distCoeffs, imagePoints);
         return Squad(ArmorPlate(std::move(imagePoints), armor3d.id, isLargeArmor));
     }
-    inline static void darw_squad(
+    inline static void draw_squad(
         const double& fx, const double& fy, const double& cx, const double& cy, const double& k1,
         const double& k2, const double& k3, const rmcs_description::Tf& tf,
         cv::InputOutputArray image, const Squad3d& squad3d, bool is_large_armor,
@@ -149,10 +151,12 @@ struct Squad3d {
         for (auto& armor : objectPoints) {
             std::string text = "(" + std::to_string(armor.x) + ", " + std::to_string(armor.y) + ", "
                              + std::to_string(armor.z) + ")";
-            cv::putText(image, text, {100 + (++i) * 100, 100 + (++i) * 50}, 1, 1, {0, 0, 255});
+            auto x = 100 + (++i) * 100;
+            auto y = 100 + (++i) * 50;
+            cv::putText(image, text, {x, y}, 1, 1, {0, 0, 255});
         }
 
-        Squad::darw_squad(
+        Squad::draw_squad(
             image, squad3d.ToSquad(cameraMatrix, distCoeffs, tf, is_large_armor), color, thickness,
             lineType, shift);
     }

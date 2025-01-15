@@ -3,8 +3,8 @@
 #include <rclcpp/node.hpp>
 
 #include <rmcs_executor/component.hpp>
-#include <robot_color.hpp>
-#include <robot_id.hpp>
+#include <rmcs_msgs/robot_color.hpp>
+#include <rmcs_msgs/robot_id.hpp>
 
 #include "core/identifier/armor/armor.hpp"
 

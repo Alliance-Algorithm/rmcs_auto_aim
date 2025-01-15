@@ -4,22 +4,20 @@
 #include <vector>
 
 #include <ament_index_cpp/get_package_share_directory.hpp>
+#include <cv_bridge/cv_bridge.h>
 #include <rclcpp/node.hpp>
-#include <rmcs_description/tf_description.hpp>
+#include <std_msgs/msg/header.hpp>
 
 #include <hikcamera/image_capturer.hpp>
+#include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
 
 #include "core/identifier/armor/armor_identifier.hpp"
 #include "core/pnpsolver/armor/armor_pnp_solver.hpp"
-#include "core/tracker_v2/armor/armor_tracker.hpp"
+#include "core/tracker/armor/armor_tracker.hpp"
 #include "core/trajectory/trajectory_solvor.hpp"
 #include "core/transform_optimizer/armor/armor.hpp"
-#include "core/transform_optimizer/armor/squad.hpp"
 #include "util/utils.hpp"
-
-#include <cv_bridge/cv_bridge.h>
-#include <std_msgs/msg/header.hpp>
 
 namespace rmcs_auto_aim {
 class AutoAimController
@@ -88,7 +86,7 @@ public:
                 auto armor_identifier = std::make_unique<ArmorIdentifier>(
                     ament_index_cpp::get_package_share_directory("rmcs_auto_aim")
                     + "/models/mlp.onnx");
-                auto armor_tracker = tracker2::armor::ArmorTracker(); // TODO
+                auto armor_tracker = tracker::armor::ArmorTracker(); // TODO
 
                 rmcs_auto_aim::util::FPSCounter fps;
 
@@ -99,36 +97,24 @@ public:
                     auto tf        = tf_buffer_[tf_index_.load()];
                     auto armor_plates =
                         armor_identifier->Identify(image, *target_color_, *whitelist_);
-                    // for (const auto& armor : armor_plates) {
-                    //     transform_optimizer::Squad::darw_squad(
-                    //         image, transform_optimizer::Squad(armor), {0, 0, 255});
-                    // }
+
                     auto armor3d = ArmorPnPSolver::SolveAll(
                         armor_plates, tf, fx_, fy_, cx_, cy_, k1_, k2_, k3_);
 
                     transform_optimizer::transform_optimize(
                         armor_plates, armor3d, tf, fx_, fy_, cx_, cy_, k1_, k2_, k3_);
 
-                    cv::Scalar color_ = {0, 255, 255};
-                    // for (auto& armor3dTmp : armor3d) {
-                    //     transform_optimizer::Squad3d::darw_squad(
-                    //         fx_, fy_, cx_, cy_, k1_, k2_, k3_, tf, image,
-                    //         transform_optimizer::Squad3d(armor3dTmp), false, color_ *= 0.7, 1,
-                    //         cv::LineTypes::LINE_4);
-                    // }
                     if (auto target = armor_tracker.Update(armor3d, timestamp, tf)) {
                         armor_target_buffer_[!armor_target_index_.load()].target_ =
                             std::move(target);
                         armor_target_buffer_[!armor_target_index_.load()].timestamp_ = timestamp;
                         armor_target_index_.store(!armor_target_index_.load());
                     }
-                    // armor_tracker.draw_armors(
-                    //     fx_, fx_, cx_, cy_, k1_, k2_, k3_, tf, image, {255, 0, 255});
+
                     auto output_msg =
                         cv_bridge::CvImage(
                             std_msgs::msg::Header(), sensor_msgs::image_encodings::BGR8, image)
                             .toImageMsg();
-                    // publisher_->publish(*output_msg);
 
                     if (fps.Count()) {
                         RCLCPP_INFO(get_logger(), "FPS: %d", fps.GetFPS());
@@ -147,7 +133,7 @@ public:
 
         using namespace std::chrono_literals;
         auto diff = std::chrono::steady_clock::now() - frame.timestamp_;
-        if (diff > std::chrono::milliseconds(500)) { // TODO
+        if (diff > std::chrono::milliseconds(500)) {                 // TODO
             *control_direction_ = Eigen::Vector3d::Zero();
             return;
         }
@@ -179,7 +165,7 @@ public:
 
 private:
     struct TargetFrame {
-        std::shared_ptr<rmcs_auto_aim::tracker2::ITarget> target_;
+        std::shared_ptr<rmcs_auto_aim::tracker::ITarget> target_;
         std::chrono::steady_clock::time_point timestamp_;
     };
 

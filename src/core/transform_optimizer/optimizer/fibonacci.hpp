@@ -1,8 +1,10 @@
 #pragma once
 
+#include <utility>
+
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
-#include <utility>
+
 namespace rmcs_auto_aim::transform_optimizer::optimizer {
 class Fibonacci {
 

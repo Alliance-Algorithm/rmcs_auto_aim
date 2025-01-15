@@ -2,15 +2,15 @@
 
 #include <utility>
 
-#include "core/tracker_v2/armor/car_tracker.hpp"
-#include "core/tracker_v2/target_interface.hpp"
+#include "core/tracker/armor/car_tracker.hpp"
+#include "core/tracker/target_interface.hpp"
 
-namespace rmcs_auto_aim::tracker2::armor {
-class ArmorTarget : public tracker2::ITarget {
+namespace rmcs_auto_aim::tracker::armor {
+class ArmorTarget : public tracker::ITarget {
 
 public:
-    explicit ArmorTarget(rmcs_auto_aim::tracker2::CarTracker car, int index)
-        : tracker2::ITarget{}
+    explicit ArmorTarget(rmcs_auto_aim::tracker::CarTracker car, int index)
+        : tracker::ITarget{}
         , car(std::move(car))
         , index_(index) {};
     rmcs_description::OdomImu::Position Predict(double sec, rmcs_description::Tf tf) override {
@@ -45,7 +45,7 @@ public:
     }
 
 private:
-    rmcs_auto_aim::tracker2::CarTracker car;
+    rmcs_auto_aim::tracker::CarTracker car;
     int index_;
 };
-} // namespace rmcs_auto_aim::tracker2::armor
+} // namespace rmcs_auto_aim::tracker::armor

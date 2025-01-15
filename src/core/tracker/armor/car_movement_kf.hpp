@@ -2,19 +2,18 @@
 
 #pragma once
 
-#include "core/tracker_v2/ekf.hpp"
 #include <Eigen/Eigen>
-#include <Eigen/src/Core/DiagonalMatrix.h>
-#include <Eigen/src/Core/Matrix.h>
 
-namespace rmcs_auto_aim ::tracker2 {
+#include "core/tracker/ekf.hpp"
 
-class CarPosKF : public EKF<3, 3> {
+namespace rmcs_auto_aim ::tracker {
+
+class CarMovementKF : public EKF<3, 3> {
 public:
-    CarPosKF()
+    CarMovementKF()
         : EKF() {
         // clang-format off
-        P_k .setIdentity();
+        P_k.setIdentity();
         // clang-format on
 
         P_k *= 0.1;
@@ -25,6 +24,7 @@ public:
 
         w_.setIdentity();
 
+        h_.setZero();
         h_.setIdentity();
 
         v_.setIdentity();
@@ -33,54 +33,53 @@ public:
         r_ *= 0.1;
     };
 
-    [[nodiscard]] ZVec h(const XVec& x_k, const VVec&) override { return x_k; }
+    [[nodiscard]] ZVec h(const XVec& X_k, const VVec&) override {
+        z_ << X_k(0), X_k(1), X_k(2);
+        return z_;
+    }
 
 protected:
-    [[nodiscard]] XVec f(const XVec& x_k, const UVec&, const WVec&, const double&) override {
-
-        return x_k;
+    [[nodiscard]] XVec f(const XVec& X_k, const UVec&, const WVec&, const double&) override {
+        x_ << X_k;
+        return x_;
     }
 
     [[nodiscard]] AMat A(const XVec&, const UVec&, const WVec&, const double&) override {
 
         return a_;
     }
-    [[nodiscard]] ZVec process_z(const ZVec& z_k) override {
-        auto err = z_k(2) - X_k(2);
-        while (err > std::numbers::pi)
-            err -= std::numbers::pi * 2;
-        while (err < -std::numbers::pi)
-            err += std::numbers::pi * 2;
-        ZVec z_new{};
-        z_new << z_k;
-        z_new(2) = err + X_k(2);
-        return z_new;
-    }
+    [[nodiscard]] ZVec process_z(const ZVec& z_k) override { return z_k; }
     [[nodiscard]] WMat W(const XVec&, const UVec&, const WVec&) override { return w_; }
 
-    [[nodiscard]] HMat H(const XVec&, const VVec&) override { return h_; }
+    [[nodiscard]] HMat H(const XVec&, const VVec&) override {
+        h_.setIdentity();
+        // h_ *= dt_;
+        return h_;
+    }
 
     [[nodiscard]] VMat V(const XVec&, const VVec&) override { return v_; }
     [[nodiscard]] QMat Q(const double&) override {
 
+        double x = sigma2_q_xy_;
+        double y = sigma2_q_yaw_;
         // clang-format off
-        q_ .setIdentity();
-        q_*= sigma2_q_xy_;
-        q_(2,2) = sigma2_q_yaw_;
+        //      ,vxc        ,vyc        ,theta  ,omega
+        q_ <<   x       ,0          ,0      ,
+                0           ,x     ,0      ,
+                0           ,0          ,y ;
         // clang-format on
         return q_;
     }
     RMat R(const ZVec&) override {
-        double x = r_xyz_factor_;
-        r_.diagonal() << x, x, r_ywq_factor_;
+        r_.diagonal() << r_xyz_factor_, r_xyz_factor_, r_ywq_factor_;
         return r_;
     };
 
 private:
-    static constexpr double sigma2_q_xy_  = 5e-2;
-    static constexpr double sigma2_q_yaw_ = 5e-2;
-    static constexpr double r_xyz_factor_ = 5e-2;
-    static constexpr double r_ywq_factor_ = 1e-2;
+    static constexpr double sigma2_q_xy_  = 1e-1;
+    static constexpr double sigma2_q_yaw_ = 1e-1;
+    static constexpr double r_xyz_factor_ = 1e0;
+    static constexpr double r_ywq_factor_ = 1;
 
     static constexpr inline const double conv_y     = 0.01;
     static constexpr inline const double conv_p     = 0.01;
@@ -97,4 +96,4 @@ private:
     RMat r_{};
 };
 
-} // namespace rmcs_auto_aim::tracker2
+} // namespace rmcs_auto_aim::tracker

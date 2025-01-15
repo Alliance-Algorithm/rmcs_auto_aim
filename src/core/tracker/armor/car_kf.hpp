@@ -2,12 +2,11 @@
 
 #pragma once
 
-#include "core/tracker_v2/ekf.hpp"
 #include <Eigen/Eigen>
-#include <Eigen/src/Core/DiagonalMatrix.h>
-#include <Eigen/src/Core/Matrix.h>
 
-namespace rmcs_auto_aim ::tracker2 {
+#include "core/tracker/ekf.hpp"
+
+namespace rmcs_auto_aim ::tracker {
 
 class CarKF : public EKF<6, 3> {
 public:
@@ -124,4 +123,4 @@ private:
     RMat r_{};
 };
 
-} // namespace rmcs_auto_aim::tracker2
+} // namespace rmcs_auto_aim::tracker

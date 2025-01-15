@@ -1,130 +1,100 @@
-/**
- * @file ekf.hpp
- * @author Lorenzo Feng (lorenzo.feng@njust.edu.cn)
- * @brief
- * @version 0.1
- * @date 2024-07-17
- *
- * (C)Copyright: NJUST.Alliance - All rights reserved
- *
- */
-
 #pragma once
 
 #include <Eigen/Eigen>
 
+#include <rclcpp/logger.hpp>
+#include <rclcpp/logging.hpp>
+
+namespace rmcs_auto_aim::tracker {
+template <int xn, int zn>
 class EKF {
 public:
+    typedef Eigen::Vector<double, xn> XVec;
+    typedef XVec UVec;
+    typedef XVec WVec;
+
+    typedef Eigen::Vector<double, zn> ZVec;
+    typedef ZVec VVec;
+
+    typedef Eigen::Matrix<double, xn, xn> PMat;
+    typedef Eigen::Matrix<double, zn, zn> RMat;
+    typedef Eigen::Matrix<double, xn, xn> AMat;
+    typedef Eigen::Matrix<double, xn, xn> WMat;
+    typedef Eigen::Matrix<double, zn, zn> VMat;
+    typedef Eigen::Matrix<double, xn, xn> QMat;
+    typedef Eigen::Matrix<double, zn, xn> HMat;
+    typedef Eigen::Matrix<double, xn, zn> KMat;
+    [[nodiscard]] inline XVec OutPut() { return X_k; }
+
+    void Update(const ZVec& z_k, const UVec& u_k, const double& dt) {
+        dt_   = dt;
+        P_k_n = P_k_n.Zero();
+        S_k   = S_k.Zero();
+        y_k   = y_k.Zero();
+        K_t   = K_t.Zero();
+        tmpK  = tmpK.Zero();
+
+        auto x_k_n = f(X_k, u_k, w_zero, dt);
+        auto A_k   = A(X_k, u_k, w_zero, dt);
+        auto W_k   = W(X_k, u_k, w_zero);
+        auto H_k   = H(x_k_n, v_zero);
+        auto V_k   = V(x_k_n, v_zero);
+
+        P_k_n << A_k * P_k * A_k.transpose() + W_k * Q(dt) * W_k.transpose();
+        // std::cout << P_k_n << std::endl;
+        y_k << process_z(z_k) - h(x_k_n, v_zero);
+        // std::cout << y_k << std::endl;
+        S_k << H_k * P_k_n * H_k.transpose() + V_k * R(z_k) * V_k.transpose();
+        // std::cout << S_k << std::endl;
+        K_t << P_k_n * H_k.transpose() * S_k.inverse();
+        // std::cout << K_t << std::endl;
+        X_k << x_k_n + K_t * y_k;
+        // std::cout << x_k_n << std::endl;
+        // std::cout << std::endl;
+        // std::cout << X_k << std::endl;
+        X_k << normalize_x(X_k);
+        tmpK << Eye_K - K_t * H_k;
+        // std::cout << std::endl;
+        // std::cout << tmpK << std::endl;
+        // std::cout << std::endl;
+
+        P_k << tmpK * P_k_n;
+    }
+    [[nodiscard]] virtual ZVec process_z(const ZVec& z_k) { return z_k; };
+    [[nodiscard]] virtual XVec normalize_x(const XVec& X_k) { return X_k; };
+    [[nodiscard]] virtual XVec f(const XVec&, const UVec&, const WVec&, const double&) = 0;
+    [[nodiscard]] virtual ZVec h(const XVec&, const VVec&)                             = 0;
+
+    [[nodiscard]] virtual AMat A(const XVec&, const XVec&, const XVec&, const double&) = 0;
+
+    [[nodiscard]] virtual WMat W(const XVec&, const XVec&, const XVec&) = 0;
+
+    [[nodiscard]] virtual HMat H(const XVec&, const VVec&) = 0;
+
+    [[nodiscard]] virtual VMat V(const XVec&, const VVec&) = 0;
+
+    [[nodiscard]] virtual QMat Q(const double& t) = 0;
+    [[nodiscard]] virtual RMat R(const ZVec& z)   = 0;
+
+    static inline const WVec w_zero = Eigen::VectorXd::Zero(xn);
+    static inline const VVec v_zero = Eigen::VectorXd::Zero(zn);
+    static inline const PMat Eye_K  = Eigen::MatrixXd::Identity(xn, xn);
+
+protected:
     EKF() {
-        Eigen::DiagonalMatrix<double, 9> p;
-        p.setIdentity();
-        P_ = p;
+        X_k = X_k.Zero();
+        P_k = P_k.Identity();
     };
+    XVec X_k;
+    PMat P_k;
 
-    void Predict(double t) {
-        Eigen::MatrixXd F = jacobian_f(x_, t), Q = get_Q(t);
-
-        x_ = f(x_, t);
-        P_ = F * P_ * F.transpose() + Q;
-    }
-
-    [[nodiscard]] Eigen::VectorXd PredictConst(double t) const { return f(x_, t); }
-
-    void Update(const Eigen::VectorXd& z) {
-        Eigen::MatrixXd H = jacobian_h(x_), R = get_R(z);
-        Eigen::MatrixXd I = Eigen::MatrixXd::Identity(9, 9);
-
-        Eigen::MatrixXd K = P_ * H.transpose() * (H * P_ * H.transpose() + R).inverse();
-        x_                = x_ + K * (z - h(x_));
-        P_                = (I - K * H) * P_;
-    }
-
-    Eigen::Matrix<double, 9, 1> x_;
-    Eigen::Matrix<double, 9, 9> P_;
+    double dt_;
 
 private:
-    static constexpr double sigma2_q_xyz_ = 20.0;
-    static constexpr double sigma2_q_yaw_ = 100.0;
-    static constexpr double sigma2_q_r_   = 800.0;
-    static constexpr double r_xyz_factor_ = 0.05;
-    static constexpr double r_yaw_        = 0.02;
-
-    // f - Process function
-    static Eigen::VectorXd f(const Eigen::VectorXd& x, double dt) {
-        Eigen::VectorXd x_new = x;
-        x_new(0) += x(1) * dt;
-        x_new(2) += x(3) * dt;
-        x_new(4) += x(5) * dt;
-        x_new(6) += x(7) * dt;
-        return x_new;
-    }
-
-    // J_f - Jacobian of process function
-    static Eigen::MatrixXd jacobian_f(const Eigen::VectorXd& x, double dt) {
-        (void)x;
-        Eigen::MatrixXd f(9, 9);
-        f << 1, dt, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, dt, 0, 0, 0, 0, 0, 0,
-            0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, dt, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 1, dt, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1;
-        return f;
-    };
-
-    // h - Observation function
-    static Eigen::VectorXd h(const Eigen::VectorXd& x) {
-        Eigen::VectorXd z(4);
-        double xc = x(0), yc = x(2), yaw = x(6), r = x(8);
-        z(0) = xc - r * cos(yaw); // xa
-        z(1) = yc - r * sin(yaw); // ya
-        z(2) = x(4);              // za
-        z(3) = x(6);              // yaw
-        return z;
-    };
-
-    // jacobian_h - Jacobian of process function
-    static Eigen::MatrixXd jacobian_h(const Eigen::VectorXd& x) {
-        Eigen::MatrixXd h(4, 9);
-        double yaw = x(6), r = x(8);
-        // clang-format off
-        //    xc   v_xc yc   v_yc za   v_za yaw         v_yaw r
-        h << 1, 0, 0, 0, 0, 0, r* sin(yaw), 0, -cos(yaw),
-                0, 0, 1, 0, 0, 0, -r * cos(yaw), 0, -sin(yaw),
-                0, 0, 0, 0, 1, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 1, 0, 0;
-        // clang-format on
-        return h;
-    };
-
-    // Q - process noise covariance matrixEigen::Vector3d
-    static Eigen::MatrixXd get_Q(double dt) {
-        Eigen::MatrixXd q(9, 9);
-        double t = dt, x = sigma2_q_xyz_, y = sigma2_q_yaw_, r = sigma2_q_r_;
-        double q_x_x = pow(t, 4) / 4 * x, q_x_vx = pow(t, 3) / 2 * x, q_vx_vx = pow(t, 2) * x;
-        double q_y_y = pow(t, 4) / 4 * y, q_y_vy = pow(t, 3) / 2 * x, q_vy_vy = pow(t, 2) * y;
-        double q_r = pow(t, 4) / 4 * r;
-        // clang-format off
-        //    xc      v_xc    yc      v_yc    za      v_za    yaw     v_yaw   r
-        q << q_x_x, q_x_vx, 0, 0, 0, 0, 0, 0, 0,
-                q_x_vx, q_vx_vx, 0, 0, 0, 0, 0, 0, 0,
-                0, 0, q_x_x, q_x_vx, 0, 0, 0, 0, 0,
-                0, 0, q_x_vx, q_vx_vx, 0, 0, 0, 0, 0,
-                0, 0, 0, 0, q_x_x, q_x_vx, 0, 0, 0,
-                0, 0, 0, 0, q_x_vx, q_vx_vx, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, q_y_y, q_y_vy, 0,
-                0, 0, 0, 0, 0, 0, q_y_vy, q_vy_vy, 0,
-                0, 0, 0, 0, 0, 0, 0, 0, q_r;
-        // clang-format on
-        return q;
-    };
-
-    // R - measurement noise covariance matrix
-    static Eigen::DiagonalMatrix<double, 4> get_R(const Eigen::VectorXd& z) {
-        Eigen::DiagonalMatrix<double, 4> r;
-        double x = r_xyz_factor_;
-        r.diagonal() << abs(x * z[0]), abs(x * z[1]), abs(x * z[2]), r_yaw_;
-        return r;
-    };
-
-    // P - error estimate covariance matrix
-    // static Eigen::DiagonalMatrix<double, 9> get_P() {
-    //}
+    PMat P_k_n{};
+    RMat S_k{};
+    ZVec y_k{};
+    KMat K_t{};
+    PMat tmpK{};
 };
+} // namespace rmcs_auto_aim::tracker

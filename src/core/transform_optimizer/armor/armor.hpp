@@ -3,16 +3,16 @@
 #include <cassert>
 #include <cmath>
 #include <numbers>
-#include <rmcs_description/tf_description.hpp>
 #include <vector>
 
-#include "core/transform_optimizer/armor/squad.hpp"
-#include "core/transform_optimizer/optimizer/fibonacci.hpp"
+#include <Eigen/Eigen>
+
+#include <rmcs_description/tf_description.hpp>
 
 #include "core/identifier/armor/armor.hpp"
 #include "core/pnpsolver/armor/armor3d.hpp"
-
-#include <Eigen/Eigen>
+#include "core/transform_optimizer/armor/squad.hpp"
+#include "core/transform_optimizer/optimizer/fibonacci.hpp"
 
 namespace rmcs_auto_aim::transform_optimizer {
 
