@@ -5,11 +5,11 @@
 #include <Eigen/Eigen>
 #include <cmath>
 
-#include "core/tracker/ekf.hpp"
+#include "util/ekf.hpp"
 
 namespace rmcs_auto_aim::tracker {
 
-class ArmorEKF final : public EKF<4, 4> {
+class ArmorEKF final : public util::EKF<4, 4> {
 public:
     ArmorEKF()
         : EKF() {

@@ -1,5 +1,3 @@
-# 因为不想处理兼容性所以就除暴的新建文件夹
-
 ## 符号约定
 https://zeal-up.github.io/2023/03/13/kalman_filter/%E6%89%A9%E5%B1%95%E5%8D%A1%E5%B0%94%E6%9B%BC%E6%BB%A4%E6%B3%A2-%E5%90%AB%E4%BE%8B%E5%AD%90%E5%8F%8A%E4%BB%A3%E7%A0%81/
 

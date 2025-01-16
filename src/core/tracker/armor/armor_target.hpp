@@ -1,18 +1,16 @@
 #pragma once
 
-#include <utility>
-
-#include "core/tracker/armor/car_tracker.hpp"
+#include "core/tracker/car/car_tracker.hpp"
 #include "core/tracker/target_interface.hpp"
 
 namespace rmcs_auto_aim::tracker::armor {
 class ArmorTarget : public tracker::ITarget {
 
 public:
-    explicit ArmorTarget(rmcs_auto_aim::tracker::CarTracker car, int index)
+    explicit ArmorTarget(const rmcs_auto_aim::tracker::CarTracker& car, int index)
         : tracker::ITarget{}
-        , car(std::move(car))
-        , index_(index) {};
+        , car(car)
+        , index_(index){};
     rmcs_description::OdomImu::Position Predict(double sec, rmcs_description::Tf tf) override {
         double max    = -1e7;
         int index     = 0;

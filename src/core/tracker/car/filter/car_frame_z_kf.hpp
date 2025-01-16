@@ -4,13 +4,13 @@
 
 #include <Eigen/Eigen>
 
-#include "core/tracker/ekf.hpp"
+#include "util/ekf.hpp"
 
-namespace rmcs_auto_aim ::tracker {
+namespace rmcs_auto_aim::tracker {
 
-class CarFrameKF : public EKF<2, 2> {
+class CarFrameZKF : public util::EKF<4, 4> {
 public:
-    CarFrameKF()
+    CarFrameZKF()
         : EKF() {
         P_k.setIdentity();
         P_k *= 0.01;
@@ -25,9 +25,9 @@ public:
 
         v_.setIdentity();
         q_.setIdentity();
-        q_ *= 0.1;
+        q_ *= 10;
         r_.setIdentity();
-        r_ *= 1;
+        r_ *= 0.0000001;
     };
 
 protected:

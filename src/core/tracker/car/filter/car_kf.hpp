@@ -4,11 +4,11 @@
 
 #include <Eigen/Eigen>
 
-#include "core/tracker/ekf.hpp"
+#include "util/ekf.hpp"
 
 namespace rmcs_auto_aim ::tracker {
 
-class CarKF : public EKF<6, 3> {
+class CarKF : public util::EKF<6, 3> {
 public:
     CarKF()
         : EKF() {

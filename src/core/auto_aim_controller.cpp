@@ -17,6 +17,8 @@
 #include "core/tracker/armor/armor_tracker.hpp"
 #include "core/trajectory/trajectory_solvor.hpp"
 #include "core/transform_optimizer/armor/armor.hpp"
+#include "util/image_viewer/image_viewer.hpp"
+#include "util/profile/profile.hpp"
 #include "util/utils.hpp"
 
 namespace rmcs_auto_aim {
@@ -35,6 +37,9 @@ public:
         register_input("/auto_aim/whitelist", whitelist_);
         register_input("/tf", tf_);
 
+        util::ImageViewer::ImageViewer::createProduct(
+            (int)(get_parameter("image_viewer_type").as_int()), *this, "rmcs_auto_aim/debug");
+
         register_output(
             "/gimbal/auto_aim/control_direction", control_direction_, Eigen::Vector3d::Zero());
 
@@ -45,6 +50,8 @@ public:
         k1_ = get_parameter("k1").as_double();
         k2_ = get_parameter("k2").as_double();
         k3_ = get_parameter("k3").as_double();
+
+        util::Profile(fx_, fy_, cx_, cy_, k1_, k2_, k3_);
 
         yaw_error_      = get_parameter("yaw_error").as_double();
         pitch_error_    = get_parameter("pitch_error").as_double();
@@ -92,7 +99,8 @@ public:
 
                 while (rclcpp::ok()) {
 
-                    auto image     = capturer->read();
+                    auto image = capturer->read();
+                    util::ImageViewer::load_image(image);
                     auto timestamp = std::chrono::steady_clock::now();
                     auto tf        = tf_buffer_[tf_index_.load()];
                     auto armor_plates =
@@ -101,8 +109,7 @@ public:
                     auto armor3d = ArmorPnPSolver::SolveAll(
                         armor_plates, tf, fx_, fy_, cx_, cy_, k1_, k2_, k3_);
 
-                    transform_optimizer::transform_optimize(
-                        armor_plates, armor3d, tf, fx_, fy_, cx_, cy_, k1_, k2_, k3_);
+                    transform_optimizer::armor_transform_optimize(armor_plates, armor3d, tf);
 
                     if (auto target = armor_tracker.Update(armor3d, timestamp, tf)) {
                         armor_target_buffer_[!armor_target_index_.load()].target_ =
@@ -111,11 +118,7 @@ public:
                         armor_target_index_.store(!armor_target_index_.load());
                     }
 
-                    auto output_msg =
-                        cv_bridge::CvImage(
-                            std_msgs::msg::Header(), sensor_msgs::image_encodings::BGR8, image)
-                            .toImageMsg();
-
+                    util::ImageViewer::show_image();
                     if (fps.Count()) {
                         RCLCPP_INFO(get_logger(), "FPS: %d", fps.GetFPS());
                     }

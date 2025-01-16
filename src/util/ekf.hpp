@@ -5,7 +5,7 @@
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
 
-namespace rmcs_auto_aim::tracker {
+namespace rmcs_auto_aim::util {
 template <int xn, int zn>
 class EKF {
 public:
@@ -97,4 +97,4 @@ private:
     KMat K_t{};
     PMat tmpK{};
 };
-} // namespace rmcs_auto_aim::tracker
+} // namespace rmcs_auto_aim::util
