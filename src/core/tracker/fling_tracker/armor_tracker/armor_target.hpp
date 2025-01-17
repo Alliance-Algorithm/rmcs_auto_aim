@@ -1,13 +1,13 @@
 #pragma once
 
-#include "core/tracker/car/car_tracker.hpp"
-#include "core/tracker/target_interface.hpp"
+#include "core/tracker/fling_tracker/car_tracker/car_tracker.hpp"
+#include "core/tracker/interfaces/target_interface.hpp"
 
-namespace rmcs_auto_aim::tracker::armor {
+namespace rmcs_auto_aim::tracker::fling_tracker::armor {
 class ArmorTarget : public tracker::ITarget {
 
 public:
-    explicit ArmorTarget(const rmcs_auto_aim::tracker::CarTracker& car, int index)
+    explicit ArmorTarget(const CarTracker& car, int index)
         : tracker::ITarget{}
         , car(car)
         , index_(index){};
@@ -43,7 +43,7 @@ public:
     }
 
 private:
-    rmcs_auto_aim::tracker::CarTracker car;
+    CarTracker car;
     int index_;
 };
-} // namespace rmcs_auto_aim::tracker::armor
+} // namespace rmcs_auto_aim::tracker::fling_tracker::armor

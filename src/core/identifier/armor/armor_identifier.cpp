@@ -37,9 +37,9 @@ public:
         cv::findContours(imgThre, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_NONE);
 
         for (const auto& contour : contours) {
+
             if (auto&& lightBarOpt = _solveToLightbar(img, contour, target_color)) {
                 lightBars.push_back(*lightBarOpt);
-
                 std::sort(lightBars.begin(), lightBars.end(), [](LightBar& a, LightBar& b) {
                     return a.top.x < b.top.x;
                 });
@@ -73,13 +73,17 @@ public:
 
                 if (_numberIdentifier.Identify(img, armor, blacklist)) {
                     result.push_back(armor);
-
                     // cv::rectangle(
                     //     img, cv::Rect{armor.points[0], armor.points[2]}, cv::Scalar(0, 255, 0),
                     //     2);
+
                     // cv::putText(
                     //     img, std::to_string((int)armor.id), armor.center(), 2, 2,
                     //     cv::Scalar(0, 255, 0), 2);
+                } else {
+                    // cv::rectangle(
+                    //     img, cv::Rect{armor.points[0], armor.points[2]}, cv::Scalar(0, 255, 255),
+                    //     2);
                 }
             }
         }
@@ -89,9 +93,9 @@ public:
 private:
     NumberIdentifier _numberIdentifier;
 
-    inline static constexpr const double maxArmorLightRatio = 2;
+    inline static constexpr const double maxArmorLightRatio = 10.0;
     inline static constexpr const double maxdAngle          = 9.5;
-    inline static constexpr const double maxMalposition     = 0.7;
+    inline static constexpr const double maxMalposition     = 1.0;
     inline static constexpr const double maxLightDy         = 0.9;
     inline static constexpr const double maxbigArmorDis     = 5.5;
     inline static constexpr const double minbigArmorDis     = 3.2;
@@ -138,7 +142,7 @@ private:
             cv::fillPoly(mask, {mask_contour}, 255);
             std::vector<cv::Point> points;
             cv::findNonZero(mask, points);
-            bool filled = (float)points.size() / (r_rect.size.width * r_rect.size.height) > 0.8;
+            bool filled = (float)points.size() / (r_rect.size.width * r_rect.size.height) > 0.6;
             cv::Vec4f return_param;
             cv::fitLine(points, return_param, cv::DIST_L2, 0, 0.01, 0.01);
             cv::Point2f top, bottom;
@@ -170,7 +174,7 @@ private:
             auto width  = (double)points.size() / length;
 
             auto ratio = width / length;
-            if (!(ratio > 0.1 && ratio < 0.4 && filled)) {
+            if (!(ratio > 0.01 && ratio < 0.5 && filled)) {
                 return std::nullopt;
             }
             angle_k  = (float)(angle_k / 180 * CV_PI);

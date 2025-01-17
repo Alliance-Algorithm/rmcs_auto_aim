@@ -1,5 +1,3 @@
-#pragma once
-
 #include <chrono>
 #include <map>
 #include <memory>
@@ -16,20 +14,21 @@
 
 #include "core/pnpsolver/armor/armor3d.hpp"
 
-#include "core/tracker/armor/armor_target.hpp"
-#include "core/tracker/armor/filter/armor_ekf.hpp"
+#include "core/tracker/auto_aim_v2/armor/armor_target.hpp"
+#include "core/tracker/auto_aim_v2/armor/filter/armor_ekf.hpp"
 
-#include "core/tracker/car/car_tracker.hpp"
-#include "core/tracker/tracker_interface.hpp"
+#include "core/tracker/auto_aim_v2/armor/armor_tracker.hpp"
+
+#include "core/tracker/auto_aim_v2/car_tracker.hpp"
 #include "core/transform_optimizer/armor/quadrilateral/quadrilateral.hpp"
 
 #include "util/image_viewer/image_viewer.hpp"
 #include "util/math.hpp"
 
 namespace rmcs_auto_aim::tracker::armor {
-class ArmorTracker : public ITracker {
+class ArmorTracker::Impl {
 public:
-    ArmorTracker() {
+    Impl() {
         car_trackers[rmcs_msgs::ArmorID::Hero]          = std::make_shared<CarTracker>();
         car_trackers[rmcs_msgs::ArmorID::Engineer]      = std::make_shared<CarTracker>();
         car_trackers[rmcs_msgs::ArmorID::InfantryIII]   = std::make_shared<CarTracker>();
@@ -58,8 +57,7 @@ public:
 
     std::shared_ptr<ITarget> Update(
         const std::vector<ArmorPlate3d>& armors,
-        const std::chrono::steady_clock::time_point& timestamp,
-        const rmcs_description::Tf& tf) override {
+        const std::chrono::steady_clock::time_point& timestamp, const rmcs_description::Tf& tf) {
 
         std::shared_ptr<ITarget> target = nullptr;
 
@@ -375,4 +373,18 @@ private:
     int index1 = 0, index2 = 0;
     rmcs_msgs::ArmorID last_car_id_ = rmcs_msgs::ArmorID::Hero;
 };
+
+ArmorTracker::ArmorTracker() { pimpl_ = std::make_unique<Impl>(); }
+ArmorTracker ::~ArmorTracker() = default;
+
+std::shared_ptr<ITarget> ArmorTracker::Update(
+    const std::vector<ArmorPlate3d>& armors, const std::chrono::steady_clock::time_point& timestamp,
+    const rmcs_description::Tf& tf) {
+    return pimpl_->Update(armors, timestamp, tf);
+};
+
+void ArmorTracker::draw_armors(const rmcs_description::Tf& tf, const cv::Scalar& color) {
+    pimpl_->draw_armors(tf, color);
+}
+
 } // namespace rmcs_auto_aim::tracker::armor

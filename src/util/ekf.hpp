@@ -25,6 +25,7 @@ public:
     typedef Eigen::Matrix<double, zn, xn> HMat;
     typedef Eigen::Matrix<double, xn, zn> KMat;
     [[nodiscard]] inline XVec OutPut() { return X_k; }
+    [[nodiscard]] inline double OutPut(int i) { return X_k(i); }
 
     void Update(const ZVec& z_k, const UVec& u_k, const double& dt) {
         dt_   = dt;

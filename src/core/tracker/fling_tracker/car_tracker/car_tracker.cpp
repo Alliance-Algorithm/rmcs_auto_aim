@@ -1,29 +1,10 @@
-
-
-#include <memory>
-#include <numbers>
-#include <tuple>
-#include <vector>
-
-#include <Eigen/Eigen>
-#include <rclcpp/logger.hpp>
-#include <rclcpp/logging.hpp>
-
-#include <rmcs_description/tf_description.hpp>
-#include <rmcs_msgs/robot_id.hpp>
-
-#include "core/pnpsolver/armor/armor3d.hpp"
-
-#include "core/tracker/car/filter/car_frame_kf.hpp"
-#include "core/tracker/car/filter/car_frame_z_kf.hpp"
-#include "core/tracker/car/filter/car_kf.hpp"
-#include "core/tracker/car/filter/car_movement_kf.hpp"
-#include "core/tracker/car/filter/car_pos_kf.hpp"
-
 #include "car_tracker.hpp"
+#include "core/tracker/fling_tracker/car_tracker/filter/car_frame_kf.hpp"
+#include "core/tracker/fling_tracker/car_tracker/filter/car_kf.hpp"
+#include "core/tracker/fling_tracker/car_tracker/filter/car_movement_kf.hpp"
+#include "core/tracker/fling_tracker/car_tracker/filter/car_pos_kf.hpp"
 
-namespace rmcs_auto_aim::tracker {
-class CarTracker::Impl {
+class rmcs_auto_aim::tracker::fling_tracker::CarTracker::Impl {
 public:
     Impl()
         : car_kf_()
@@ -54,7 +35,7 @@ public:
 
     bool check_armor_tracked() const { return self_update_time_ == 0; }
 
-    double omega() { return car_movement_kf_.OutPut()(2); }
+    double omega() { return car_movement_kf_.OutPut(2); }
 
     void update_car(const CarPosKF::ZVec& zk, const double& dt) {
 
@@ -63,17 +44,16 @@ public:
         CarKF ::ZVec car_z{};
         car_z << car_pos_kf.OutPut();
 
-        last_acc_ << car_movement_kf_.OutPut()(0), car_movement_kf_.OutPut()(1);
+        last_acc_ << car_movement_kf_.OutPut(0), car_movement_kf_.OutPut(1);
         last_vel_ << last_acc_;
 
         car_kf_.Update(car_z, {}, dt);
-        car_movement_kf_.Update(
-            {car_kf_.OutPut()(1), car_kf_.OutPut()(3), car_kf_.OutPut()(5)}, {}, dt);
+        car_movement_kf_.Update({car_kf_.OutPut(1), car_kf_.OutPut(3), car_kf_.OutPut(5)}, {}, dt);
 
-        last_acc_ << (car_movement_kf_.OutPut()(0) - last_acc_(0)) / dt,
-            (car_movement_kf_.OutPut()(1) - last_acc_(1)) / dt;
-        last_vel_ << (car_movement_kf_.OutPut()(0) + last_vel_(0)) / 2,
-            (car_movement_kf_.OutPut()(1) + last_vel_(1)) / 2;
+        last_acc_ << (car_movement_kf_.OutPut(0) - last_acc_(0)) / dt,
+            (car_movement_kf_.OutPut(1) - last_acc_(1)) / dt;
+        last_vel_ << (car_movement_kf_.OutPut(0) + last_vel_(0)) / 2,
+            (car_movement_kf_.OutPut(1) + last_vel_(1)) / 2;
 
         self_update_time_ = 0;
     }
@@ -111,12 +91,12 @@ public:
         this->l2   = std::clamp(frame(1), 0.1, 0.6);
     };
 
-    void update_z(const double& z1, const double& z2, const double& z3, const double& z4) {
+    void update_z(const Eigen::Vector<double, 4>& z) {
 
-        this->z1 = z1;
-        this->z2 = z2;
-        this->z3 = z3;
-        this->z4 = z4;
+        this->z1 = z(0);
+        this->z2 = z(1);
+        this->z3 = z(2);
+        this->z4 = z(3);
     };
     Eigen::Vector<double, 4> get_z() const { return {z1, z2, z3, z4}; }
     std::tuple<double, double> get_frame() { return {l1, l2}; }
@@ -145,7 +125,6 @@ private:
     Eigen::Vector2d last_vel_ = {0, 0};
     CarKF car_kf_;
     CarFrameKF car_frame_kf_;
-    CarFrameZKF car_frame_z_kf_;
     CarPosKF car_pos_kf;
     CarMovementKF car_movement_kf_;
     double l1 = 0.3, l2 = 0.3;
@@ -158,32 +137,50 @@ private:
     std::vector<ArmorPlate3d> armors_;
 };
 
-CarTracker::CarTracker() { pimpl_ = std::make_unique<Impl>(); }
+rmcs_auto_aim::tracker::fling_tracker::CarTracker::CarTracker() {
+    pimpl_ = std::make_unique<Impl>();
+}
 
-CarTracker::CarTracker(const CarTracker& car_tracker) {
+rmcs_auto_aim::tracker::fling_tracker::CarTracker::CarTracker(const CarTracker& car_tracker) {
     pimpl_ = std::make_unique<Impl>(*car_tracker.pimpl_);
 }
 
-void CarTracker::update_self(const double& dt) { pimpl_->update_self(dt); }
+void rmcs_auto_aim::tracker::fling_tracker::CarTracker::update_self(const double& dt) {
+    pimpl_->update_self(dt);
+}
 
-bool CarTracker::check_armor_tracked() const { return pimpl_->check_armor_tracked(); }
+bool rmcs_auto_aim::tracker::fling_tracker::CarTracker::check_armor_tracked() const {
+    return pimpl_->check_armor_tracked();
+}
 
-double CarTracker::omega() { return pimpl_->omega(); }
-
-void CarTracker::update_car(const Eigen::Vector<double, 3>& zk, const double& dt) {
+void rmcs_auto_aim::tracker::fling_tracker::CarTracker::update_car(
+    const Eigen::Vector<double, 3>& zk, const double& dt) {
     pimpl_->update_car(zk, dt);
 }
 
-std::vector<ArmorPlate3d> CarTracker::get_armor(double dt) { return pimpl_->get_armor(dt); }
-
-void CarTracker::update_frame(double l1, double l2) { return pimpl_->update_frame(l1, l2); }
-
-void CarTracker::update_z(const double& z1, const double& z2, const double& z3, const double& z4) {
-    return pimpl_->update_z(z1, z2, z3, z4);
+std::vector<rmcs_auto_aim::ArmorPlate3d>
+    rmcs_auto_aim::tracker::fling_tracker::CarTracker::get_armor(double dt) {
+    return pimpl_->get_armor(dt);
 }
 
-Eigen::Vector<double, 4> CarTracker::get_z() const { return pimpl_->get_z(); }
+void rmcs_auto_aim::tracker::fling_tracker::CarTracker::update_frame(double l1, double l2) {
+    return pimpl_->update_frame(l1, l2);
+}
 
-std::tuple<double, double> CarTracker::get_frame() { return pimpl_->get_frame(); }
-CarTracker::~CarTracker() = default;
-} // namespace rmcs_auto_aim::tracker
+void rmcs_auto_aim::tracker::fling_tracker::CarTracker::update_z(
+    const Eigen::Vector<double, 4>& z) {
+    return pimpl_->update_z(z);
+}
+
+Eigen::Vector<double, 4> rmcs_auto_aim::tracker::fling_tracker::CarTracker::get_z() const {
+    return pimpl_->get_z();
+}
+
+std::tuple<double, double> rmcs_auto_aim::tracker::fling_tracker::CarTracker::get_frame() {
+    return pimpl_->get_frame();
+}
+
+double rmcs_auto_aim::tracker::fling_tracker::CarTracker::get_omega() const {
+    return pimpl_->omega();
+}
+rmcs_auto_aim::tracker::fling_tracker::CarTracker::~CarTracker() = default;

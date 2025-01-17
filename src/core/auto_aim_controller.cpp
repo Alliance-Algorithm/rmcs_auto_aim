@@ -14,7 +14,7 @@
 
 #include "core/identifier/armor/armor_identifier.hpp"
 #include "core/pnpsolver/armor/armor_pnp_solver.hpp"
-#include "core/tracker/armor/armor_tracker.hpp"
+#include "core/tracker/fling_tracker/fling_controller.hpp"
 #include "core/trajectory/trajectory_solvor.hpp"
 #include "core/transform_optimizer/armor/armor.hpp"
 #include "util/image_viewer/image_viewer.hpp"
@@ -93,7 +93,7 @@ public:
                 auto armor_identifier = std::make_unique<ArmorIdentifier>(
                     ament_index_cpp::get_package_share_directory("rmcs_auto_aim")
                     + "/models/mlp.onnx");
-                auto armor_tracker = tracker::armor::ArmorTracker(); // TODO
+                auto tracker = tracker::FLiNGTracker{}; // TODO
 
                 rmcs_auto_aim::util::FPSCounter fps;
 
@@ -111,14 +111,15 @@ public:
 
                     transform_optimizer::armor_transform_optimize(armor_plates, armor3d, tf);
 
-                    if (auto target = armor_tracker.Update(armor3d, timestamp, tf)) {
+                    if (auto target = tracker.Update(armor3d, timestamp, tf, image)) {
                         armor_target_buffer_[!armor_target_index_.load()].target_ =
                             std::move(target);
                         armor_target_buffer_[!armor_target_index_.load()].timestamp_ = timestamp;
                         armor_target_index_.store(!armor_target_index_.load());
                     }
-
+                    tracker.draw_armors(tf, {0, 255, 255});
                     util::ImageViewer::show_image();
+
                     if (fps.Count()) {
                         RCLCPP_INFO(get_logger(), "FPS: %d", fps.GetFPS());
                     }
@@ -136,7 +137,7 @@ public:
 
         using namespace std::chrono_literals;
         auto diff = std::chrono::steady_clock::now() - frame.timestamp_;
-        if (diff > std::chrono::milliseconds(500)) {                 // TODO
+        if (diff > std::chrono::milliseconds(500)) {    // TODO
             *control_direction_ = Eigen::Vector3d::Zero();
             return;
         }
