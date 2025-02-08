@@ -182,7 +182,7 @@ void CarTracker::update_z(const double& z1, const double& z2, const double& z3, 
     return pimpl_->update_z(z1, z2, z3, z4);
 }
 
-Eigen::Vector<double, 4> CarTracker::get_z() const { return pimpl_->get_z(); }
+Eigen::Vector<double, 4> CarTracker::get_armor_height() const { return pimpl_->get_z(); }
 
 std::tuple<double, double> CarTracker::get_frame() { return pimpl_->get_frame(); }
 CarTracker::~CarTracker() = default;

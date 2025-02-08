@@ -33,7 +33,7 @@ public:
     void update_frame(double l1, double l2);
 
     void update_z(const double& z1, const double& z2, const double& z3, const double& z4);
-    Eigen::Vector<double, 4> get_z() const;
+    Eigen::Vector<double, 4> get_armor_height() const;
     std::tuple<double, double> get_frame();
 
 private:

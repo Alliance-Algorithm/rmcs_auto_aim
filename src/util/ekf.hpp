@@ -24,7 +24,7 @@ public:
     typedef Eigen::Matrix<double, xn, xn> QMat;
     typedef Eigen::Matrix<double, zn, xn> HMat;
     typedef Eigen::Matrix<double, xn, zn> KMat;
-    [[nodiscard]] inline XVec OutPut() { return X_k; }
+    [[nodiscard]] inline XVec OutPut() const { return X_k; }
 
     void Update(const ZVec& z_k, const UVec& u_k, const double& dt) {
         dt_   = dt;
@@ -41,23 +41,12 @@ public:
         auto V_k   = V(x_k_n, v_zero);
 
         P_k_n << A_k * P_k * A_k.transpose() + W_k * Q(dt) * W_k.transpose();
-        // std::cout << P_k_n << std::endl;
         y_k << process_z(z_k) - h(x_k_n, v_zero);
-        // std::cout << y_k << std::endl;
         S_k << H_k * P_k_n * H_k.transpose() + V_k * R(z_k) * V_k.transpose();
-        // std::cout << S_k << std::endl;
         K_t << P_k_n * H_k.transpose() * S_k.inverse();
-        // std::cout << K_t << std::endl;
         X_k << x_k_n + K_t * y_k;
-        // std::cout << x_k_n << std::endl;
-        // std::cout << std::endl;
-        // std::cout << X_k << std::endl;
         X_k << normalize_x(X_k);
         tmpK << Eye_K - K_t * H_k;
-        // std::cout << std::endl;
-        // std::cout << tmpK << std::endl;
-        // std::cout << std::endl;
-
         P_k << tmpK * P_k_n;
     }
     [[nodiscard]] virtual ZVec process_z(const ZVec& z_k) { return z_k; };
