@@ -12,7 +12,7 @@ struct Profile::Impl {
 
     const cv::Mat intrinsic_parameters;
     const cv::Mat distortion_parameters;
-    const std::tuple<int, int> width_height;
+    std::tuple<int, int> width_height;
 };
 
 Profile::Profile(
@@ -21,7 +21,13 @@ Profile::Profile(
     impl_ = std::make_unique<Impl>(fx, fy, cx, cy, k1, k2, k3);
 }
 
+void Profile::set_width_height(const int& width, const int& height) {
+    impl_->width_height = std::make_tuple(width, height);
+}
+
 const cv::Mat& Profile::get_intrinsic_parameters() { return impl_->intrinsic_parameters; }
 const cv::Mat& Profile::get_distortion_parameters() { return impl_->distortion_parameters; }
 const std::tuple<int, int>& Profile::get_width_height() { return impl_->width_height; }
 } // namespace rmcs_auto_aim::util
+
+std::unique_ptr<rmcs_auto_aim::util::Profile::Impl> rmcs_auto_aim::util::Profile::impl_;

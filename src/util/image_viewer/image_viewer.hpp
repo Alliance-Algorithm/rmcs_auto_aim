@@ -1,9 +1,11 @@
 #pragma once
 
 #include <memory>
-#include <opencv2/core/mat.hpp>
-#include <rclcpp/node.hpp>
 #include <string>
+
+#include <opencv2/core/mat.hpp>
+#include <rclcpp/logger.hpp>
+#include <rclcpp/node.hpp>
 namespace rmcs_auto_aim::util {
 
 class IAutoAimDrawable {
@@ -46,8 +48,7 @@ public:
         viewer_->show_image();
     }
 
-    static std::unique_ptr<ImageViewer_>
-        createProduct(int type, rclcpp::Node& node, const std::string& name);
+    static void createProduct(int type, rclcpp::Node& node, const std::string& name);
 
 private:
     static std::unique_ptr<ImageViewer_> viewer_;

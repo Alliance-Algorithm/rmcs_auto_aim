@@ -1,10 +1,12 @@
 #include <atomic>
 #include <memory>
 #include <thread>
+#include <tuple>
 #include <vector>
 
 #include <ament_index_cpp/get_package_share_directory.hpp>
 #include <cv_bridge/cv_bridge.h>
+#include <opencv2/highgui.hpp>
 #include <rclcpp/node.hpp>
 #include <std_msgs/msg/header.hpp>
 
@@ -37,6 +39,15 @@ public:
         register_input("/auto_aim/whitelist", whitelist_);
         register_input("/tf", tf_);
 
+        hikcamera::ImageCapturer::CameraProfile profile;
+        profile.invert_image  = get_parameter("invert_image").as_bool();
+        profile.gain          = 16.9807;
+        profile.exposure_time = std::chrono::milliseconds(get_parameter("exposure_time").as_int());
+
+        capturer_ = std::make_unique<hikcamera::ImageCapturer>(profile);
+
+        util::Profile(fx_, fy_, cx_, cy_, k1_, k2_, k3_);
+        std::apply(util::Profile::set_width_height, capturer_->get_width_height());
         util::ImageViewer::ImageViewer::createProduct(
             (int)(get_parameter("image_viewer_type").as_int()), *this, "rmcs_auto_aim/debug");
 
@@ -50,8 +61,6 @@ public:
         k1_ = get_parameter("k1").as_double();
         k2_ = get_parameter("k2").as_double();
         k3_ = get_parameter("k3").as_double();
-
-        util::Profile(fx_, fy_, cx_, cy_, k1_, k2_, k3_);
 
         yaw_error_      = get_parameter("yaw_error").as_double();
         pitch_error_    = get_parameter("pitch_error").as_double();
@@ -82,14 +91,6 @@ public:
             }
 
             threads_.emplace_back([this]() {
-                hikcamera::ImageCapturer::CameraProfile profile;
-                profile.invert_image = get_parameter("invert_image").as_bool();
-                profile.gain         = 16.9807;
-                profile.exposure_time =
-                    std::chrono::milliseconds(get_parameter("exposure_time").as_int());
-
-                auto capturer = std::make_unique<hikcamera::ImageCapturer>(profile);
-
                 auto armor_identifier = std::make_unique<ArmorIdentifier>(
                     ament_index_cpp::get_package_share_directory("rmcs_auto_aim")
                     + "/models/mlp.onnx");
@@ -99,7 +100,7 @@ public:
 
                 while (rclcpp::ok()) {
 
-                    auto image = capturer->read();
+                    auto image = capturer_->read();
                     util::ImageViewer::load_image(image);
                     auto timestamp = std::chrono::steady_clock::now();
                     auto tf        = tf_buffer_[tf_index_.load()];
@@ -184,6 +185,8 @@ private:
 
     rmcs_description::Tf tf_buffer_[2];
     std::atomic<bool> tf_index_{false};
+
+    std::unique_ptr<hikcamera::ImageCapturer> capturer_;
 
     // rmcs_auto_aim::Target target_;
     struct TargetFrame armor_target_buffer_[2];

@@ -36,6 +36,12 @@ find_package(OpenVINO REQUIRED)
 set(OpenVINO_LIB openvino::runtime)
 find_package(Ceres REQUIRED)
 set(Ceres_LIB Ceres::ceres)
+# Find FFmpeg libraries using pkg-config
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(FFMPEG REQUIRED libavformat libavcodec libavutil libswscale)
+
+# Include FFmpeg headers
+include_directories(${FFMPEG_INCLUDE_DIRS})
 
 # Include project source directory
 include_directories(${PROJECT_SOURCE_DIR}/src ${CONFIGURE_DIR_PATH})
@@ -51,7 +57,7 @@ ament_auto_find_build_dependencies ()
 ament_auto_add_library(${EXECUTABLE_NAME} SHARED ${AUTO_AIM_SOURCE})
 
 # Link libraries
-target_link_libraries(${EXECUTABLE_NAME} ${OpenCV_LIBS} ${HikCameraSDK_LIB} ${OpenVINO_LIB} ${Ceres_LIB} -lpthread)
+target_link_libraries(${EXECUTABLE_NAME} ${OpenCV_LIBS} ${HikCameraSDK_LIB} ${OpenVINO_LIB} ${Ceres_LIB} ${FFMPEG_LIBRARIES} -lpthread)
 
 install(
     DIRECTORY models/
