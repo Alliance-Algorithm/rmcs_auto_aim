@@ -111,7 +111,7 @@ public:
                 car->update_z(
                     car_armor_height(0), car_armor_height(1), car_armor_height(2),
                     car_armor_height(3));
-                target = std::make_shared<ArmorTarget>(CarTracker{*car}, 0);
+                target = std::make_shared<ArmorTarget>(CarTracker{*car});
 
                 last_car_id_ = armorID;
             } else {
