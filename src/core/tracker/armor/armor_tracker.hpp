@@ -111,7 +111,7 @@ public:
                 car->update_z(
                     car_armor_height(0), car_armor_height(1), car_armor_height(2),
                     car_armor_height(3));
-                target = std::make_shared<ArmorTarget>(CarTracker{*car});
+                target = std::make_shared<ArmorTarget>(CarTracker{*car}, 0);
 
                 last_car_id_ = armorID;
             } else {
@@ -295,8 +295,8 @@ private:
         armor1_forward2d << armor1_forward2d.normalized();
         armor2_forward2d << armor2_forward2d.normalized();
 
-        double l1 = abs(diffp.dot(armor1_forward2d));
-        double l2 = abs(diffp.dot(armor2_forward2d));
+        double l1 = abs(diffp_2d.dot(armor1_forward2d));
+        double l2 = abs(diffp_2d.dot(armor2_forward2d));
 
         if (armor1_index % 2)
             std::swap(l1, l2);
