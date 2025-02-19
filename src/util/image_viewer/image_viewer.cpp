@@ -82,7 +82,7 @@ public:
 
         avformat_network_init();
         auto& [width, height] = Profile::get_width_height();
-        createOutputContext(name_.c_str(), width, height, 60);
+        createOutputContext(name_.c_str(), width, height, fps);
 
         frame_         = av_frame_alloc();
         frame_->format = codecCtx_->pix_fmt;
@@ -95,6 +95,9 @@ public:
         swsCtx_ = sws_getContext(
             width, height, AV_PIX_FMT_BGR24, width, height, codecCtx_->pix_fmt, SWS_BILINEAR,
             nullptr, nullptr, nullptr);
+
+        timerThread_ = std::thread(
+            [this]() { executeFunctionAtFrequency(std::chrono::milliseconds(1000 / fps)); });
     }
 
     void draw(const IAutoAimDrawable& drawable, const cv::Scalar& color) final {
@@ -104,6 +107,10 @@ public:
     void load_image(const cv::Mat& image) final { this->image_ = image.clone(); };
 
     void show_image() final {
+        if (!newFrameAvailable_)
+            return;
+        AVPacket pkt{};
+        newFrameAvailable_.store(false);
         const uint8_t* srcSlice[1] = {image_.data};
         int srcStride[1]           = {static_cast<int>(image_.step[0])};
         int ret                    = 0;
@@ -116,25 +123,23 @@ public:
         }
 
         frame_->pts = frameCount_++;
-
-        if ((ret = avcodec_send_frame(codecCtx_, frame_)) < 0) {
-            std::cerr << "Error: Could not send frame" << std::endl;
-            return;
-        }
-
-        AVPacket pkt{};
-        if (avcodec_receive_packet(codecCtx_, &pkt) == 0) {
-            pkt.stream_index = oc_->streams[0]->index;
-            av_packet_rescale_ts(&pkt, codecCtx_->time_base, oc_->streams[0]->time_base);
-            ret = av_interleaved_write_frame(oc_, &pkt);
-            if (ret < 0) {
-                std::cerr << "Error: Could not write frame" << std::endl;
+        if (showImageThread_.joinable())
+            showImageThread_.join();
+        showImageThread_ = std::thread([&ret, &pkt, this]() {
+            if ((ret = avcodec_send_frame(codecCtx_, frame_)) < 0) {
+                std::cerr << "Error: Could not send frame" << std::endl;
+                return;
             }
-            av_packet_unref(&pkt);
-        }
-
-        while (avcodec_receive_packet(codecCtx_, &pkt) == 0)
-            av_packet_unref(&pkt);
+            while (avcodec_receive_packet(codecCtx_, &pkt) == 0) {
+                pkt.stream_index = oc_->streams[0]->index;
+                av_packet_rescale_ts(&pkt, codecCtx_->time_base, oc_->streams[0]->time_base);
+                ret = av_interleaved_write_frame(oc_, &pkt);
+                if (ret < 0) {
+                    std::cerr << "Error: Could not write frame" << std::endl;
+                }
+                av_packet_unref(&pkt);
+            }
+        });
     };
 
     RtspViewer() = delete;
@@ -147,9 +152,26 @@ public:
         avformat_free_context(oc_);
         av_frame_free(&frame_);
         sws_freeContext(swsCtx_);
+        timerThread_.join();
+        newFrameAvailable_ = false;
+        running            = false;
     }
 
 private:
+    std::atomic<bool> newFrameAvailable_{false};
+    std::atomic<bool> frame_using_{false};
+    std::atomic<bool> running{true};
+    std::thread timerThread_;
+    std::thread showImageThread_;
+
+    constexpr static int fps = 60;
+
+    void executeFunctionAtFrequency(std::chrono::milliseconds interval) {
+        while (running) {
+            newFrameAvailable_.store(true);
+            std::this_thread::sleep_for(interval);
+        }
+    }
     void createOutputContext(const char* url, int width, int height, int fps) {
         AVFormatContext* oc = nullptr;
         avformat_alloc_output_context2(&oc, nullptr, "rtsp", url);
