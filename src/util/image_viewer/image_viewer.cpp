@@ -125,22 +125,20 @@ public:
         frame_->pts = frameCount_++;
         if (showImageThread_.joinable())
             showImageThread_.join();
-        showImageThread_ = std::thread([&ret, &pkt, this]() {
-            if ((ret = avcodec_send_frame(codecCtx_, frame_)) < 0) {
-                std::cerr << "Error: Could not send frame" << std::endl;
-                return;
+        if ((ret = avcodec_send_frame(codecCtx_, frame_)) < 0) {
+            std::cerr << "Error: Could not send frame" << std::endl;
+            return;
+        }
+        while (avcodec_receive_packet(codecCtx_, &pkt) == 0) {
+            pkt.stream_index = oc_->streams[0]->index;
+            av_packet_rescale_ts(&pkt, codecCtx_->time_base, oc_->streams[0]->time_base);
+            ret = av_interleaved_write_frame(oc_, &pkt);
+            if (ret < 0) {
+                std::cerr << "Error: Could not write frame" << std::endl;
             }
-            while (avcodec_receive_packet(codecCtx_, &pkt) == 0) {
-                pkt.stream_index = oc_->streams[0]->index;
-                av_packet_rescale_ts(&pkt, codecCtx_->time_base, oc_->streams[0]->time_base);
-                ret = av_interleaved_write_frame(oc_, &pkt);
-                if (ret < 0) {
-                    std::cerr << "Error: Could not write frame" << std::endl;
-                }
-                av_packet_unref(&pkt);
-            }
-        });
-    };
+            av_packet_unref(&pkt);
+        }
+    }
 
     RtspViewer() = delete;
     ~RtspViewer() {
