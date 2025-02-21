@@ -46,14 +46,6 @@ public:
 
         capturer_ = std::make_unique<hikcamera::ImageCapturer>(profile);
 
-        util::Profile(fx_, fy_, cx_, cy_, k1_, k2_, k3_);
-        std::apply(util::Profile::set_width_height, capturer_->get_width_height());
-        util::ImageViewer::ImageViewer::createProduct(
-            (int)(get_parameter("image_viewer_type").as_int()), *this, "rmcs_auto_aim/debug");
-
-        register_output(
-            "/gimbal/auto_aim/control_direction", control_direction_, Eigen::Vector3d::Zero());
-
         fx_ = get_parameter("fx").as_double();
         fy_ = get_parameter("fy").as_double();
         cx_ = get_parameter("cx").as_double();
@@ -62,11 +54,18 @@ public:
         k2_ = get_parameter("k2").as_double();
         k3_ = get_parameter("k3").as_double();
 
+        util::Profile(fx_, fy_, cx_, cy_, k1_, k2_, k3_);
+        std::apply(util::Profile::set_width_height, capturer_->get_width_height());
+        util::ImageViewer::ImageViewer::createProduct(
+            (int)(get_parameter("image_viewer_type").as_int()), *this, "rmcs_auto_aim/debug");
+
+        register_output(
+            "/gimbal/auto_aim/control_direction", control_direction_, Eigen::Vector3d::Zero());
+
         yaw_error_      = get_parameter("yaw_error").as_double();
         pitch_error_    = get_parameter("pitch_error").as_double();
         shoot_velocity_ = get_parameter("shoot_velocity").as_double();
         predict_sec_    = get_parameter("predict_sec").as_double();
-        publisher_      = this->create_publisher<sensor_msgs::msg::Image>("rmcs_auto_aim/test", 10);
         RCLCPP_INFO(get_logger(), "Armor Identifier Node Initialized");
     }
 
@@ -111,6 +110,9 @@ public:
                         armor_plates, tf, fx_, fy_, cx_, cy_, k1_, k2_, k3_);
 
                     transform_optimizer::armor_transform_optimize(armor_plates, armor3d, tf);
+                    for (auto& armor2d_ : armor_plates)
+                        util::ImageViewer::draw(
+                            transform_optimizer::Quadrilateral(armor2d_), {0, 255, 0});
 
                     if (auto target = armor_tracker.Update(armor3d, timestamp, tf)) {
                         armor_target_buffer_[!armor_target_index_.load()].target_ =
@@ -118,7 +120,7 @@ public:
                         armor_target_buffer_[!armor_target_index_.load()].timestamp_ = timestamp;
                         armor_target_index_.store(!armor_target_index_.load());
                     }
-
+                    armor_tracker.draw_armors(tf, {0, 0, 255});
                     util::ImageViewer::show_image();
                     if (fps.Count()) {
                         RCLCPP_INFO(get_logger(), "FPS: %d", fps.GetFPS());
@@ -198,8 +200,6 @@ private:
     InputInterface<rmcs_description::Tf> tf_;
 
     OutputInterface<Eigen::Vector3d> control_direction_;
-
-    rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr publisher_;
 };
 } // namespace rmcs_auto_aim
 

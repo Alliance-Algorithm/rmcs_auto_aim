@@ -40,7 +40,7 @@ static inline void armor_transform_optimize(
 
         double yaw = util::math::get_yaw_from_quaternion(*armor3d.rotation);
         auto angle = util::optimizer::fibonacci(
-            yaw - std::numbers::pi / 6, yaw + std::numbers::pi / 6, epsilone,
+            yaw - std::numbers::pi / 5, yaw + std::numbers::pi / 5, epsilone,
             [&squad2d, &armor3d, &rotation, &tf](double angle) -> double {
                 armor3d.rotation = set_armor3d_angle(rotation, angle);
                 auto squad3d =

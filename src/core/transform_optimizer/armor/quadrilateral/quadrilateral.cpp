@@ -89,6 +89,7 @@ struct Quadrilateral3d::Impl {
         cv::Mat t = cv::Mat::zeros(3, 1, CV_32F), r = cv::Mat::zeros(3, 1, CV_32F);
         cv::projectPoints(
             objectPoints, t, r, intrinsic_parameters, distortion_parameters, imagePoints);
+
         return Quadrilateral(ArmorPlate(std::move(imagePoints), armor3d.id, isLargeArmor));
     }
 

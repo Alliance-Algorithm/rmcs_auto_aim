@@ -76,11 +76,10 @@ public:
 
             if (len > 0) {
                 auto armor_id = calculate_armor_id(
-                    grouped_armor_[armorID], car->get_armor(dt), tf,
-                    nearest_armor_index_in_detected);
+                    grouped_armor_[armorID], car->get_armor(), tf, nearest_armor_index_in_detected);
                 if (grouped_armor_[armorID].size() > 1)
                     update_car_frame(
-                        grouped_armor_[armorID][0], grouped_armor_[armorID][0], armor_id[0], car);
+                        grouped_armor_[armorID][0], grouped_armor_[armorID][1], armor_id[0], car);
 
                 Eigen::Vector<double, 4> armor_z{};
 
@@ -96,17 +95,17 @@ public:
                 const auto& [l1, l2]                        = car->get_frame();
                 rmcs_description::OdomImu::Position car_pos = armor_to_car(
                     armor_trackers_[armorID][armor_id[nearest_armor_index_in_detected]],
-                    armor_id[nearest_armor_index_in_detected] % 2 ? l2 : l1);
+                    armor_id[nearest_armor_index_in_detected] % 2 ? l2 : l1, tf);
 
                 car->update_car(
                     {car_pos->x(), car_pos->y(),
-                     armor_trackers_[armorID][armor_id[nearest_armor_index_in_detected]].OutPut()(
-                         3)},
+                     armor_trackers_[armorID][armor_id[nearest_armor_index_in_detected]].OutPut()(3)
+                         - armor_id[nearest_armor_index_in_detected] * std::numbers::pi / 2},
                     dt);
 
                 Eigen::Vector<double, 4> car_armor_height = car->get_armor_height();
                 for (int i = 0; i < 4; i++)
-                    if (i == armor_id[0] || armor_id.size() > 1 ? (i == armor_id[1]) : false)
+                    if (i == armor_id[0] || (armor_id.size() > 1 ? (i == armor_id[1]) : false))
                         car_armor_height(i) = armor_get_odom_z(armor_trackers_[armorID][i], tf);
                 car->update_z(
                     car_armor_height(0), car_armor_height(1), car_armor_height(2),
@@ -129,15 +128,17 @@ public:
         if (last_armors1_.empty())
             return;
         auto color_ = color;
+
         for (const auto& armor3d : last_armors1_) {
             util::ImageViewer::draw(
                 transform_optimizer::Quadrilateral3d(armor3d).ToQuadrilateral(tf, false), color_);
-            color_ = color_ / 1.2;
+            color_ = color_ / 1.5;
         }
+        color_ = {255 - color(0), 255 - color(1), 255 - color(2)};
         for (const auto& armor3d : last_armors2_) {
             util::ImageViewer::draw(
-                transform_optimizer::Quadrilateral3d(armor3d).ToQuadrilateral(tf, false),
-                {0, 0, 255});
+                transform_optimizer::Quadrilateral3d(armor3d).ToQuadrilateral(tf, false), color_);
+            color_ = color_ / 1.5;
         }
     }
 
@@ -192,30 +193,30 @@ private:
         const std::vector<ArmorPlate3d>& armors_predicted,
         rmcs_description::OdomImu::DirectionVector camera_forward) {
 
-        double min;
+        double max;
         int index_detected  = 0;
         int index_predicted = 0;
 
-        min = 1e7;
+        max = -1e7;
         for (int i = 0; i < (int)armors_detected.size(); i++) {
             Eigen::Vector3d armor_plate_normal =
                 *armors_detected[i].rotation * Eigen::Vector3d::UnitX();
 
             double dot_val = armor_plate_normal.normalized().dot(*camera_forward);
-            if (dot_val < min) {
-                min            = dot_val;
+            if (dot_val > max) {
+                max            = dot_val;
                 index_detected = i;
             }
         }
 
-        min = 1e7;
+        max = -1e7;
         for (int i = 0; i < 4; i++) {
             Eigen::Vector3d armor_plate_normal =
                 *armors_predicted[i].rotation * Eigen::Vector3d::UnitX();
 
             double dot_val = armor_plate_normal.normalized().dot(*camera_forward);
-            if (dot_val < min) {
-                min             = dot_val;
+            if (dot_val > max) {
+                max             = dot_val;
                 index_predicted = i;
             }
         }
@@ -304,10 +305,12 @@ private:
         car_tracker->update_frame(l1, l2);
     }
 
-    static rmcs_description::OdomImu::Position armor_to_car(ArmorEKF& ekf, const double& l) {
+    static rmcs_description::OdomImu::Position
+        armor_to_car(ArmorEKF& ekf, const double& l, const auto& tf) {
         ArmorEKF::ZVec z1 = ekf.h(ekf.OutPut(), {});
         return rmcs_description::OdomImu::Position(
-            *rmcs_description::OdomImu::Position(Eigen::Vector3d{z1(0), z1(1), z1(2)})
+            *fast_tf::cast<rmcs_description::OdomImu>(
+                rmcs_description::CameraLink::Position(Eigen::Vector3d{z1(0), z1(1), z1(2)}), tf)
             + rmcs_description::OdomImu::Rotation(
                   Eigen::AngleAxisd(z1(3), Eigen::Vector3d::UnitZ()))
                       ->toRotationMatrix()
@@ -317,7 +320,8 @@ private:
     static double armor_get_odom_z(ArmorEKF& ekf, const rmcs_description::Tf& tf) {
         auto zVec     = ekf.h(ekf.OutPut(), ArmorEKF::v_zero);
         auto odom_pos = fast_tf::cast<rmcs_description::OdomImu>(
-            rmcs_description::CameraLink::Position(zVec.x(), zVec.y(), zVec.z()), tf);
+            rmcs_description::CameraLink::Position(Eigen::Vector3d{zVec.x(), zVec.y(), zVec.z()}),
+            tf);
         return odom_pos->z();
     };
 

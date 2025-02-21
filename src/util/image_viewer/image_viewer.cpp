@@ -28,21 +28,22 @@ public:
     }
 
     void draw(const IAutoAimDrawable& drawable, const cv::Scalar& color) final {
-        drawable.draw(image, color);
+        drawable.draw(image_, color);
     };
 
-    void load_image(const cv::Mat&) final {};
+    void load_image(const cv::Mat& image) final { image_ = image; };
 
     void show_image() final {
         auto output_msg =
-            cv_bridge::CvImage(std_msgs::msg::Header(), sensor_msgs::image_encodings::BGR8, image)
+            cv_bridge::CvImage(std_msgs::msg::Header(), sensor_msgs::image_encodings::BGR8, image_)
                 .toImageMsg();
+        publisher_->publish(*output_msg);
     };
-    ~CVBridgeViewer() { image.release(); }
+    ~CVBridgeViewer() { image_.release(); }
 
 private:
     const std::string& name_;
-    cv::Mat image;
+    cv::Mat image_;
     rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr publisher_;
 };
 
