@@ -27,7 +27,7 @@ public:
         q_.setIdentity();
         q_ *= 0.1;
         r_.setIdentity();
-        r_ *= 1;
+        r_ *= 5;
     };
 
 protected:
@@ -52,8 +52,8 @@ protected:
     }
 
 private:
-    static constexpr double sigma2_q_xy_  = 300;
-    static constexpr double sigma2_q_yaw_ = 100.0;
+    static constexpr double sigma2_q_xy_  = 30000;
+    static constexpr double sigma2_q_yaw_ = 10000.0;
 
     static constexpr inline const double conv_y     = 0.01;
     static constexpr inline const double conv_p     = 0.01;

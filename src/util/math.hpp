@@ -15,11 +15,22 @@ static inline double get_yaw_from_quaternion(const Eigen::Quaterniond& quaternio
 
 static inline double
     get_angle_err_rad_from_quaternion(const Eigen::Quaterniond& q1, const Eigen::Quaterniond& q2) {
-    double dot_product   = q1.dot(q2);
-    double magnitude_q1  = q1.norm();
-    double magnitude_q2  = q2.norm();
-    double cos_theta     = dot_product / (magnitude_q1 * magnitude_q2);
-    double angle_radians = std::acos(cos_theta);
-    return angle_radians;
+    double yaw1  = get_yaw_from_quaternion(q1);
+    double yaw2  = get_yaw_from_quaternion(q2);
+    auto yaw_err = abs(yaw1 - yaw2);
+
+    while (yaw_err > 2 * std::numbers::pi)
+        yaw_err -= 2 * std::numbers::pi;
+    if (yaw_err > std::numbers::pi)
+        yaw_err = 2 * std::numbers::pi - yaw_err;
+    return yaw_err;
+}
+static inline double
+    get_distance_err_rad_from_vector3d(const Eigen::Vector3d& v1, const Eigen::Vector3d& v2) {
+    double d1 = v1.norm();
+    double d2 = v2.norm();
+    auto derr = abs(d1 - d2);
+
+    return derr;
 }
 } // namespace rmcs_auto_aim::util::math

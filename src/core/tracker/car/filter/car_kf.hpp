@@ -104,7 +104,7 @@ protected:
 
 private:
     static constexpr double sigma2_q_xy_  = 20;
-    static constexpr double sigma2_q_yaw_ = 20;
+    static constexpr double sigma2_q_yaw_ = 100;
     static constexpr double r_xyz_factor_ = 0.01;
     static constexpr double r_ywq_factor_ = 0.01;
 

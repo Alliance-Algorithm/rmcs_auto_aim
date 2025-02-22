@@ -76,7 +76,8 @@ public:
 
             if (len > 0) {
                 auto armor_id = calculate_armor_id(
-                    grouped_armor_[armorID], car->get_armor(), tf, nearest_armor_index_in_detected);
+                    grouped_armor_[armorID], car->get_armor(dt), tf,
+                    nearest_armor_index_in_detected);
                 if (grouped_armor_[armorID].size() > 1)
                     update_car_frame(
                         grouped_armor_[armorID][0], grouped_armor_[armorID][1], armor_id[0], car);
@@ -158,33 +159,6 @@ private:
             grouped_armor[armor.id].push_back(armor);
     }
 
-    static double calculateSimilarity(
-        const Eigen::Vector3d& t1, const Eigen::Quaterniond& q1, const Eigen::Vector3d& t2,
-        const Eigen::Quaterniond& q2) {
-        Eigen::Vector3d vec{};
-        vec << t1 - t2;
-
-        double rotationDifference =
-            -cos(util::math::get_yaw_from_quaternion(q1) - util::math::get_yaw_from_quaternion(q2));
-
-        auto z                       = vec.z();
-        vec.z()                      = 0;
-        double translationDifference = vec.norm();
-        double similarity =
-            translationDifference * 1 + std::clamp(z, -0.1, 0.1) + rotationDifference * 5;
-        return similarity;
-    }
-
-    constexpr static int distance_in_four(int a, int b) {
-        auto err1 = a - b;
-        auto err2 = b - a;
-        while (err1 < 0)
-            err1 += 4;
-        while (err2 < 0)
-            err2 += 4;
-        return err1 > err2 ? err2 : err1;
-    }
-
     ///
     /// return {index_detected, index_predicted};
     ///
@@ -209,12 +183,13 @@ private:
             }
         }
 
+        Eigen::Vector3d detected_armor_plate_normal =
+            *armors_detected[index_detected].rotation * Eigen::Vector3d::UnitX();
         max = -1e7;
         for (int i = 0; i < 4; i++) {
             Eigen::Vector3d armor_plate_normal =
                 *armors_predicted[i].rotation * Eigen::Vector3d::UnitX();
-
-            double dot_val = armor_plate_normal.normalized().dot(*camera_forward);
+            double dot_val = armor_plate_normal.normalized().dot(detected_armor_plate_normal);
             if (dot_val > max) {
                 max             = dot_val;
                 index_predicted = i;
@@ -282,8 +257,11 @@ private:
         auto angle_err =
             util::math::get_angle_err_rad_from_quaternion(*armor1.rotation, *armor2.rotation);
         angle_err = abs(angle_err - std::numbers::pi / 2);
-
         if (angle_err > armor_tuple_angular_epsilon)
+            return;
+        auto distance_err =
+            util ::math::get_distance_err_rad_from_vector3d(*armor1.position, *armor2.position);
+        if (distance_err > armor_tuple_distance_epsilon)
             return;
 
         Eigen::Vector3d diffp          = *armor1.position - *armor2.position;
@@ -333,7 +311,8 @@ private:
     std::vector<ArmorPlate3d> last_armors2_;
     std::map<rmcs_msgs::ArmorID, std::vector<ArmorPlate3d>> grouped_armor_;
 
-    static constexpr double armor_tuple_angular_epsilon = 1e-1;
+    static constexpr double armor_tuple_angular_epsilon  = 1e-1;
+    static constexpr double armor_tuple_distance_epsilon = 1e-1;
 
     // 改为多车 这是测试版本
     rmcs_msgs::ArmorID last_car_id_ = rmcs_msgs::ArmorID::Hero;

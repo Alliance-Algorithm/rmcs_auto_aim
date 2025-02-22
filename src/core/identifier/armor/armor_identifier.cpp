@@ -48,7 +48,9 @@ public:
 
         size_t&& lightBarsSize = lightBars.size();
         for (size_t i = 0; i < lightBarsSize; ++i) {
-            float Isize         = P2PDis(lightBars[i].top, lightBars[i].bottom);
+            float Isize = P2PDis(lightBars[i].top, lightBars[i].bottom);
+            // cv::rectangle(
+            //     img, cv::Rect{lightBars[i].top, lightBars[i].bottom}, cv::Scalar(0, 255, 0), 2);
             cv::Point2f Icenter = (lightBars[i].top + lightBars[i].bottom) / 2;
             for (size_t j = i + 1; j < lightBarsSize; ++j) {
                 float Jsize = P2PDis(lightBars[j].top, lightBars[j].bottom);
@@ -73,14 +75,12 @@ public:
 
                 if (_numberIdentifier.Identify(img, armor, blacklist)) {
                     result.push_back(armor);
-
-                    // cv::rectangle(
-                    //     img, cv::Rect{armor.points[0], armor.points[2]}, cv::Scalar(0, 255, 0),
-                    //     2);
-                    // cv::putText(
-                    //     img, std::to_string((int)armor.id), armor.center(), 2, 2,
-                    //     cv::Scalar(0, 255, 0), 2);
                 }
+                // cv::rectangle(
+                //     img, cv::Rect{armor.points[0], armor.points[2]}, cv::Scalar(0, 255, 0), 2);
+                // cv::putText(
+                //     img, std::to_string((int)armor.id), armor.center(), 2, 2, cv::Scalar(0, 255,
+                //     0), 2);
             }
         }
         return result;
@@ -89,10 +89,10 @@ public:
 private:
     NumberIdentifier _numberIdentifier;
 
-    inline static constexpr const double maxArmorLightRatio = 2;
-    inline static constexpr const double maxdAngle          = 9.5;
-    inline static constexpr const double maxMalposition     = 0.7;
-    inline static constexpr const double maxLightDy         = 0.9;
+    inline static constexpr const double maxArmorLightRatio = 4;
+    inline static constexpr const double maxdAngle          = 0.5;
+    inline static constexpr const double maxMalposition     = 0.6;
+    inline static constexpr const double maxLightDy         = 0.4;
     inline static constexpr const double maxbigArmorDis     = 5.5;
     inline static constexpr const double minbigArmorDis     = 3.2;
     inline static constexpr const double maxsmallArmorDis   = 3.2;
@@ -170,7 +170,7 @@ private:
             auto width  = (double)points.size() / length;
 
             auto ratio = width / length;
-            if (!(ratio > 0.1 && ratio < 0.4 && filled)) {
+            if (!(ratio > 0.01 && ratio < 0.4 && filled)) {
                 return std::nullopt;
             }
             angle_k  = (float)(angle_k / 180 * CV_PI);

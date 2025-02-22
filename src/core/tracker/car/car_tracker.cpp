@@ -35,7 +35,7 @@ public:
     }
 
     void update_self(const double& dt) {
-        if (self_update_time_ > 0.7)
+        if (self_update_time_ > 0.3)
             return;
 
         auto X  = car_pos_kf.OutPut();
