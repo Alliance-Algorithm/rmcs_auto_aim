@@ -1,3 +1,4 @@
+#include <opencv2/calib3d.hpp>
 #include <opencv2/core/mat.hpp>
 #include <opencv2/opencv.hpp>
 
@@ -26,6 +27,11 @@ public:
                     (cv::Mat)(cv::Mat_<double>(3, 3) << fx, 0, cx, 0, fy, cy, 0, 0, 1),
                     (cv::Mat)(cv::Mat_<double>(1, 5) << k1, k2, 0, 0, k3), rvec, tvec, false,
                     cv::SOLVEPNP_IPPE)) {
+
+                // cv::solvePnPRefineLM(
+                //     objectPoints, armor.points,
+                //     (cv::Mat)(cv::Mat_<double>(3, 3) << fx, 0, cx, 0, fy, cy, 0, 0, 1),
+                //     (cv::Mat)(cv::Mat_<double>(1, 5) << k1, k2, 0, 0, k3), rvec, tvec);
 
                 Eigen::Vector3d position = {
                     tvec.at<double>(2), -tvec.at<double>(0), -tvec.at<double>(1)};

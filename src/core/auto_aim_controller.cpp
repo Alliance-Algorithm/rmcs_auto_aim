@@ -16,6 +16,7 @@
 
 #include "core/identifier/armor/armor_identifier.hpp"
 #include "core/pnpsolver/armor/armor_pnp_solver.hpp"
+#include "core/pnpsolver/light_bar/light_bar_solver.hpp"
 #include "core/tracker/armor/armor_tracker.hpp"
 #include "core/trajectory/trajectory_solvor.hpp"
 #include "core/transform_optimizer/armor/armor.hpp"
@@ -106,13 +107,14 @@ public:
                     auto armor_plates =
                         armor_identifier->Identify(image, *target_color_, *whitelist_);
 
-                    auto armor3d = ArmorPnPSolver::SolveAll(
-                        armor_plates, tf, fx_, fy_, cx_, cy_, k1_, k2_, k3_);
+                    auto armor3d = LightBarSolver::SolveAll(armor_plates, tf);
 
-                    transform_optimizer::armor_transform_optimize(armor_plates, armor3d, tf);
-                    for (auto& armor2d_ : armor_plates)
+                    // transform_optimizer::armor_transform_optimize(armor_plates, armor3d, tf);
+                    for (auto& armor2d_ : armor3d)
                         util::ImageViewer::draw(
-                            transform_optimizer::Quadrilateral(armor2d_), {0, 255, 0});
+                            transform_optimizer::Quadrilateral3d(armor2d_).ToQuadrilateral(
+                                tf, false),
+                            {0, 255, 0});
 
                     if (auto target = armor_tracker.Update(armor3d, timestamp, tf)) {
                         armor_target_buffer_[!armor_target_index_.load()].target_ =
@@ -139,7 +141,7 @@ public:
 
         using namespace std::chrono_literals;
         auto diff = std::chrono::steady_clock::now() - frame.timestamp_;
-        if (diff > std::chrono::milliseconds(500)) {                 // TODO
+        if (diff > std::chrono::milliseconds(500)) { // TODO
             *control_direction_ = Eigen::Vector3d::Zero();
             return;
         }

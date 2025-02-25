@@ -33,4 +33,13 @@ static inline double
 
     return derr;
 }
+static constexpr double ratio(const auto& point) { return atan2(point.y, point.x); }
+static constexpr double clamp_pm_pi(auto&& angle) {
+    while (angle >= std::numbers::pi)
+        angle -= std::numbers::pi;
+    while (angle <= -std::numbers::pi)
+        angle += std::numbers::pi;
+
+    return angle;
+}
 } // namespace rmcs_auto_aim::util::math

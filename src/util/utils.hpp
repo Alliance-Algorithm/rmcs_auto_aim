@@ -12,6 +12,8 @@
 #pragma once
 #include <chrono>
 #include <numbers>
+#include <opencv2/calib3d.hpp>
+#include <opencv2/core/types.hpp>
 
 #include "core/pnpsolver/armor/armor3d.hpp"
 
@@ -56,5 +58,36 @@ static inline double GetMinimumAngleDiff(double a, double b) {
     }
     return diff;
 }
+static inline bool compute_yaw_pitch_from_point(
+    const cv::Point2f& imagePoint, const cv::Mat& cameraMatrix, const cv::Mat& distCoeffs,
+    Eigen::Vector3d& direction_vec, double assumedDepth = 1.0) {
+    // 1. 去畸变
+    std::vector<cv::Point2f> distortedPoints = {imagePoint};
+    std::vector<cv::Point2f> undistortedPoints;
+    cv::undistortPoints(
+        distortedPoints, undistortedPoints, cameraMatrix, distCoeffs, cv::noArray(), cameraMatrix);
+    cv::Point2f undistortedPoint = undistortedPoints[0];
 
+    // 2. 归一化相机坐标
+    double fx = cameraMatrix.at<double>(0, 0);
+    double fy = cameraMatrix.at<double>(1, 1);
+    double cx = cameraMatrix.at<double>(0, 2);
+    double cy = cameraMatrix.at<double>(1, 2);
+
+    double x_normalized = (undistortedPoint.x - cx) / fx;
+    double y_normalized = (undistortedPoint.y - cy) / fy;
+
+    // 3. 构建方向向量
+    cv::Point3d directionVec(
+        x_normalized * assumedDepth, y_normalized * assumedDepth, assumedDepth);
+    // 4. 计算方向向量的模长并归一化
+    double norm = cv::norm(directionVec);
+    directionVec /= norm;
+
+    direction_vec = Eigen::Vector3d{directionVec.z, -directionVec.x, -directionVec.y};
+
+    direction_vec = direction_vec.normalized();
+
+    return true;
+}
 } // namespace rmcs_auto_aim::util
