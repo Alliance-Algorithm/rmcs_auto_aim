@@ -108,4 +108,44 @@ private:
     Eigen::Vector3d position;
     double length_;
 };
+
+class LightBar3d {
+public:
+    explicit LightBar3d(
+        Eigen::Quaterniond rotation, Eigen::Vector3d position,
+        const std::vector<Eigen::Vector3d>& points)
+        : rotation_(std::move(rotation))
+        , position(std::move(position))
+        , points_(points) {}
+    Line to_line_2d(const rmcs_description::Tf& tf) {
+        auto object_points = get_objective_point(tf);
+
+        auto intrinsic_parameters  = util::Profile::get_intrinsic_parameters();
+        auto distortion_parameters = util::Profile::get_distortion_parameters();
+        std::vector<cv::Point2f> imagePoints{};
+        cv::Mat t = cv::Mat::zeros(3, 1, CV_32F), r = cv::Mat::zeros(3, 1, CV_32F);
+        cv::projectPoints(
+            object_points, t, r, intrinsic_parameters, distortion_parameters, imagePoints);
+        return {(imagePoints[0] + imagePoints[3]) / 2, (imagePoints[1] + imagePoints[2]) / 2};
+    }
+
+private:
+    inline std::vector<cv::Point3f> get_objective_point(rmcs_description::Tf const& tf) const {
+        auto positionInCamera = position;
+
+        std::vector<cv::Point3f> points{};
+        auto& objectPoints = points_;
+
+        for (int i = 0; i < 4; i++) {
+            auto rotationInCamera = fast_tf::cast<rmcs_description::CameraLink>(
+                rmcs_description::OdomImu::DirectionVector(rotation_ * objectPoints[i]), tf);
+            auto pos = (*rotationInCamera + positionInCamera) * 1000;
+            points.emplace_back(-pos.y(), -pos.z(), pos.x());
+        }
+        return points;
+    };
+    Eigen::Quaterniond rotation_;
+    Eigen::Vector3d position;
+    const std::vector<Eigen::Vector3d>& points_;
+};
 } // namespace rmcs_auto_aim

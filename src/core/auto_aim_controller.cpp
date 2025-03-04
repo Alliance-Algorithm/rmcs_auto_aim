@@ -109,7 +109,7 @@ public:
 
                     auto armor3d = LightBarSolver::SolveAll(armor_plates, tf);
 
-                    // transform_optimizer::armor_transform_optimize(armor_plates, armor3d, tf);
+                    transform_optimizer::armor_transform_optimize(armor_plates, armor3d, tf);
                     for (auto& armor2d_ : armor3d)
                         util::ImageViewer::draw(
                             transform_optimizer::Quadrilateral3d(armor2d_).ToQuadrilateral(
@@ -141,7 +141,7 @@ public:
 
         using namespace std::chrono_literals;
         auto diff = std::chrono::steady_clock::now() - frame.timestamp_;
-        if (diff > std::chrono::milliseconds(500)) { // TODO
+        if (diff > std::chrono::milliseconds(500)) {                 // TODO
             *control_direction_ = Eigen::Vector3d::Zero();
             return;
         }

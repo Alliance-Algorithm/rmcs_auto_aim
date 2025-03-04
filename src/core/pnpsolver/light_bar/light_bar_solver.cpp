@@ -36,33 +36,27 @@ public:
             *rmcs_description::OdomImu::DirectionVector(Eigen::Vector3d::UnitY()));
         std::vector<ArmorPlate3d> result;
         for (auto& armor : armors) {
-            const auto& [top, button, dir, top1, button1] = get_full_light_bar(armor);
+            const auto& [top, button, light_bar, dir, top1, button1] = get_full_light_bar(armor);
             const Line image_line{top, button};
             const Line image_line1{top1, button1};
             Eigen::Vector3d camera_vec;
-            Eigen::Vector3d camera_vec1;
             util::compute_yaw_pitch_from_point(
                 (image_line.button_ + image_line.top_) / 2,
                 util::Profile::get_intrinsic_parameters(),
                 util::Profile::get_distortion_parameters(), camera_vec, 3);
-            util::compute_yaw_pitch_from_point(
-                (image_line1.button_ + image_line1.top_) / 2,
-                util::Profile::get_intrinsic_parameters(),
-                util::Profile::get_distortion_parameters(), camera_vec1, 3);
             const auto target_yaw = util::optimizer::fibonacci(
                 camera_yaw_in_odom - std::numbers::pi / 2,
                 camera_yaw_in_odom + std::numbers::pi / 2, 1e-4,
-                [&image_line, &image_line1, &rotation, &armor, &tf, &camera_vec,
-                 &camera_vec1](const double& yaw) {
+                [&image_line, &image_line1, &light_bar, &rotation, &armor, &tf,
+                 &camera_vec](const double& yaw) {
                     auto line_rotation = set_armor3d_angle(rotation, yaw);
                     Line3d line3d{
                         *line_rotation, camera_vec,
                         (armor.is_large_armor ? LargerArmorHeight : NormalArmorHeight) / 1000.0};
-                    Line3d line3d1{
-                        *line_rotation, camera_vec1,
-                        (armor.is_large_armor ? LargerArmorHeight : NormalArmorHeight) / 1000.0};
-                    return line3d.to_line_2d(tf).angle_distance(image_line);
-                    //  + line3d1.to_line_2d(tf).angle_distance(image_line1) * 0.5;
+                    LightBar3d line3d1{*line_rotation, camera_vec, light_bar};
+                    return line3d.to_line_2d(tf).angle_distance(image_line)
+                         + line3d1.to_line_2d(tf).length_distance(image_line1) * 0.5
+                         + line3d1.to_line_2d(tf).angle_distance(image_line1) * 0.5;
                 });
             const auto target_distance = util::optimizer::fibonacci(
                 0, 20, 1e-3,
@@ -104,30 +98,31 @@ private:
 
     inline constexpr static const double NormalArmorWidth = 134, NormalArmorHeight = 56,
                                          LargerArmorWidth = 230, LargerArmorHeight = 56;
-    inline static const std::vector<cv::Point3d> LargeArmorObjectPoints = {
-        cv::Point3d(-0.5 * LargerArmorWidth, -0.5 * LargerArmorHeight, 0.0f),
-        cv::Point3d(-0.5 * LargerArmorWidth, 0.5 * LargerArmorHeight, 0.0f),
-        cv::Point3d(0.5 * LargerArmorWidth, 0.5 * LargerArmorHeight, 0.0f),
-        cv::Point3d(0.5 * LargerArmorWidth, -0.5 * LargerArmorHeight, 0.0f)};
-    inline static const std::vector<cv::Point3d> NormalArmorObjectPoints = {
-        cv::Point3d(-0.5 * NormalArmorWidth, -0.5 * NormalArmorHeight, 0.0f),
-        cv::Point3d(-0.5 * NormalArmorWidth, 0.5 * NormalArmorHeight, 0.0f),
-        cv::Point3d(0.5 * NormalArmorWidth, 0.5 * NormalArmorHeight, 0.0f),
-        cv::Point3d(0.5 * NormalArmorWidth, -0.5 * NormalArmorHeight, 0.0f)};
+
+    inline const static std::vector<Eigen::Vector3d> LeftLightBar = {
+        Eigen::Vector3d(0.0, 133e-3, 25e-3), Eigen::Vector3d(0.0, 133e-3, -25e-3),
+        Eigen::Vector3d(-5e-3, 125e-3, -25e-3), Eigen::Vector3d(-5e-3, 125e-3, 25e-3)};
+    inline const static std::vector<Eigen::Vector3d> RightLightBar = {
+        Eigen::Vector3d(-5e-3, -125e-3, 25e-3), Eigen::Vector3d(-5e-3, -125e-3, -25e-3),
+        Eigen::Vector3d(0.0, -133e-3, -25e-3), Eigen::Vector3d(0.0, -133e-3, 25e-3)};
+
     inline static std::tuple<
-        const cv::Point2f, const cv::Point2f, const Eigen::Vector3d, const cv::Point2f,
-        const cv::Point2f>
+        const cv::Point2f, const cv::Point2f, const std::vector<Eigen::Vector3d>&, Eigen::Vector3d,
+        const cv::Point2f, const cv::Point2f>
         get_full_light_bar(const ArmorPlate& armor) {
         cv::Point2f l1 = armor.points[0] - armor.points[1];
         return abs(util::math::clamp_pm_pi(util::math::ratio(l1))) > std::numbers::pi / 2
                  ? std::tuple<
-                       cv::Point2f, cv::Point2f,
-                       const Eigen::
-                           Vector3d, const cv::Point2f,
-        const cv::Point2f>{armor.points[0], armor.points[1], -Eigen::Vector3d::UnitY(),armor.points[3], armor.points[2]}
-                 : std::tuple<cv::Point2f, cv::Point2f, const Eigen::Vector3d, const cv::Point2f,
-        const cv::Point2f>{
-                       armor.points[3], armor.points[2], Eigen::Vector3d::UnitY(),armor.points[0], armor.points[1]};
+                       const cv::Point2f, const cv::Point2f, const std::vector<Eigen::Vector3d>&,
+                       Eigen::Vector3d, const cv::Point2f,
+                       const cv::Point2f>{armor.points[0], armor.points[1],
+                                          RightLightBar,   -Eigen::Vector3d::UnitY(),
+                                          armor.points[3], armor.points[2]}
+                 : std::tuple<
+                       const cv::Point2f, const cv::Point2f, const std::vector<Eigen::Vector3d>&,
+                       Eigen::Vector3d, const cv::Point2f, const cv::Point2f>{
+                       armor.points[3],          armor.points[2], LeftLightBar,
+                       Eigen::Vector3d::UnitY(), armor.points[0], armor.points[1]};
     }
 };
 
