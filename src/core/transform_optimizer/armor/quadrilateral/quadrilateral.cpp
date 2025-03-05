@@ -39,6 +39,7 @@ inline void Quadrilateral::draw(cv::InputOutputArray image, const cv::Scalar& co
     cv::line(image, armor.points[1], armor.points[2], color);
     cv::line(image, armor.points[2], armor.points[3], color);
     cv::line(image, armor.points[3], armor.points[0], color);
+    cv::line(image, armor.points[2], armor.points[0], color);
 }
 
 struct Quadrilateral3d::Impl {

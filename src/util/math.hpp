@@ -42,4 +42,12 @@ static constexpr double clamp_pm_pi(auto&& angle) {
 
     return angle;
 }
+static constexpr double clamp_pm_tau(auto&& angle) {
+    while (angle >= 2 * std::numbers::pi)
+        angle -= 2 * std::numbers::pi;
+    while (angle <= -2 * std::numbers::pi)
+        angle += 2 * std::numbers::pi;
+
+    return angle;
+}
 } // namespace rmcs_auto_aim::util::math

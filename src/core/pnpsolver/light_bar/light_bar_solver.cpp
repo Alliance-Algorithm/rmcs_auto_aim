@@ -39,24 +39,22 @@ public:
             const auto& [top, button, light_bar, dir, top1, button1] = get_full_light_bar(armor);
             const Line image_line{top, button};
             const Line image_line1{top1, button1};
+            util::ImageViewer::draw(image_line1, {0, 255, 255});
             Eigen::Vector3d camera_vec;
             util::compute_yaw_pitch_from_point(
                 (image_line.button_ + image_line.top_) / 2,
                 util::Profile::get_intrinsic_parameters(),
                 util::Profile::get_distortion_parameters(), camera_vec, 3);
-            const auto target_yaw = util::optimizer::fibonacci(
+            auto target_yaw = util::optimizer::fibonacci(
                 camera_yaw_in_odom - std::numbers::pi / 2,
-                camera_yaw_in_odom + std::numbers::pi / 2, 1e-4,
-                [&image_line, &image_line1, &light_bar, &rotation, &armor, &tf,
-                 &camera_vec](const double& yaw) {
+                camera_yaw_in_odom + std::numbers::pi / 2, 1e-2,
+                [&image_line, &light_bar, &rotation, &armor, &tf, &camera_vec](const double& yaw) {
                     auto line_rotation = set_armor3d_angle(rotation, yaw);
                     Line3d line3d{
                         *line_rotation, camera_vec,
                         (armor.is_large_armor ? LargerArmorHeight : NormalArmorHeight) / 1000.0};
                     LightBar3d line3d1{*line_rotation, camera_vec, light_bar};
-                    return line3d.to_line_2d(tf).angle_distance(image_line)
-                         + line3d1.to_line_2d(tf).length_distance(image_line1) * 0.5
-                         + line3d1.to_line_2d(tf).angle_distance(image_line1) * 0.5;
+                    return line3d.to_line_2d(tf).angle_distance(image_line);
                 });
             const auto target_distance = util::optimizer::fibonacci(
                 0, 20, 1e-3,
@@ -69,14 +67,23 @@ public:
                         (armor.is_large_armor ? LargerArmorHeight : NormalArmorHeight) / 1000.0};
                     return line3d.to_line_2d(tf).length_distance(image_line);
                 });
+            target_yaw = util::optimizer::fibonacci(
+                target_yaw - std::numbers::pi / 6, target_yaw + std::numbers::pi / 6, 1e-4,
+                [&image_line1, &light_bar, &rotation, &target_distance, &tf,
+                 &camera_vec](const double& yaw) {
+                    auto line_rotation = set_armor3d_angle(rotation, yaw);
+                    LightBar3d line3d{*line_rotation, camera_vec * target_distance, light_bar};
+                    return line3d.to_line_2d(tf).line_distance(image_line1)
+                         + line3d.to_line_2d(tf).angle_distance(image_line1) * 0.5;
+                });
             auto armor_angle = set_armor3d_angle(rotation, target_yaw);
             Line3d line3d{
                 *armor_angle, camera_vec * target_distance,
                 (armor.is_large_armor ? LargerArmorHeight : NormalArmorHeight) / 1000.0};
-            util::ImageViewer::draw(line3d.to_line_2d(tf), {255, 255, 0});
+            LightBar3d line3d1{*armor_angle, camera_vec * target_distance, light_bar};
             result.emplace_back(
                 armor.id,
-                rmcs_description::OdomImu ::Position(
+                rmcs_description::OdomImu::Position(
                     *fast_tf::cast<rmcs_description::OdomImu>(
                         rmcs_description::CameraLink::Position{camera_vec * target_distance}, tf)
                     + *armor_angle * dir
@@ -100,11 +107,11 @@ private:
                                          LargerArmorWidth = 230, LargerArmorHeight = 56;
 
     inline const static std::vector<Eigen::Vector3d> LeftLightBar = {
-        Eigen::Vector3d(0.0, 133e-3, 25e-3), Eigen::Vector3d(0.0, 133e-3, -25e-3),
-        Eigen::Vector3d(-5e-3, 125e-3, -25e-3), Eigen::Vector3d(-5e-3, 125e-3, 25e-3)};
+        Eigen::Vector3d(0.0, 135e-3, 28e-3), Eigen::Vector3d(0.0, 135e-3, -28e-3),
+        Eigen::Vector3d(-7e-3, 128e-3, -28e-3), Eigen::Vector3d(-7e-3, 128e-3, 28e-3)};
     inline const static std::vector<Eigen::Vector3d> RightLightBar = {
-        Eigen::Vector3d(-5e-3, -125e-3, 25e-3), Eigen::Vector3d(-5e-3, -125e-3, -25e-3),
-        Eigen::Vector3d(0.0, -133e-3, -25e-3), Eigen::Vector3d(0.0, -133e-3, 25e-3)};
+        Eigen::Vector3d(-7e-3, -128e-3, 28e-3), Eigen::Vector3d(-7e-3, -128e-3, -28e-3),
+        Eigen::Vector3d(0.0, -135e-3, -28e-3), Eigen::Vector3d(0.0, -135e-3, 28e-3)};
 
     inline static std::tuple<
         const cv::Point2f, const cv::Point2f, const std::vector<Eigen::Vector3d>&, Eigen::Vector3d,

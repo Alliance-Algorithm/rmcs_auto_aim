@@ -4,6 +4,7 @@
 #include "util/profile/profile.hpp"
 #include <Eigen/Eigen>
 #include <Eigen/src/Core/Matrix.h>
+#include <cmath>
 #include <fast_tf/impl/cast.hpp>
 #include <opencv2/core/types.hpp>
 #include <opencv2/imgproc.hpp>
@@ -31,6 +32,16 @@ public:
     double length_distance(const Line& other) const {
         double ratio_err = cv::norm(top_ - button_) - cv::norm(other.top_ - other.button_);
         return abs(ratio_err);
+    }
+    double line_distance(const Line& other) const {
+        double a = (top_.y - button_.y);
+        double b = -(top_.x - button_.x);
+        double c = b * -button_.y + a * -button_.x;
+        double k = sqrt(a * a + b * b);
+
+        double len1 = abs(a * other.top_.x + b * other.top_.y + c) / k;
+        double len2 = abs(a * other.button_.x + b * other.button_.y + c) / k;
+        return len1 + len2;
     }
     Line() = delete;
 

@@ -105,7 +105,7 @@ public:
     }
 
     void update_frame(double l1, double l2) {
-        car_frame_kf_.Update({l1, l2}, {}, 0);
+        car_frame_kf_.Update(CarFrameKF::ZVec{l1, l2}, {}, 0);
         auto frame = car_frame_kf_.OutPut();
         this->l1   = std::clamp(frame(0), 0.1, 0.6);
         this->l2   = std::clamp(frame(1), 0.1, 0.6);

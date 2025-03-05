@@ -86,12 +86,12 @@ public:
     [[nodiscard]] VMat V(const XVec&, const VVec&) override { return v_; }
     [[nodiscard]] QMat Q(const double&) override {
         // clang-format on
-        q_.diagonal() << 1, 1, 1, 1e-6;
+        q_.diagonal() << 1, 1, 1, 1;
         return q_;
     }
     [[nodiscard]]
     RMat R(const ZVec&) override {
-        r_.diagonal() << 1e-5, 1e-5, 1e-5, 1e-5;
+        r_.diagonal() << 1e0, 1e0, 1e-5, 1e-2;
         return r_;
     }
 

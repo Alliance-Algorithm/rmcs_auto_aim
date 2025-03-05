@@ -15,11 +15,9 @@
 #include <rmcs_executor/component.hpp>
 
 #include "core/identifier/armor/armor_identifier.hpp"
-#include "core/pnpsolver/armor/armor_pnp_solver.hpp"
 #include "core/pnpsolver/light_bar/light_bar_solver.hpp"
 #include "core/tracker/armor/armor_tracker.hpp"
 #include "core/trajectory/trajectory_solvor.hpp"
-#include "core/transform_optimizer/armor/armor.hpp"
 #include "util/image_viewer/image_viewer.hpp"
 #include "util/profile/profile.hpp"
 #include "util/utils.hpp"
@@ -62,6 +60,7 @@ public:
 
         register_output(
             "/gimbal/auto_aim/control_direction", control_direction_, Eigen::Vector3d::Zero());
+        register_output("/gimbal/auto_aim/fire_control", fire_control_, false);
 
         yaw_error_      = get_parameter("yaw_error").as_double();
         pitch_error_    = get_parameter("pitch_error").as_double();
@@ -109,13 +108,12 @@ public:
 
                     auto armor3d = LightBarSolver::SolveAll(armor_plates, tf);
 
-                    transform_optimizer::armor_transform_optimize(armor_plates, armor3d, tf);
-                    for (auto& armor2d_ : armor3d)
-                        util::ImageViewer::draw(
-                            transform_optimizer::Quadrilateral3d(armor2d_).ToQuadrilateral(
-                                tf, false),
-                            {0, 255, 0});
-
+                    // for (auto& armor2d_ : armor3d) {
+                    //     util::ImageViewer::draw(
+                    //         transform_optimizer::Quadrilateral3d(armor2d_).ToQuadrilateral(
+                    //             tf, false),
+                    //         {0, 255, 0});
+                    // }
                     if (auto target = armor_tracker.Update(armor3d, timestamp, tf)) {
                         armor_target_buffer_[!armor_target_index_.load()].target_ =
                             std::move(target);
@@ -141,8 +139,9 @@ public:
 
         using namespace std::chrono_literals;
         auto diff = std::chrono::steady_clock::now() - frame.timestamp_;
-        if (diff > std::chrono::milliseconds(500)) {                 // TODO
+        if (diff > std::chrono::milliseconds(500)) { // TODO
             *control_direction_ = Eigen::Vector3d::Zero();
+            *fire_control_      = false;
             return;
         }
 
@@ -169,6 +168,14 @@ public:
                 break;
             }
         }
+
+        if (fast_tf::cast<rmcs_description::OdomImu>(
+                rmcs_description::PitchLink::DirectionVector(), *tf_)
+                ->dot(*control_direction_)
+            >= 0.999)
+            *fire_control_ = true;
+        else
+            *fire_control_ = false;
     }
 
 private:
@@ -202,6 +209,7 @@ private:
     InputInterface<rmcs_description::Tf> tf_;
 
     OutputInterface<Eigen::Vector3d> control_direction_;
+    OutputInterface<bool> fire_control_;
 };
 } // namespace rmcs_auto_aim
 

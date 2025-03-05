@@ -63,9 +63,10 @@ public:
 
         std::shared_ptr<ITarget> target = nullptr;
 
-        double dt    = std::chrono::duration<double>(timestamp - last_update_).count();
-        last_update_ = timestamp;
-        dt           = std::clamp(dt, 0., .5);
+        double dt     = std::chrono::duration<double>(timestamp - last_update_).count();
+        last_armors1_ = car_trackers_[last_car_id_]->get_armor(dt);
+        last_update_  = timestamp;
+        dt            = std::clamp(dt, 0., .5);
 
         get_grouped_armor(grouped_armor_, armors);
 
@@ -86,12 +87,21 @@ public:
 
                 Eigen::Vector3d armor_in_camera = *fast_tf::cast<rmcs_description::CameraLink>(
                     grouped_armor_[armorID][nearest_armor_index_in_detected].position, tf);
-
                 armor_z << armor_in_camera,
                     util::math::get_yaw_from_quaternion(
                         *grouped_armor_[armorID][nearest_armor_index_in_detected].rotation);
                 armor_trackers_[armorID][armor_id[nearest_armor_index_in_detected]].Update(
                     armor_z, {}, dt);
+
+                if (armor_id.size() > 1) {
+                    Eigen::Vector3d armor_in_camera = *fast_tf::cast<rmcs_description::CameraLink>(
+                        grouped_armor_[armorID][1 - nearest_armor_index_in_detected].position, tf);
+                    armor_z << armor_in_camera,
+                        util::math::get_yaw_from_quaternion(
+                            *grouped_armor_[armorID][1 - nearest_armor_index_in_detected].rotation);
+                    armor_trackers_[armorID][armor_id[1 - nearest_armor_index_in_detected]].Update(
+                        armor_z, {}, dt);
+                }
 
                 const auto& [l1, l2]                        = car->get_frame();
                 rmcs_description::OdomImu::Position car_pos = armor_to_car(
@@ -106,8 +116,9 @@ public:
 
                 Eigen::Vector<double, 4> car_armor_height = car->get_armor_height();
                 for (int i = 0; i < 4; i++)
-                    if (i == armor_id[0] || (armor_id.size() > 1 ? (i == armor_id[1]) : false))
+                    if (i == armor_id[0] || (armor_id.size() > 1 ? (i == armor_id[1]) : false)) {
                         car_armor_height(i) = armor_get_odom_z(armor_trackers_[armorID][i], tf);
+                    }
                 car->update_z(
                     car_armor_height(0), car_armor_height(1), car_armor_height(2),
                     car_armor_height(3));
@@ -120,7 +131,6 @@ public:
             }
         }
 
-        last_armors1_ = car_trackers_[last_car_id_]->get_armor(dt);
         last_armors2_ = car_trackers_[last_car_id_]->get_armor();
         return target;
     }
@@ -201,28 +211,32 @@ private:
     ///
     /// return index_predicted;
     ///
+
     static int calculate_nearest_armor_id(
         ArmorPlate3d armors_detected, const std::vector<ArmorPlate3d>& armors_predicted,
         int index_predicted) {
 
         double min;
+        int index = index_predicted;
         double armor_angular_distance;
 
-        min                    = 1e7;
-        armor_angular_distance = armors_detected.rotation->angularDistance(
-            *armors_predicted[(index_predicted + 1) % 4].rotation);
+        min = 1e7;
+        armor_angular_distance =
+            abs(util::math::get_yaw_from_quaternion(*armors_detected.rotation)
+                - util::math::get_yaw_from_quaternion(
+                    *armors_predicted[(index_predicted + 1) % 4].rotation));
         if (armor_angular_distance < min) {
-            min             = armor_angular_distance;
-            index_predicted = (index_predicted + 1) % 4;
+            min   = armor_angular_distance;
+            index = (index_predicted + 1) % 4;
         }
-        armor_angular_distance = armors_detected.rotation->angularDistance(
-            *armors_predicted[(index_predicted + 3) % 4].rotation);
+        armor_angular_distance =
+            abs(util::math::get_yaw_from_quaternion(*armors_detected.rotation)
+                - util::math::get_yaw_from_quaternion(
+                    *armors_predicted[(index_predicted + 3) % 4].rotation));
         if (armor_angular_distance < min) {
-            min             = armor_angular_distance;
-            index_predicted = (index_predicted + 3) % 4;
+            index = (index_predicted + 3) % 4;
         }
-
-        return index_predicted;
+        return index;
     }
 
     static std::vector<int> calculate_armor_id(
@@ -243,7 +257,7 @@ private:
             return {predicted_index};
 
         const int predicted_index_2nd = calculate_nearest_armor_id(
-            armors_predicted[1 - detected_index], armors_predicted, predicted_index);
+            armors_detected[1 - detected_index], armors_predicted, predicted_index);
 
         if (detected_index == 0)
             return {predicted_index, predicted_index_2nd};
