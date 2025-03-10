@@ -73,8 +73,8 @@ public:
                  &camera_vec](const double& yaw) {
                     auto line_rotation = set_armor3d_angle(rotation, yaw);
                     LightBar3d line3d{*line_rotation, camera_vec * target_distance, light_bar};
-                    return line3d.to_line_2d(tf).line_distance(image_line1)
-                         + line3d.to_line_2d(tf).angle_distance(image_line1) * 0.5;
+                    return line3d.to_line_2d(tf).line_distance(image_line1);
+                    //  + line3d.to_line_2d(tf).angle_distance(image_line1) * 0.5;
                 });
             auto armor_angle = set_armor3d_angle(rotation, target_yaw);
             Line3d line3d{

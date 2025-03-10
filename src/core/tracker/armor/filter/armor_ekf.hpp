@@ -91,7 +91,7 @@ public:
     }
     [[nodiscard]]
     RMat R(const ZVec&) override {
-        r_.diagonal() << 1e0, 1e0, 1e-5, 1e-2;
+        r_.diagonal() << 1e-5, 1e-5, 1e-3, 1e-3;
         return r_;
     }
 
