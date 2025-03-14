@@ -7,15 +7,14 @@
 
 #include "armor_pnp_solver.hpp"
 #include "core/pnpsolver/armor/armor3d.hpp"
+#include "util/profile/profile.hpp"
 
 using namespace rmcs_auto_aim;
 
 class ArmorPnPSolver::StaticImpl {
 public:
-    static std::vector<ArmorPlate3d> SolveAll(
-        const std::vector<ArmorPlate>& armors, const rmcs_description::Tf& tf, const double& fx,
-        const double& fy, const double& cx, const double& cy, const double& k1, const double& k2,
-        const double& k3) {
+    static std::vector<ArmorPlate3d>
+        SolveAll(const std::vector<ArmorPlate>& armors, const rmcs_description::Tf& tf) {
         std::vector<ArmorPlate3d> armors3d;
 
         for (const auto& armor : armors) {
@@ -23,9 +22,8 @@ public:
             auto& objectPoints =
                 armor.is_large_armor ? LargeArmorObjectPoints : NormalArmorObjectPoints;
             if (cv::solvePnP(
-                    objectPoints, armor.points,
-                    (cv::Mat)(cv::Mat_<double>(3, 3) << fx, 0, cx, 0, fy, cy, 0, 0, 1),
-                    (cv::Mat)(cv::Mat_<double>(1, 5) << k1, k2, 0, 0, k3), rvec, tvec, false,
+                    objectPoints, armor.points, util::Profile::get_intrinsic_parameters(),
+                    util::Profile::get_distortion_parameters(), rvec, tvec, false,
                     cv::SOLVEPNP_IPPE)) {
 
                 // cv::solvePnPRefineLM(
@@ -110,10 +108,8 @@ private:
 };
 
 std::vector<ArmorPlate3d> ArmorPnPSolver::SolveAll(
-    const std::vector<ArmorPlate>& armors, const rmcs_description::Tf& tf, const double& fx,
-    const double& fy, const double& cx, const double& cy, const double& k1, const double& k2,
-    const double& k3) {
-    return ArmorPnPSolver::StaticImpl::SolveAll(armors, tf, fx, fy, cx, cy, k1, k2, k3);
+    const std::vector<ArmorPlate>& armors, const rmcs_description::Tf& tf) {
+    return ArmorPnPSolver::StaticImpl::SolveAll(armors, tf);
 }
 
 ArmorPlate3dWithoutFrame ArmorPnPSolver::Solve(

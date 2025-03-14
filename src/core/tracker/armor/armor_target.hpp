@@ -13,22 +13,24 @@ public:
     rmcs_description::OdomImu::Position Predict(double sec, rmcs_description::Tf tf) override {
         double max    = -1e7;
         int index     = 0;
-        auto armors   = car.get_armor(sec);
+        auto armors   = car.get_armor(sec + 0.005);
         auto camera_x = fast_tf::cast<rmcs_description::OdomImu>(
             rmcs_description::CameraLink::DirectionVector(Eigen::Vector3d::UnitX()), tf);
         for (int i = 0; i < 4; i++) {
-
-            Eigen::Vector3d armor_plate_normal = *armors[i].rotation * Eigen::Vector3d::UnitX();
+            auto armor_x = fast_tf::cast<rmcs_description::OdomImu>(
+                rmcs_description::OdomImu::DirectionVector(
+                    armors[i].rotation->toRotationMatrix() * Eigen::Vector3d::UnitX()),
+                tf);
             Eigen::Vector2d vec{};
             vec << Eigen::Vector2d{armors[i].position->x(), armors[i].position->y()};
 
-            auto len = camera_x->dot(armor_plate_normal.normalized());
+            auto len = camera_x->dot(Eigen::Vector3d(*armor_x));
             if (len > max) {
                 index = i;
                 max   = len;
             }
         }
-        return armors[index].position;
+        return car.get_armor(sec)[index].position;
     }
 
 private:

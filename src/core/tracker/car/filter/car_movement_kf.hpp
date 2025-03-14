@@ -76,10 +76,10 @@ protected:
     };
 
 private:
-    static constexpr double sigma2_q_xy_  = 1e-1;
-    static constexpr double sigma2_q_yaw_ = 1e-2;
-    static constexpr double r_xyz_factor_ = 1e0;
-    static constexpr double r_ywq_factor_ = 1;
+    static constexpr double sigma2_q_xy_  = 1e0;
+    static constexpr double sigma2_q_yaw_ = 1e0;
+    static constexpr double r_xyz_factor_ = 1e-4;
+    static constexpr double r_ywq_factor_ = 1e-3;
 
     static constexpr inline const double conv_y     = 0.01;
     static constexpr inline const double conv_p     = 0.01;

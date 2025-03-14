@@ -49,6 +49,10 @@ static inline void armor_transform_optimize(
             });
 
         inOutArmor3d[i].rotation = set_armor3d_angle(rotation, angle);
+        *inOutArmor3d[i].rotation =
+            Eigen::AngleAxisd(
+                std::numbers::pi, *inOutArmor3d[i].rotation * Eigen::Vector3d::UnitX())
+            * *inOutArmor3d[i].rotation;
     }
 }
 

@@ -74,7 +74,7 @@ public:
                     auto line_rotation = set_armor3d_angle(rotation, yaw);
                     LightBar3d line3d{*line_rotation, camera_vec * target_distance, light_bar};
                     return line3d.to_line_2d(tf).line_distance(image_line1);
-                    //  + line3d.to_line_2d(tf).angle_distance(image_line1) * 0.5;
+                    //  + line3d.to_line_2d(tf).angle_distance(image_line1) * 0.05;
                 });
             auto armor_angle = set_armor3d_angle(rotation, target_yaw);
             Line3d line3d{
@@ -107,11 +107,11 @@ private:
                                          LargerArmorWidth = 230, LargerArmorHeight = 56;
 
     inline const static std::vector<Eigen::Vector3d> LeftLightBar = {
-        Eigen::Vector3d(0.0, 135e-3, 28e-3), Eigen::Vector3d(0.0, 135e-3, -28e-3),
+        Eigen::Vector3d(-2e-3, 135e-3, 28e-3), Eigen::Vector3d(-2e-3, 135e-3, -28e-3),
         Eigen::Vector3d(-7e-3, 128e-3, -28e-3), Eigen::Vector3d(-7e-3, 128e-3, 28e-3)};
     inline const static std::vector<Eigen::Vector3d> RightLightBar = {
         Eigen::Vector3d(-7e-3, -128e-3, 28e-3), Eigen::Vector3d(-7e-3, -128e-3, -28e-3),
-        Eigen::Vector3d(0.0, -135e-3, -28e-3), Eigen::Vector3d(0.0, -135e-3, 28e-3)};
+        Eigen::Vector3d(-2e-3, -135e-3, -28e-3), Eigen::Vector3d(-2e-3, -135e-3, 28e-3)};
 
     inline static std::tuple<
         const cv::Point2f, const cv::Point2f, const std::vector<Eigen::Vector3d>&, Eigen::Vector3d,

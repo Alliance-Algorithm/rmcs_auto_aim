@@ -84,7 +84,7 @@ protected:
 
         double t = dt, x = sigma2_q_xy_, y = sigma2_q_yaw_;
         double q_x_x = pow(t, 4) / 4 * x, q_x_vx = pow(t, 3) / 2 * x, q_vx_vx = pow(t, 2) * x;
-        double q_y_y = pow(t, 4) / 4 * y, q_y_vy = pow(t, 3) / 2 * x, q_vy_vy = pow(t, 2) * y;
+        double q_y_y = pow(t, 4) / 4 * y, q_y_vy = pow(t, 3) / 2 * y, q_vy_vy = pow(t, 2) * y;
         // clang-format off
         //      xc      ,vxc        ,yc     ,vyc        ,theta  ,omega
         q_ <<   q_x_x   ,q_x_vx     ,0      ,0          ,0      ,0      ,
@@ -104,9 +104,9 @@ protected:
 
 private:
     static constexpr double sigma2_q_xy_  = 20;
-    static constexpr double sigma2_q_yaw_ = 100;
-    static constexpr double r_xyz_factor_ = 0.01;
-    static constexpr double r_ywq_factor_ = 0.01;
+    static constexpr double sigma2_q_yaw_ = 20;
+    static constexpr double r_xyz_factor_ = 3e-3;
+    static constexpr double r_ywq_factor_ = 10;
 
     static constexpr inline const double conv_y     = 0.01;
     static constexpr inline const double conv_p     = 0.01;

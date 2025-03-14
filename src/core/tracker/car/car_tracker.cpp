@@ -1,5 +1,6 @@
 
 
+#include <iostream>
 #include <memory>
 #include <numbers>
 #include <tuple>
@@ -62,11 +63,10 @@ public:
 
         CarKF ::ZVec car_z{};
         car_z << car_pos_kf.OutPut();
-
         last_acc_ << car_movement_kf_.OutPut()(0), car_movement_kf_.OutPut()(1);
         last_vel_ << last_acc_;
 
-        car_kf_.Update(car_z, {}, dt);
+        car_kf_.Update(zk, {}, dt);
         car_movement_kf_.Update(
             {car_kf_.OutPut()(1), car_kf_.OutPut()(3), car_kf_.OutPut()(5)}, {}, dt);
 

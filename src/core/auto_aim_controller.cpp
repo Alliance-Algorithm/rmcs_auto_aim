@@ -1,4 +1,5 @@
 #include <atomic>
+#include <chrono>
 #include <memory>
 #include <thread>
 #include <tuple>
@@ -15,7 +16,7 @@
 #include <rmcs_executor/component.hpp>
 
 #include "core/identifier/armor/armor_identifier.hpp"
-#include "core/pnpsolver/light_bar/light_bar_solver.hpp"
+#include "core/pnpsolver/fusion_solver.hpp"
 #include "core/tracker/armor/armor_tracker.hpp"
 #include "core/trajectory/trajectory_solvor.hpp"
 #include "util/image_viewer/image_viewer.hpp"
@@ -106,14 +107,14 @@ public:
                     auto armor_plates =
                         armor_identifier->Identify(image, *target_color_, *whitelist_);
 
-                    auto armor3d = LightBarSolver::SolveAll(armor_plates, tf);
+                    auto armor3d = FusionSolver::SolveAll(armor_plates, tf);
 
-                    // for (auto& armor2d_ : armor3d) {
-                    //     util::ImageViewer::draw(
-                    //         transform_optimizer::Quadrilateral3d(armor2d_).ToQuadrilateral(
-                    //             tf, false),
-                    //         {0, 255, 0});
-                    // }
+                    for (auto& armor2d_ : armor3d) {
+                        util::ImageViewer::draw(
+                            transform_optimizer::Quadrilateral3d(armor2d_).ToQuadrilateral(
+                                tf, false),
+                            {0, 255, 0});
+                    }
                     if (auto target = armor_tracker.Update(armor3d, timestamp, tf)) {
                         armor_target_buffer_[!armor_target_index_.load()].target_ =
                             std::move(target);
@@ -139,7 +140,7 @@ public:
 
         using namespace std::chrono_literals;
         auto diff = std::chrono::steady_clock::now() - frame.timestamp_;
-        if (diff > std::chrono::milliseconds(500)) { // TODO
+        if (diff > std::chrono::milliseconds(500)) {                 // TODO
             *control_direction_ = Eigen::Vector3d::Zero();
             *fire_control_      = false;
             return;
@@ -155,11 +156,11 @@ public:
                 shoot_velocity_, fly_time);
 
             if (i == 0) {
-                auto yaw_axis = fast_tf::cast<rmcs_description::PitchLink>(
-                                    rmcs_description::OdomImu::DirectionVector(0, 0, 1), *tf_)
+                auto yaw_axis = fast_tf::cast<rmcs_description::OdomImu>(
+                                    rmcs_description::PitchLink::DirectionVector(0, 0, 1), *tf_)
                                     ->normalized();
-                auto pitch_axis = fast_tf::cast<rmcs_description::PitchLink>(
-                                      rmcs_description::OdomImu::DirectionVector(0, 1, 0), *tf_)
+                auto pitch_axis = fast_tf::cast<rmcs_description::OdomImu>(
+                                      rmcs_description::PitchLink::DirectionVector(0, 1, 0), *tf_)
                                       ->normalized();
                 auto delta_yaw      = Eigen::AngleAxisd{yaw_error_, yaw_axis};
                 auto delta_pitch    = Eigen::AngleAxisd{pitch_error_, pitch_axis};
@@ -169,13 +170,21 @@ public:
             }
         }
 
+        bool deadband = (std::chrono::steady_clock::now() - fire_control_deadband_)
+                      > std::chrono::milliseconds(50);
         if (fast_tf::cast<rmcs_description::OdomImu>(
                 rmcs_description::PitchLink::DirectionVector(), *tf_)
                 ->dot(*control_direction_)
             >= 0.999)
-            *fire_control_ = true;
+            *fire_control_ = true && deadband;
         else
-            *fire_control_ = false;
+            *fire_control_ = false && deadband;
+        if (fast_tf::cast<rmcs_description::OdomImu>(
+                rmcs_description::PitchLink::DirectionVector(), *tf_)
+                ->dot(*control_direction_)
+            < 0.998) {
+            fire_control_deadband_ = std::chrono::steady_clock::now();
+        }
     }
 
 private:
@@ -210,6 +219,7 @@ private:
 
     OutputInterface<Eigen::Vector3d> control_direction_;
     OutputInterface<bool> fire_control_;
+    std::chrono::time_point<std::chrono::steady_clock> fire_control_deadband_;
 };
 } // namespace rmcs_auto_aim
 

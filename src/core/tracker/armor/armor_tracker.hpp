@@ -64,7 +64,7 @@ public:
         std::shared_ptr<ITarget> target = nullptr;
 
         double dt     = std::chrono::duration<double>(timestamp - last_update_).count();
-        last_armors1_ = car_trackers_[last_car_id_]->get_armor(dt);
+        last_armors1_ = car_trackers_[last_car_id_]->get_armor(0.15);
         last_update_  = timestamp;
         dt            = std::clamp(dt, 0., .5);
 
@@ -77,8 +77,7 @@ public:
 
             if (len > 0) {
                 auto armor_id = calculate_armor_id(
-                    grouped_armor_[armorID], car->get_armor(dt), tf,
-                    nearest_armor_index_in_detected);
+                    grouped_armor_[armorID], car->get_armor(), tf, nearest_armor_index_in_detected);
                 if (grouped_armor_[armorID].size() > 1)
                     update_car_frame(
                         grouped_armor_[armorID][0], grouped_armor_[armorID][1], armor_id[0], car);
@@ -177,31 +176,29 @@ private:
         const std::vector<ArmorPlate3d>& armors_predicted,
         rmcs_description::OdomImu::DirectionVector camera_forward) {
 
-        double max;
+        double min;
         int index_detected  = 0;
         int index_predicted = 0;
 
-        max = -1e7;
+        min = -1e7;
         for (int i = 0; i < (int)armors_detected.size(); i++) {
             Eigen::Vector3d armor_plate_normal =
                 *armors_detected[i].rotation * Eigen::Vector3d::UnitX();
 
             double dot_val = armor_plate_normal.normalized().dot(*camera_forward);
-            if (dot_val > max) {
-                max            = dot_val;
+            if (dot_val > min) {
+                min            = dot_val;
                 index_detected = i;
             }
         }
 
-        Eigen::Vector3d detected_armor_plate_normal =
-            *armors_detected[index_detected].rotation * Eigen::Vector3d::UnitX();
-        max = -1e7;
+        min = 1e7;
         for (int i = 0; i < 4; i++) {
-            Eigen::Vector3d armor_plate_normal =
-                *armors_predicted[i].rotation * Eigen::Vector3d::UnitX();
-            double dot_val = armor_plate_normal.normalized().dot(detected_armor_plate_normal);
-            if (dot_val > max) {
-                max             = dot_val;
+            double dot_val =
+                abs(util::math::get_yaw_from_quaternion(*armors_detected[index_detected].rotation)
+                    - util::math::get_yaw_from_quaternion(*armors_predicted[i].rotation));
+            if (dot_val < min) {
+                min             = dot_val;
                 index_predicted = i;
             }
         }
