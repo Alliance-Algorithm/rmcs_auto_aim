@@ -16,8 +16,9 @@
 
 #include "core/pnpsolver/armor/armor3d.hpp"
 
-#include "core/tracker/armor/armor_target.hpp"
 #include "core/tracker/armor/filter/armor_ekf.hpp"
+#include "core/tracker/fire_controller.hpp"
+#include "core/tracker/fire_controller/sixty_forty_controller.hpp"
 
 #include "core/tracker/car/car_tracker.hpp"
 #include "core/tracker/tracker_interface.hpp"
@@ -29,7 +30,8 @@
 namespace rmcs_auto_aim::tracker::armor {
 class ArmorTracker : public ITracker {
 public:
-    ArmorTracker() {
+    ArmorTracker()
+        : target_() {
         car_trackers_[rmcs_msgs::ArmorID::Hero]          = std::make_shared<CarTracker>();
         car_trackers_[rmcs_msgs::ArmorID::Engineer]      = std::make_shared<CarTracker>();
         car_trackers_[rmcs_msgs::ArmorID::InfantryIII]   = std::make_shared<CarTracker>();
@@ -56,12 +58,12 @@ public:
         grouped_armor_[rmcs_msgs::ArmorID::Outpost]     = {};
     }
 
-    std::shared_ptr<ITarget> Update(
+    std::shared_ptr<IFireController> Update(
         const std::vector<ArmorPlate3d>& armors,
         const std::chrono::steady_clock::time_point& timestamp,
         const rmcs_description::Tf& tf) override {
 
-        std::shared_ptr<ITarget> target = nullptr;
+        target_.SetTracker(nullptr);
 
         double dt     = std::chrono::duration<double>(timestamp - last_update_).count();
         last_armors1_ = car_trackers_[last_car_id_]->get_armor(0.15);
@@ -76,8 +78,10 @@ public:
             int nearest_armor_index_in_detected;
 
             if (len > 0) {
-                auto armor_id = calculate_armor_id(
-                    grouped_armor_[armorID], car->get_armor(), tf, nearest_armor_index_in_detected);
+                auto last_detected_armor = car->get_armor();
+                auto armor_id            = calculate_armor_id(
+                    grouped_armor_[armorID], last_detected_armor, tf,
+                    nearest_armor_index_in_detected);
                 if (grouped_armor_[armorID].size() > 1)
                     update_car_frame(
                         grouped_armor_[armorID][0], grouped_armor_[armorID][1], armor_id[0], car);
@@ -91,6 +95,16 @@ public:
                         *grouped_armor_[armorID][nearest_armor_index_in_detected].rotation);
                 armor_trackers_[armorID][armor_id[nearest_armor_index_in_detected]].Update(
                     armor_z, {}, dt);
+                for (int i = 0; i < 4; i++) {
+                    if (armor_id[0] == i || (armor_id.size() > 1 && armor_id[2] == i))
+                        continue;
+
+                    Eigen::Vector3d armor_in_camera = *fast_tf::cast<rmcs_description::CameraLink>(
+                        last_detected_armor[i].position, tf);
+                    armor_z << armor_in_camera,
+                        util::math::get_yaw_from_quaternion(*last_detected_armor[i].rotation);
+                    armor_trackers_[armorID][i].Update(armor_z, {}, dt);
+                }
 
                 if (armor_id.size() > 1) {
                     Eigen::Vector3d armor_in_camera = *fast_tf::cast<rmcs_description::CameraLink>(
@@ -121,8 +135,8 @@ public:
                 car->update_z(
                     car_armor_height(0), car_armor_height(1), car_armor_height(2),
                     car_armor_height(3));
-                target = std::make_shared<ArmorTarget>(CarTracker{*car});
 
+                target_.SetTracker(std::make_shared<CarTracker>(*car));
                 last_car_id_ = armorID;
             } else {
                 car->update_self(dt);
@@ -131,7 +145,8 @@ public:
         }
 
         last_armors2_ = car_trackers_[last_car_id_]->get_armor();
-        return target;
+        return target_.check() ? std::make_shared<fire_controller::SixFortyController>(target_)
+                               : nullptr;
     }
 
     void draw_armors(const rmcs_description::Tf& tf, const cv::Scalar& color) {
@@ -327,5 +342,7 @@ private:
 
     // 改为多车 这是测试版本
     rmcs_msgs::ArmorID last_car_id_ = rmcs_msgs::ArmorID::Hero;
+
+    fire_controller::SixFortyController target_;
 };
 } // namespace rmcs_auto_aim::tracker::armor

@@ -36,6 +36,8 @@ public:
     Eigen::Vector<double, 4> get_armor_height() const;
     std::tuple<double, double> get_frame();
 
+    [[nodiscard]] rmcs_description::OdomImu::Position get_car_position(double dt = 0);
+
 private:
     class Impl;
 

@@ -18,6 +18,7 @@
 #include "core/identifier/armor/armor_identifier.hpp"
 #include "core/pnpsolver/fusion_solver.hpp"
 #include "core/tracker/armor/armor_tracker.hpp"
+#include "core/tracker/fire_controller.hpp"
 #include "core/trajectory/trajectory_solvor.hpp"
 #include "util/image_viewer/image_viewer.hpp"
 #include "util/profile/profile.hpp"
@@ -44,7 +45,9 @@ public:
         profile.gain          = 16.9807;
         profile.exposure_time = std::chrono::milliseconds(get_parameter("exposure_time").as_int());
 
-        capturer_ = std::make_unique<hikcamera::ImageCapturer>(profile);
+        capturer_ =
+            std::make_unique<hikcamera::ImageCapturer>(profile, nullptr, hikcamera::SyncMode::NONE);
+        capturer_->set_frame_rate_inner_trigger_mode(100);
 
         fx_ = get_parameter("fx").as_double();
         fy_ = get_parameter("fy").as_double();
@@ -100,10 +103,14 @@ public:
 
                 while (rclcpp::ok()) {
 
-                    auto image = capturer_->read();
-                    util::ImageViewer::load_image(image);
-                    auto timestamp = std::chrono::steady_clock::now();
+                    thread_sync_clk_ = std::chrono::steady_clock::now();
+                    auto image       = capturer_->read();
+                    if (std::chrono::steady_clock::now() - thread_sync_clk_
+                        < std::chrono::microseconds(10))
+                        auto image = capturer_->read();
                     auto tf        = tf_buffer_[tf_index_.load()];
+                    auto timestamp = std::chrono::steady_clock::now();
+                    util::ImageViewer::load_image(image);
                     auto armor_plates =
                         armor_identifier->Identify(image, *target_color_, *whitelist_);
 
@@ -148,9 +155,10 @@ public:
 
         double fly_time = 0;
         for (int i = 5; i-- > 0;) {
-            auto pos = frame.target_->Predict(
+            auto [firecontrol, pos] = frame.target_->UpdateController(
                 static_cast<std::chrono::duration<double>>(diff).count() + fly_time + predict_sec_,
                 *tf_);
+            *fire_control_        = firecontrol;
             auto aiming_direction = *trajectory_.GetShotVector(
                 {pos->x() - offset->x(), pos->y() - offset->y(), pos->z() - offset->z()},
                 shoot_velocity_, fly_time);
@@ -169,27 +177,26 @@ public:
                 break;
             }
         }
-
         bool deadband = (std::chrono::steady_clock::now() - fire_control_deadband_)
                       > std::chrono::milliseconds(50);
         if (fast_tf::cast<rmcs_description::OdomImu>(
                 rmcs_description::PitchLink::DirectionVector(), *tf_)
                 ->dot(*control_direction_)
-            >= 0.999)
+            >= 0.9995)
             *fire_control_ = true && deadband;
         else
             *fire_control_ = false && deadband;
         if (fast_tf::cast<rmcs_description::OdomImu>(
                 rmcs_description::PitchLink::DirectionVector(), *tf_)
                 ->dot(*control_direction_)
-            < 0.998) {
+            < 0.9992) {
             fire_control_deadband_ = std::chrono::steady_clock::now();
         }
     }
 
 private:
     struct TargetFrame {
-        std::shared_ptr<rmcs_auto_aim::tracker::ITarget> target_;
+        std::shared_ptr<tracker::IFireController> target_;
         std::chrono::steady_clock::time_point timestamp_;
     };
 
@@ -202,6 +209,7 @@ private:
     double predict_sec_;
 
     std::vector<std::thread> threads_;
+    std::chrono::time_point<std::chrono::steady_clock> thread_sync_clk_;
 
     rmcs_description::Tf tf_buffer_[2];
     std::atomic<bool> tf_index_{false};

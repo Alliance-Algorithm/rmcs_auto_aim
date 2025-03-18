@@ -8,12 +8,12 @@ class ArmorTarget : public tracker::ITarget {
 
 public:
     explicit ArmorTarget(const rmcs_auto_aim::tracker::CarTracker& car)
-        : tracker::ITarget{}
-        , car(car) {};
-    rmcs_description::OdomImu::Position Predict(double sec, rmcs_description::Tf tf) override {
+        : car(car) {};
+    rmcs_description::OdomImu::Position
+        Predict(double sec, const rmcs_description::Tf& tf) override {
         double max    = -1e7;
         int index     = 0;
-        auto armors   = car.get_armor(sec + 0.005);
+        auto armors   = car.get_armor(sec + 0.01);
         auto camera_x = fast_tf::cast<rmcs_description::OdomImu>(
             rmcs_description::CameraLink::DirectionVector(Eigen::Vector3d::UnitX()), tf);
         for (int i = 0; i < 4; i++) {
@@ -33,7 +33,14 @@ public:
         return car.get_armor(sec)[index].position;
     }
 
+    [[nodiscard]] double get_omega() final { return car.omega(); }
+    [[nodiscard]] std::tuple<double, double> get_frame() final { return car.get_frame(); }
+    [[nodiscard]] rmcs_description::OdomImu::Position get_car_position() final {
+        return car.get_car_position();
+    }
+
 private:
     rmcs_auto_aim::tracker::CarTracker car;
 };
+
 } // namespace rmcs_auto_aim::tracker::armor

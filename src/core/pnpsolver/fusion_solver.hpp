@@ -18,23 +18,22 @@ public:
         const std::vector<rmcs_auto_aim::ArmorPlate>& armors, const rmcs_description::Tf& tf) {
 
         auto armor3d_with_light_bar = rmcs_auto_aim::LightBarSolver::SolveAll(armors, tf);
-        // auto armor3d_with_ippe      = rmcs_auto_aim::ArmorPnPSolver::SolveAll(armors, tf);
-        // rmcs_auto_aim::transform_optimizer::armor_transform_optimize(armors, armor3d_with_ippe,
-        // tf); auto camera_x = fast_tf::cast<rmcs_description::OdomImu>(
-        //     rmcs_description::CameraLink::DirectionVector(Eigen::Vector3d::UnitX()), tf);
+        auto armor3d_with_ippe      = rmcs_auto_aim::ArmorPnPSolver::SolveAll(armors, tf);
+        rmcs_auto_aim::transform_optimizer::armor_transform_optimize(armors, armor3d_with_ippe, tf);
+        auto camera_x = fast_tf::cast<rmcs_description::OdomImu>(
+            rmcs_description::CameraLink::DirectionVector(Eigen::Vector3d::UnitX()), tf);
 
-        // for (size_t i = 0; i < armor3d_with_light_bar.size(); i++) {
-        //     // std::cerr << *armor3d_with_light_bar[i].rotation << "\n"
-        //     //           << *armor3d_with_ippe[i].rotation << "\n---\n";
-        //     double ratio = (*armor3d_with_light_bar[i].rotation * Eigen::Vector3d::UnitX())
-        //                        .dot(camera_x->normalized());
-        //     ratio                               = (std::clamp(ratio, 0.5, 1.0) - 0.95) * 5;
-        //     *armor3d_with_light_bar[i].position = (1 - ratio) *
-        //     *armor3d_with_light_bar[i].position
-        //                                         + ratio * *armor3d_with_ippe[i].position;
-        //     *armor3d_with_light_bar[i].rotation =
-        //         armor3d_with_light_bar[i].rotation->slerp(ratio, *armor3d_with_ippe[i].rotation);
-        // }
+        for (size_t i = 0; i < armor3d_with_light_bar.size(); i++) {
+            // std::cerr << *armor3d_with_light_bar[i].rotation << "\n"
+            //           << *armor3d_with_ippe[i].rotation << "\n---\n";
+            double ratio = (*armor3d_with_light_bar[i].rotation * Eigen::Vector3d::UnitX())
+                               .dot(camera_x->normalized());
+            ratio                               = (std::clamp(ratio, 0.95, 1.0) - 0.95) * 1;
+            *armor3d_with_light_bar[i].position = (1 - ratio) * *armor3d_with_light_bar[i].position
+                                                + ratio * *armor3d_with_ippe[i].position;
+            *armor3d_with_light_bar[i].rotation =
+                armor3d_with_light_bar[i].rotation->slerp(ratio, *armor3d_with_ippe[i].rotation);
+        }
         return armor3d_with_light_bar;
     }
 };
