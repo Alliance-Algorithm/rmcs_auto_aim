@@ -21,7 +21,7 @@ public:
         UpdateController(double sec, const rmcs_description::Tf& tf) {
         if (tracker_ == nullptr)
             return {false, rmcs_description::OdomImu::Position(0, 0, 0)};
-        std::cerr << tracker_->omega() << std::endl;
+        // std::cerr << tracker_->omega() << std::endl;
         if (!enemy_high_speed_mode && abs(tracker_->omega()) > 2 * std::numbers::pi)
             enemy_high_speed_mode = true;
         else if (enemy_high_speed_mode && abs(tracker_->omega()) < 4.0 / 3.0 * std::numbers::pi)
