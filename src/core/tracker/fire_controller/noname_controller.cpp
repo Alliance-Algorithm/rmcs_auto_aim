@@ -1,4 +1,4 @@
-#include "sixty_forty_controller.hpp"
+#include "noname_controller.hpp"
 #include "core/tracker/armor/armor_target.hpp"
 #include "core/tracker/car/car_tracker.hpp"
 #include <Eigen/src/Core/Matrix.h>
@@ -10,7 +10,7 @@
 #include <utility>
 
 using namespace rmcs_auto_aim::fire_controller;
-class SixFortyController::Impl {
+class NoNameController::Impl {
 public:
     Impl()
         : tracker_(nullptr)
@@ -22,14 +22,14 @@ public:
         if (tracker_ == nullptr)
             return {false, rmcs_description::OdomImu::Position(0, 0, 0)};
         // std::cerr << tracker_->omega() << std::endl;
-        if (!enemy_high_speed_mode && abs(tracker_->omega()) > 2 * std::numbers::pi)
+        if (!enemy_high_speed_mode && abs(tracker_->omega()) > 4 * std::numbers::pi)
             enemy_high_speed_mode = true;
-        else if (enemy_high_speed_mode && abs(tracker_->omega()) < 4.0 / 3.0 * std::numbers::pi)
+        else if (enemy_high_speed_mode && abs(tracker_->omega()) < 3 * std::numbers::pi)
             enemy_high_speed_mode = false;
 
-        enemy_high_speed_mode                       = false;
         rmcs_description::OdomImu::Position ret_pos = rmcs_description::OdomImu::Position(0, 0, 0);
         bool fire_permission                        = false;
+        // enemy_high_speed_mode                       = true;
         if (enemy_high_speed_mode) {
             auto [l1, l2]            = tracker_->get_frame();
             double min_l             = std::min(l1, l2);
@@ -47,14 +47,14 @@ public:
             for (int i = 0; i < 4; i++) {
 
                 auto armor_x = (*armors[i].rotation * Eigen::Vector3d::UnitZ());
-                auto len     = pos_norm.dot(Eigen::Vector2d(armor_x.x(), armor_x.y()));
+                auto len     = pos_norm.dot(Eigen::Vector2d(armor_x.x(), armor_x.y()).normalized());
                 if (len > max) {
                     index = i;
                     max   = len;
                 }
             }
             position.z() = armors[index].position->z();
-            if (max < 0.97) {
+            if (max < (enemy_high_speed_mode ? 0.97 : 0.7)) {
                 fire_permission = false;
                 ret_pos         = rmcs_description::OdomImu::Position(position);
             } else {
@@ -83,6 +83,7 @@ public:
     }
 
     void SetTracker(std::shared_ptr<tracker::CarTracker> tracker) { tracker_ = std::move(tracker); }
+    double get_omega() { return tracker_->omega(); }
 
 private:
     std::shared_ptr<tracker::CarTracker> tracker_;
@@ -90,19 +91,20 @@ private:
 };
 
 [[nodiscard]] std::tuple<bool, rmcs_description::OdomImu::Position>
-    SixFortyController::UpdateController(double sec, const rmcs_description::Tf& tf) {
+    NoNameController::UpdateController(double sec, const rmcs_description::Tf& tf) {
     return pimpl_->UpdateController(sec, tf);
 }
 
-void SixFortyController::SetTracker(const std::shared_ptr<tracker::CarTracker>& tracker) {
+void NoNameController::SetTracker(const std::shared_ptr<tracker::CarTracker>& tracker) {
     pimpl_->SetTracker(tracker);
 }
 
-SixFortyController::SixFortyController(const SixFortyController& car_tracker) {
+double NoNameController::get_omega() { return pimpl_->get_omega(); }
+NoNameController::NoNameController(const NoNameController& car_tracker) {
     pimpl_ = std::make_unique<Impl>(*car_tracker.pimpl_);
 }
 
-bool SixFortyController::check() { return pimpl_->check(); }
+bool NoNameController::check() { return pimpl_->check(); }
 
-SixFortyController::SixFortyController() { pimpl_ = std::make_unique<Impl>(); }
-SixFortyController::~SixFortyController() = default;
+NoNameController::NoNameController() { pimpl_ = std::make_unique<Impl>(); }
+NoNameController::~NoNameController() = default;

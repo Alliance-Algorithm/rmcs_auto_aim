@@ -14,5 +14,6 @@ public:
         UpdateController(double sec, const rmcs_description::Tf& tf) = 0;
 
     void virtual SetTracker(const std::shared_ptr<tracker::CarTracker>& tracker) = 0;
+    double virtual get_omega()                                                   = 0;
 };
 } // namespace rmcs_auto_aim::tracker

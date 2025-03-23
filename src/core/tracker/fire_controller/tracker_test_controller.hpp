@@ -3,19 +3,20 @@
 #include <memory>
 
 namespace rmcs_auto_aim::fire_controller {
-class SixFortyController final : public rmcs_auto_aim::tracker::IFireController {
+class TrackerTestController final : public rmcs_auto_aim::tracker::IFireController {
 public:
     [[nodiscard]] std::tuple<bool, rmcs_description::OdomImu::Position>
         UpdateController(double sec, const rmcs_description::Tf&) final;
 
     void SetTracker(const std::shared_ptr<tracker::CarTracker>& tracker) final;
+    double get_omega() final;
     bool check();
 
-    SixFortyController();
+    TrackerTestController();
 
-    SixFortyController(const SixFortyController&);
+    TrackerTestController(const TrackerTestController&);
 
-    ~SixFortyController();
+    ~TrackerTestController();
 
 private:
     class Impl;

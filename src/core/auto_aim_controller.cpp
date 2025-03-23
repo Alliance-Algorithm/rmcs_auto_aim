@@ -21,6 +21,7 @@
 #include "core/tracker/fire_controller.hpp"
 #include "core/trajectory/trajectory_solvor.hpp"
 #include "util/image_viewer/image_viewer.hpp"
+#include "util/math.hpp"
 #include "util/profile/profile.hpp"
 #include "util/utils.hpp"
 
@@ -65,6 +66,8 @@ public:
         register_output(
             "/gimbal/auto_aim/control_direction", control_direction_, Eigen::Vector3d::Zero());
         register_output("/gimbal/auto_aim/fire_control", fire_control_, false);
+        register_output("/debug/target_omega", debug_target_omega_, 0);
+        register_output("/debug/target_theta_", debug_target_theta_, 0);
 
         yaw_error_      = get_parameter("yaw_error").as_double();
         pitch_error_    = get_parameter("pitch_error").as_double();
@@ -103,11 +106,11 @@ public:
 
                 while (rclcpp::ok()) {
 
-                    thread_sync_clk_ = std::chrono::steady_clock::now();
                     auto image       = capturer_->read();
-                    if (std::chrono::steady_clock::now() - thread_sync_clk_
-                        < std::chrono::microseconds(10))
-                        auto image = capturer_->read();
+                    thread_sync_clk_ = std::chrono::steady_clock::now();
+                    // image            = capturer_->read();
+                    // std::cerr << std::chrono::steady_clock::now() - thread_sync_clk_ <<
+                    // std::endl;
                     auto tf        = tf_buffer_[tf_index_.load()];
                     auto timestamp = std::chrono::steady_clock::now();
                     util::ImageViewer::load_image(image);
@@ -121,6 +124,8 @@ public:
                             transform_optimizer::Quadrilateral3d(armor2d_).ToQuadrilateral(
                                 tf, false),
                             {0, 255, 0});
+                        *debug_target_theta_ =
+                            util::math::get_yaw_from_quaternion(*armor2d_.rotation);
                     }
                     if (auto target = armor_tracker.Update(armor3d, timestamp, tf)) {
                         armor_target_buffer_[!armor_target_index_.load()].target_ =
@@ -142,12 +147,13 @@ public:
             *control_direction_ = Eigen::Vector3d::Zero();
             return;
         }
-        auto offset = fast_tf::cast<rmcs_description::OdomImu>(
+        *debug_target_omega_ = frame.target_->get_omega();
+        auto offset          = fast_tf::cast<rmcs_description::OdomImu>(
             rmcs_description::MuzzleLink::Position{0, 0, 0}, *tf_);
 
         using namespace std::chrono_literals;
         auto diff = std::chrono::steady_clock::now() - frame.timestamp_;
-        if (diff > std::chrono::milliseconds(500)) {                 // TODO
+        if (diff > std::chrono::milliseconds(500)) { // TODO
             *control_direction_ = Eigen::Vector3d::Zero();
             *fire_control_      = false;
             return;
@@ -183,9 +189,9 @@ public:
                 rmcs_description::PitchLink::DirectionVector(), *tf_)
                 ->dot(*control_direction_)
             >= 0.9995)
-            *fire_control_ = true && deadband;
+            *fire_control_ = true && deadband && *fire_control_;
         else
-            *fire_control_ = false && deadband;
+            *fire_control_ = false && deadband && *fire_control_;
         if (fast_tf::cast<rmcs_description::OdomImu>(
                 rmcs_description::PitchLink::DirectionVector(), *tf_)
                 ->dot(*control_direction_)
@@ -227,6 +233,10 @@ private:
 
     OutputInterface<Eigen::Vector3d> control_direction_;
     OutputInterface<bool> fire_control_;
+
+    OutputInterface<double> debug_target_omega_;
+    OutputInterface<double> debug_target_theta_;
+
     std::chrono::time_point<std::chrono::steady_clock> fire_control_deadband_;
 };
 } // namespace rmcs_auto_aim

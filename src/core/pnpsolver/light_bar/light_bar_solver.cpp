@@ -39,7 +39,7 @@ public:
             const auto& [top, button, light_bar, dir, top1, button1] = get_full_light_bar(armor);
             const Line image_line{top, button};
             const Line image_line1{top1, button1};
-            util::ImageViewer::draw(image_line1, {0, 255, 255});
+            // util::ImageViewer::draw(image_line1, {0, 255, 255});
             Eigen::Vector3d camera_vec;
             util::compute_yaw_pitch_from_point(
                 (image_line.button_ + image_line.top_) / 2,
@@ -48,33 +48,44 @@ public:
             auto target_yaw = util::optimizer::fibonacci(
                 camera_yaw_in_odom - std::numbers::pi / 2,
                 camera_yaw_in_odom + std::numbers::pi / 2, 1e-2,
-                [&image_line, &light_bar, &rotation, &armor, &tf, &camera_vec](const double& yaw) {
+                [&image_line, &light_bar, &image_line1, &rotation, &armor, &tf,
+                 &camera_vec](const double& yaw) {
                     auto line_rotation = set_armor3d_angle(rotation, yaw);
                     Line3d line3d{
                         *line_rotation, camera_vec,
                         (armor.is_large_armor ? LargerArmorHeight : NormalArmorHeight) / 1000.0};
+
                     LightBar3d line3d1{*line_rotation, camera_vec, light_bar};
-                    return line3d.to_line_2d(tf).angle_distance(image_line);
+
+                    return line3d.to_line_2d(tf).angle_distance(image_line)
+                         + line3d1.to_line_2d(tf).angle_distance(image_line1) * 0.2;
                 });
             const auto target_distance = util::optimizer::fibonacci(
                 0, 20, 1e-3,
-                [&image_line, &rotation, &armor, &tf, target_yaw,
+                [&image_line, &light_bar, &image_line1, &rotation, &armor, &tf, target_yaw,
                  &camera_vec](const double& distance) {
                     auto line_rotation = set_armor3d_angle(rotation, target_yaw);
                     auto tmp           = camera_vec * distance;
                     Line3d line3d{
                         *line_rotation, tmp,
                         (armor.is_large_armor ? LargerArmorHeight : NormalArmorHeight) / 1000.0};
-                    return line3d.to_line_2d(tf).length_distance(image_line);
+                    LightBar3d line3d1{*line_rotation, tmp, light_bar};
+                    return line3d.to_line_2d(tf).length_distance(image_line)
+                         + line3d.to_line_2d(tf).length_distance(image_line1) * 0.1;
                 });
             target_yaw = util::optimizer::fibonacci(
-                target_yaw - std::numbers::pi / 6, target_yaw + std::numbers::pi / 6, 1e-4,
-                [&image_line1, &light_bar, &rotation, &target_distance, &tf,
+                target_yaw + std::numbers::pi / 6, target_yaw - std::numbers::pi / 6, 1e-4,
+                [&image_line, &image_line1, &light_bar, &rotation, &target_distance, &armor, &tf,
                  &camera_vec](const double& yaw) {
                     auto line_rotation = set_armor3d_angle(rotation, yaw);
                     LightBar3d line3d{*line_rotation, camera_vec * target_distance, light_bar};
+                    Line3d line2d{
+                        *line_rotation, camera_vec,
+                        (armor.is_large_armor ? LargerArmorHeight : NormalArmorHeight) / 1000.0};
+                    // util::ImageViewer::draw(line3d.to_line_2d(tf), {255, 255, 0});
                     return line3d.to_line_2d(tf).line_distance(image_line1)
-                         + line3d.to_line_2d(tf).angle_distance(image_line1) * 0.1;
+                         + line3d.to_line_2d(tf).angle_distance(image_line1) * 1
+                         + line2d.to_line_2d(tf).angle_distance(image_line) * 1;
                 });
             auto armor_angle = set_armor3d_angle(rotation, target_yaw);
             Line3d line3d{

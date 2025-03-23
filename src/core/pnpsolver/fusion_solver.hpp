@@ -28,7 +28,7 @@ public:
             //           << *armor3d_with_ippe[i].rotation << "\n---\n";
             double ratio = (*armor3d_with_light_bar[i].rotation * Eigen::Vector3d::UnitX())
                                .dot(camera_x->normalized());
-            ratio                               = (std::clamp(ratio, 0.95, 1.0) - 0.95) * 1;
+            ratio                               = (std::clamp(ratio, 0.8, 0.9) - 0.8) * 10;
             *armor3d_with_light_bar[i].position = (1 - ratio) * *armor3d_with_light_bar[i].position
                                                 + ratio * *armor3d_with_ippe[i].position;
             *armor3d_with_light_bar[i].rotation =

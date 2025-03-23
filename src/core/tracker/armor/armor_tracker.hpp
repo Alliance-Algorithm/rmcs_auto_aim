@@ -18,7 +18,8 @@
 
 #include "core/tracker/armor/filter/armor_ekf.hpp"
 #include "core/tracker/fire_controller.hpp"
-#include "core/tracker/fire_controller/sixty_forty_controller.hpp"
+#include "core/tracker/fire_controller/noname_controller.hpp"
+#include "core/tracker/fire_controller/tracker_test_controller.hpp"
 
 #include "core/tracker/car/car_tracker.hpp"
 #include "core/tracker/tracker_interface.hpp"
@@ -29,6 +30,8 @@
 
 namespace rmcs_auto_aim::tracker::armor {
 class ArmorTracker : public ITracker {
+    using TFireController = rmcs_auto_aim::fire_controller::NoNameController;
+
 public:
     ArmorTracker()
         : target_() {
@@ -145,8 +148,7 @@ public:
         }
 
         last_armors2_ = car_trackers_[last_car_id_]->get_armor();
-        return target_.check() ? std::make_shared<fire_controller::SixFortyController>(target_)
-                               : nullptr;
+        return target_.check() ? std::make_shared<TFireController>(target_) : nullptr;
     }
 
     void draw_armors(const rmcs_description::Tf& tf, const cv::Scalar& color) {
@@ -343,6 +345,6 @@ private:
     // 改为多车 这是测试版本
     rmcs_msgs::ArmorID last_car_id_ = rmcs_msgs::ArmorID::Hero;
 
-    fire_controller::SixFortyController target_;
+    TFireController target_;
 };
 } // namespace rmcs_auto_aim::tracker::armor

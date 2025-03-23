@@ -36,6 +36,9 @@ public:
         std::vector<ArmorPlate> result;
         cv::findContours(imgThre, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_NONE);
 
+        // for (int i = 0; i < contours.size(); i++)
+        //     cv::drawContours(img, contours, i,cv::Scalar(0, 255, 0), 2);
+
         for (const auto& contour : contours) {
             if (auto&& lightBarOpt = _solveToLightbar(img, contour, target_color)) {
                 lightBars.push_back(*lightBarOpt);
@@ -48,9 +51,7 @@ public:
 
         size_t&& lightBarsSize = lightBars.size();
         for (size_t i = 0; i < lightBarsSize; ++i) {
-            float Isize = P2PDis(lightBars[i].top, lightBars[i].bottom);
-            // cv::rectangle(
-            //     img, cv::Rect{lightBars[i].top, lightBars[i].bottom}, cv::Scalar(0, 255, 0), 2);
+            float Isize         = P2PDis(lightBars[i].top, lightBars[i].bottom);
             cv::Point2f Icenter = (lightBars[i].top + lightBars[i].bottom) / 2;
             for (size_t j = i + 1; j < lightBarsSize; ++j) {
                 float Jsize = P2PDis(lightBars[j].top, lightBars[j].bottom);

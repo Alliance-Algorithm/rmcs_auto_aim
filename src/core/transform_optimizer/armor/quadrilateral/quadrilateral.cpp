@@ -48,7 +48,7 @@ struct Quadrilateral3d::Impl {
         : armor3d(armor3dRef) {}
 
     // bull shit
-    inline constexpr static const double NormalArmorWidth = 0.134, NormalArmorHeight = 0.056,
+    inline constexpr static const double NormalArmorWidth = 0.138, NormalArmorHeight = 0.056,
                                          LargerArmorWidth = 0.230, LargerArmorHeight = 0.056;
 
     inline const static std::vector<Eigen::Vector3d> LargeArmorObjectPoints = {
