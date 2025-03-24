@@ -31,7 +31,7 @@ public:
         , armors_() {
         car_frame_kf_.Update({l1, l2}, {}, 0);
     }
-
+    Eigen::Vector2d velocity() { return {car_kf_.OutPut()(1), car_kf_.OutPut()(3)}; }
     void update_self(const double& dt) {
         if (self_update_time_ > 0.3)
             return;
@@ -195,6 +195,8 @@ Eigen::Vector<double, 4> CarTracker::get_armor_height() const { return pimpl_->g
 }
 
 std::tuple<double, double> CarTracker::get_frame() { return pimpl_->get_frame(); }
+
+Eigen::Vector2d CarTracker::velocity() { return pimpl_->velocity(); }
 CarTracker::~CarTracker() = default;
 
 } // namespace rmcs_auto_aim::tracker

@@ -15,10 +15,10 @@
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
 
+#include "core/fire_controller/fire_controller.hpp"
 #include "core/identifier/armor/armor_identifier.hpp"
 #include "core/pnpsolver/fusion_solver.hpp"
 #include "core/tracker/armor/armor_tracker.hpp"
-#include "core/tracker/fire_controller.hpp"
 #include "core/trajectory/trajectory_solvor.hpp"
 #include "util/image_viewer/image_viewer.hpp"
 #include "util/math.hpp"

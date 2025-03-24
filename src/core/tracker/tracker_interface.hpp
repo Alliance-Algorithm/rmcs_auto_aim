@@ -4,8 +4,8 @@
 #include <memory>
 #include <vector>
 
+#include "core/fire_controller/fire_controller.hpp"
 #include "core/pnpsolver/armor/armor3d.hpp"
-#include "core/tracker/fire_controller.hpp"
 
 namespace rmcs_auto_aim::tracker::armor {
 class ITracker {

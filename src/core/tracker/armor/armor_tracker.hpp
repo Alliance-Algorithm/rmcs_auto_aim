@@ -16,10 +16,10 @@
 
 #include "core/pnpsolver/armor/armor3d.hpp"
 
+#include "core/fire_controller/fire_controller.hpp"
+#include "core/fire_controller/noname_controller.hpp"
+#include "core/fire_controller/tracker_test_controller.hpp"
 #include "core/tracker/armor/filter/armor_ekf.hpp"
-#include "core/tracker/fire_controller.hpp"
-#include "core/tracker/fire_controller/noname_controller.hpp"
-#include "core/tracker/fire_controller/tracker_test_controller.hpp"
 
 #include "core/tracker/car/car_tracker.hpp"
 #include "core/tracker/tracker_interface.hpp"
@@ -138,8 +138,10 @@ public:
                 car->update_z(
                     car_armor_height(0), car_armor_height(1), car_armor_height(2),
                     car_armor_height(3));
-
-                target_.SetTracker(std::make_shared<CarTracker>(*car));
+                if (car->velocity().norm() < 8
+                    && car->get_car_position()->dot(*car->get_car_position(0.2)) > 0
+                    && car->check_armor_tracked())
+                    target_.SetTracker(std::make_shared<CarTracker>(*car));
                 last_car_id_ = armorID;
             } else {
                 car->update_self(dt);

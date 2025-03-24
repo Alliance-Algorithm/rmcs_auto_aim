@@ -1,5 +1,5 @@
+#include "./fire_controller.hpp"
 #include "core/tracker/car/car_tracker.hpp"
-#include "core/tracker/fire_controller.hpp"
 #include <memory>
 
 namespace rmcs_auto_aim::fire_controller {

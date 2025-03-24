@@ -26,6 +26,7 @@ public:
 
     bool check_armor_tracked() const;
     double omega();
+    Eigen::Vector2d velocity();
     void update_car(const Eigen::Vector<double, 3>& zk, const double& dt);
 
     std::vector<ArmorPlate3d> get_armor(double dt = 0);
