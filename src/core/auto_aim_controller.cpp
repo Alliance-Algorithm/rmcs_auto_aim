@@ -195,7 +195,7 @@ public:
         if (fast_tf::cast<rmcs_description::OdomImu>(
                 rmcs_description::PitchLink::DirectionVector(), *tf_)
                 ->dot(*control_direction_)
-            < 0.9992) {
+            < 0.9990) {
             fire_control_deadband_ = std::chrono::steady_clock::now();
         }
     }

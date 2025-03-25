@@ -106,7 +106,7 @@ private:
     static constexpr double sigma2_q_xy_            = 20;
     static constexpr double sigma2_q_yaw_           = 20;
     static constexpr double r_xyz_factor_           = 1e-1;
-    static constexpr double r_ywq_factor_           = 5e0;
+    static constexpr double r_ywq_factor_           = 1e-1;
     static constexpr inline const double conv_y     = 0.01;
     static constexpr inline const double conv_p     = 0.01;
     static constexpr inline const double conv_d     = 0.5;

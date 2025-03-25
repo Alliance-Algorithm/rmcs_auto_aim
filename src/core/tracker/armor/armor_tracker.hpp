@@ -138,7 +138,7 @@ public:
                 car->update_z(
                     car_armor_height(0), car_armor_height(1), car_armor_height(2),
                     car_armor_height(3));
-                if (car->velocity().norm() < 8
+                if ((*car->get_car_position() - *grouped_armor_[armorID][0].position).norm() < 2
                     && car->get_car_position()->dot(*car->get_car_position(0.2)) > 0
                     && car->check_armor_tracked())
                     target_.SetTracker(std::make_shared<CarTracker>(*car));
