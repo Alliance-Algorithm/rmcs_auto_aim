@@ -41,19 +41,17 @@ public:
                 rmcs_auto_aim::whitelist_code::Sentry       |
                 0;
             // clang-format on
-
-            if (robot_msg_.ready()) {
-                RCLCPP_INFO(this->get_logger(), "Using information from the referee system.");
-                auto my_color = robot_msg_->color();
-                if (my_color == rmcs_msgs::RobotColor::RED) {
-                    *target_color_ = rmcs_msgs::RobotColor::BLUE;
-                } else {
-                    *target_color_ = rmcs_msgs::RobotColor::RED;
-                }
+        }
+        if (robot_msg_.ready()) {
+            auto my_color = robot_msg_->color();
+            if (my_color == rmcs_msgs::RobotColor::RED) {
+                *target_color_ = rmcs_msgs::RobotColor::BLUE;
             } else {
-                RCLCPP_INFO(this->get_logger(), "Using information from the configuration file.");
                 *target_color_ = rmcs_msgs::RobotColor::RED;
             }
+        } else {
+            // RCLCPP_INFO(this->get_logger(), "Using information from the configuration file.");
+            *target_color_ = rmcs_msgs::RobotColor::RED;
         }
     }
 
