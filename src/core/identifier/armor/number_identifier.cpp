@@ -79,7 +79,8 @@ bool NumberIdentifier::Identify(
         if (!(whitelist & rmcs_auto_aim::whitelist_code::Hero)) {
             return false;
         }
-        armor.id = rmcs_msgs::ArmorID::Hero;
+        armor.id             = rmcs_msgs::ArmorID::Hero;
+        armor.is_large_armor = true;
         break;
     case 1:
         if (!(whitelist & rmcs_auto_aim::whitelist_code::Engineer)) {
@@ -121,7 +122,8 @@ bool NumberIdentifier::Identify(
         if (!(whitelist & rmcs_auto_aim::whitelist_code::Base)) {
             return false;
         }
-        armor.id = rmcs_msgs::ArmorID::Base;
+        armor.id             = rmcs_msgs::ArmorID::Base;
+        armor.is_large_armor = true;
         break;
     default: return false;
     }

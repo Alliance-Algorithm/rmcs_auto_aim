@@ -53,6 +53,7 @@ public:
         last_update_time_ = timestamp;
         return ret;
     }
+    std::chrono::steady_clock::time_point get_timestamp() { return last_update_time_; };
 
     bool check_armor_tracked() const { return self_update_time_ == 0; }
 

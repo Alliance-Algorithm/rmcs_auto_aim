@@ -36,6 +36,7 @@ public:
     void update_z(const double& z1, const double& z2, const double& z3, const double& z4);
     Eigen::Vector<double, 4> get_armor_height() const;
     std::tuple<double, double> get_frame();
+    std::chrono::steady_clock::time_point get_timestamp();
 
     [[nodiscard]] rmcs_description::OdomImu::Position get_car_position(double dt = 0);
     [[nodiscard]] double get_dt(const std::chrono::steady_clock::time_point& timestamp);

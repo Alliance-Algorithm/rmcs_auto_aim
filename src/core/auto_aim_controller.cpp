@@ -122,7 +122,7 @@ public:
                     for (auto& armor2d_ : armor3d) {
                         util::ImageViewer::draw(
                             transform_optimizer::Quadrilateral3d(armor2d_).ToQuadrilateral(
-                                tf, false),
+                                tf, true),
                             {0, 255, 0});
                         *debug_target_theta_ =
                             util::math::get_yaw_from_quaternion(*armor2d_.rotation);
@@ -188,16 +188,20 @@ public:
         if (fast_tf::cast<rmcs_description::OdomImu>(
                 rmcs_description::PitchLink::DirectionVector(), *tf_)
                 ->dot(*control_direction_)
-            >= 0.9995)
+            >= 0.999 + fly_time * 0.002)
             *fire_control_ = true && deadband && *fire_control_;
         else
             *fire_control_ = false && deadband && *fire_control_;
         if (fast_tf::cast<rmcs_description::OdomImu>(
                 rmcs_description::PitchLink::DirectionVector(), *tf_)
                 ->dot(*control_direction_)
-            < 0.9990) {
+            < 0.9985 + fly_time * 0.002) {
             fire_control_deadband_ = std::chrono::steady_clock::now();
         }
+        // std::cerr << fast_tf::cast<rmcs_description::OdomImu>(
+        //                  rmcs_description::PitchLink::DirectionVector(), *tf_)
+        //                  ->dot(*control_direction_)
+        //           << std::endl;
     }
 
 private:

@@ -12,6 +12,8 @@ public:
     double get_omega() final;
     bool check();
 
+    std::chrono::steady_clock::time_point get_timestamp() final;
+
     NoNameController();
 
     NoNameController(const NoNameController&);

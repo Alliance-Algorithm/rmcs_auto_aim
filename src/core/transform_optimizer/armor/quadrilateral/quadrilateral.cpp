@@ -49,7 +49,7 @@ struct Quadrilateral3d::Impl {
 
     // bull shit
     inline constexpr static const double NormalArmorWidth = 0.138, NormalArmorHeight = 0.056,
-                                         LargerArmorWidth = 0.230, LargerArmorHeight = 0.056;
+                                         LargerArmorWidth = 0.232, LargerArmorHeight = 0.056;
 
     inline const static std::vector<Eigen::Vector3d> LargeArmorObjectPoints = {
         Eigen::Vector3d(0.0, 0.5 * LargerArmorWidth, 0.5 * LargerArmorHeight),

@@ -11,6 +11,7 @@ public:
     void SetTracker(const std::shared_ptr<tracker::CarTracker>& tracker) final;
     double get_omega() final;
     bool check();
+    std::chrono::steady_clock::time_point get_timestamp() final;
 
     TrackerTestController();
 

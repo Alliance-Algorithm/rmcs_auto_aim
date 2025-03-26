@@ -73,20 +73,20 @@ public:
                     return line3d.to_line_2d(tf).length_distance(image_line)
                          + line3d.to_line_2d(tf).length_distance(image_line1) * 0.1;
                 });
-            target_yaw = util::optimizer::fibonacci(
-                target_yaw + std::numbers::pi / 6, target_yaw - std::numbers::pi / 6, 1e-4,
-                [&image_line, &image_line1, &light_bar, &rotation, &target_distance, &armor, &tf,
-                 &camera_vec](const double& yaw) {
-                    auto line_rotation = set_armor3d_angle(rotation, yaw);
-                    LightBar3d line3d{*line_rotation, camera_vec * target_distance, light_bar};
-                    Line3d line2d{
-                        *line_rotation, camera_vec,
-                        (armor.is_large_armor ? LargerArmorHeight : NormalArmorHeight) / 1000.0};
-                    // util::ImageViewer::draw(line3d.to_line_2d(tf), {255, 255, 0});
-                    return line3d.to_line_2d(tf).line_distance(image_line1)
-                         + line3d.to_line_2d(tf).angle_distance(image_line1) * 1
-                         + line2d.to_line_2d(tf).angle_distance(image_line) * 1;
-                });
+            // target_yaw = util::optimizer::fibonacci(
+            //     target_yaw + std::numbers::pi / 6, target_yaw - std::numbers::pi / 6, 1e-4,
+            //     [&image_line, &image_line1, &light_bar, &rotation, &target_distance, &armor, &tf,
+            //      &camera_vec](const double& yaw) {
+            //         auto line_rotation = set_armor3d_angle(rotation, yaw);
+            //         LightBar3d line3d{*line_rotation, camera_vec * target_distance, light_bar};
+            //         Line3d line2d{
+            //             *line_rotation, camera_vec,
+            //             (armor.is_large_armor ? LargerArmorHeight : NormalArmorHeight) / 1000.0};
+            //         // util::ImageViewer::draw(line3d.to_line_2d(tf), {255, 255, 0});
+            //         return line3d.to_line_2d(tf).line_distance(image_line1)
+            //              + line3d.to_line_2d(tf).angle_distance(image_line1) * 1
+            //              + line2d.to_line_2d(tf).angle_distance(image_line) * 1;
+            //     });
             auto armor_angle = set_armor3d_angle(rotation, target_yaw);
             Line3d line3d{
                 *armor_angle, camera_vec * target_distance,
@@ -117,12 +117,19 @@ private:
     inline constexpr static const double NormalArmorWidth = 134, NormalArmorHeight = 56,
                                          LargerArmorWidth = 230, LargerArmorHeight = 56;
 
-    inline const static std::vector<Eigen::Vector3d> LeftLightBar = {
+    inline const static std::vector<Eigen::Vector3d> SmallLeftLightBar = {
         Eigen::Vector3d(-2e-3, 135e-3, 28e-3), Eigen::Vector3d(-2e-3, 135e-3, -28e-3),
         Eigen::Vector3d(-7e-3, 128e-3, -28e-3), Eigen::Vector3d(-7e-3, 128e-3, 28e-3)};
-    inline const static std::vector<Eigen::Vector3d> RightLightBar = {
+    inline const static std::vector<Eigen::Vector3d> SmallRightLightBar = {
         Eigen::Vector3d(-7e-3, -128e-3, 28e-3), Eigen::Vector3d(-7e-3, -128e-3, -28e-3),
         Eigen::Vector3d(-2e-3, -135e-3, -28e-3), Eigen::Vector3d(-2e-3, -135e-3, 28e-3)};
+
+    inline const static std::vector<Eigen::Vector3d> LargeLeftLightBar = {
+        Eigen::Vector3d(-2e-3, 231e-3, 28e-3), Eigen::Vector3d(-2e-3, 231e-3, -28e-3),
+        Eigen::Vector3d(-7e-3, 224e-3, -28e-3), Eigen::Vector3d(-7e-3, 224e-3, 28e-3)};
+    inline const static std::vector<Eigen::Vector3d> LargeRightLightBar = {
+        Eigen::Vector3d(-7e-3, -224e-3, 28e-3), Eigen::Vector3d(-7e-3, -224e-3, -28e-3),
+        Eigen::Vector3d(-2e-3, -231e-3, -28e-3), Eigen::Vector3d(-2e-3, -231e-3, 28e-3)};
 
     inline static std::tuple<
         const cv::Point2f, const cv::Point2f, const std::vector<Eigen::Vector3d>&, Eigen::Vector3d,
@@ -131,16 +138,22 @@ private:
         cv::Point2f l1 = armor.points[0] - armor.points[1];
         return abs(util::math::clamp_pm_pi(util::math::ratio(l1))) > std::numbers::pi / 2
                  ? std::tuple<
-                       const cv::Point2f, const cv::Point2f, const std::vector<Eigen::Vector3d>&,
-                       Eigen::Vector3d, const cv::Point2f,
-                       const cv::Point2f>{armor.points[0], armor.points[1],
-                                          RightLightBar,   -Eigen::Vector3d::UnitY(),
-                                          armor.points[3], armor.points[2]}
+                        const cv::Point2f, const cv::Point2f, const std::vector<Eigen::Vector3d>&,
+                        Eigen::Vector3d, const cv::Point2f,
+                        const cv::Point2f>{armor.points[0],    armor.points[1],
+                        armor.is_large_armor ? LargeRightLightBar : SmallRightLightBar, 
+                        -Eigen::Vector3d::UnitY(),
+                        armor.points[3],   
+                        armor.points[2]}
                  : std::tuple<
                        const cv::Point2f, const cv::Point2f, const std::vector<Eigen::Vector3d>&,
                        Eigen::Vector3d, const cv::Point2f, const cv::Point2f>{
-                       armor.points[3],          armor.points[2], LeftLightBar,
-                       Eigen::Vector3d::UnitY(), armor.points[0], armor.points[1]};
+                       armor.points[3],
+                       armor.points[2],
+                       armor.is_large_armor ? LargeLeftLightBar : SmallLeftLightBar,
+                       Eigen::Vector3d::UnitY(),
+                       armor.points[0],
+                       armor.points[1]};
     }
 };
 

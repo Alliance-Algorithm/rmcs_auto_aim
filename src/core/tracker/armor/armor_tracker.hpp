@@ -30,7 +30,7 @@
 
 namespace rmcs_auto_aim::tracker::armor {
 class ArmorTracker : public ITracker {
-    using TFireController = rmcs_auto_aim::fire_controller::TrackerTestController;
+    using TFireController = rmcs_auto_aim::fire_controller::NoNameController;
 
 public:
     ArmorTracker()
@@ -65,7 +65,6 @@ public:
         const std::vector<ArmorPlate3d>& armors,
         const std::chrono::steady_clock::time_point& timestamp,
         const rmcs_description::Tf& tf) override {
-
         target_.SetTracker(nullptr);
 
         last_armors1_ = car_trackers_[last_car_id_]->get_armor(0.15);
@@ -138,10 +137,14 @@ public:
                 car->update_z(
                     car_armor_height(0), car_armor_height(1), car_armor_height(2),
                     car_armor_height(3));
-                if ((*car->get_car_position() - *grouped_armor_[armorID][0].position).norm() < 2
-                    && car->get_car_position()->dot(*car->get_car_position(0.2)) > 0
-                    && car->check_armor_tracked())
+                if ((car->get_car_position()->norm() > 2
+                     || car->get_car_position()->dot(*car->get_car_position(0.2)) > 0)
+                    && car->get_car_position()->norm() < 6)
                     target_.SetTracker(std::make_shared<CarTracker>(*car));
+                // std::cerr
+                //     << (*car->get_car_position() - *grouped_armor_[armorID][0].position).norm()
+                //     << '|' << car->get_car_position()->dot(*car->get_car_position(0.2)) << '|'
+                //     << std::endl;
                 last_car_id_ = armorID;
             } else {
                 continue;

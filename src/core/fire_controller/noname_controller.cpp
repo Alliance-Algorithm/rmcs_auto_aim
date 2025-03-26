@@ -15,6 +15,7 @@ public:
     Impl()
         : tracker_(nullptr)
         , enemy_high_speed_mode(false) {};
+    std::chrono::steady_clock::time_point get_timestamp() { return tracker_->get_timestamp(); }
 
     bool check() { return tracker_ != nullptr; };
     [[nodiscard]] std::tuple<bool, rmcs_description::OdomImu::Position>
@@ -106,5 +107,8 @@ NoNameController::NoNameController(const NoNameController& car_tracker) {
 
 bool NoNameController::check() { return pimpl_->check(); }
 
+std::chrono::steady_clock::time_point NoNameController::get_timestamp() {
+    return pimpl_->get_timestamp();
+}
 NoNameController::NoNameController() { pimpl_ = std::make_unique<Impl>(); }
 NoNameController::~NoNameController() = default;

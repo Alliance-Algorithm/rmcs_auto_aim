@@ -18,7 +18,7 @@ public:
 
     bool check() { return tracker_ != nullptr; };
     [[nodiscard]] std::tuple<bool, rmcs_description::OdomImu::Position>
-        UpdateController(double sec, const rmcs_description::Tf& tf) {
+        UpdateController(double sec, const rmcs_description::Tf&) {
         if (tracker_ == nullptr)
             return {false, rmcs_description::OdomImu::Position(0, 0, 0)};
         // std::cerr << tracker_->omega() << std::endl;
@@ -60,6 +60,7 @@ public:
 
     void SetTracker(std::shared_ptr<tracker::CarTracker> tracker) { tracker_ = std::move(tracker); }
     double get_omega() { return tracker_->omega(); }
+    std::chrono::steady_clock::time_point get_timestamp() { return tracker_->get_timestamp(); }
 
 private:
     std::shared_ptr<tracker::CarTracker> tracker_;
@@ -81,6 +82,10 @@ TrackerTestController::TrackerTestController(const TrackerTestController& car_tr
 }
 
 bool TrackerTestController::check() { return pimpl_->check(); }
+
+std::chrono::steady_clock::time_point TrackerTestController::get_timestamp() {
+    return pimpl_->get_timestamp();
+}
 
 TrackerTestController::TrackerTestController() { pimpl_ = std::make_unique<Impl>(); }
 TrackerTestController::~TrackerTestController() = default;
