@@ -40,7 +40,7 @@ public:
 
         for (int i = 0; i < 4; i++) {
 
-            auto armor_x = (*armors[i].rotation * Eigen::Vector3d::UnitZ());
+            auto armor_x = (*armors[i].rotation * Eigen::Vector3d::UnitX());
             auto len     = pos_norm.dot(Eigen::Vector2d(armor_x.x(), armor_x.y()).normalized());
             if (len > max) {
                 index = i;

@@ -48,6 +48,12 @@ public:
         center(2) = X(2) + dt * Vx(2);
     }
 
+    double get_dt(const std::chrono::steady_clock::time_point& timestamp) {
+        auto ret          = std::chrono::duration<double>(timestamp - last_update_time_).count();
+        last_update_time_ = timestamp;
+        return ret;
+    }
+
     bool check_armor_tracked() const { return self_update_time_ == 0; }
 
     double omega() { return car_movement_kf_.OutPut()(2); }
@@ -156,7 +162,7 @@ private:
     double l1 = 0.3, l2 = 0.3;
     double z1 = 0, z2 = 0, z3 = 0, z4 = 0;
     double detected_yaw = 0;
-
+    std::chrono::steady_clock::time_point last_update_time_;
     double self_update_time_ = 10086;
 
     constexpr static const double alpha_ = 1;
@@ -199,4 +205,7 @@ std::tuple<double, double> CarTracker::get_frame() { return pimpl_->get_frame();
 Eigen::Vector2d CarTracker::velocity() { return pimpl_->velocity(); }
 CarTracker::~CarTracker() = default;
 
+double CarTracker::get_dt(const std::chrono::steady_clock::time_point& timestamp) {
+    return pimpl_->get_dt(timestamp);
+}
 } // namespace rmcs_auto_aim::tracker

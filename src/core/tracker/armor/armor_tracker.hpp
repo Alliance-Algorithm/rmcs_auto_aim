@@ -30,7 +30,7 @@
 
 namespace rmcs_auto_aim::tracker::armor {
 class ArmorTracker : public ITracker {
-    using TFireController = rmcs_auto_aim::fire_controller::NoNameController;
+    using TFireController = rmcs_auto_aim::fire_controller::TrackerTestController;
 
 public:
     ArmorTracker()
@@ -68,19 +68,19 @@ public:
 
         target_.SetTracker(nullptr);
 
-        double dt     = std::chrono::duration<double>(timestamp - last_update_).count();
         last_armors1_ = car_trackers_[last_car_id_]->get_armor(0.15);
         last_update_  = timestamp;
-        dt            = std::clamp(dt, 0., .5);
 
         get_grouped_armor(grouped_armor_, armors);
 
         for (const auto& [armorID, car] : car_trackers_) {
+
             auto len = grouped_armor_[armorID].size();
 
             int nearest_armor_index_in_detected;
 
             if (len > 0) {
+                double dt                = car->get_dt(timestamp);
                 auto last_detected_armor = car->get_armor();
                 auto armor_id            = calculate_armor_id(
                     grouped_armor_[armorID], last_detected_armor, tf,
@@ -144,7 +144,6 @@ public:
                     target_.SetTracker(std::make_shared<CarTracker>(*car));
                 last_car_id_ = armorID;
             } else {
-                car->update_self(dt);
                 continue;
             }
         }

@@ -38,10 +38,10 @@ public:
     std::tuple<double, double> get_frame();
 
     [[nodiscard]] rmcs_description::OdomImu::Position get_car_position(double dt = 0);
+    [[nodiscard]] double get_dt(const std::chrono::steady_clock::time_point& timestamp);
 
 private:
     class Impl;
-
     std::unique_ptr<Impl> pimpl_;
 };
 } // namespace rmcs_auto_aim::tracker
