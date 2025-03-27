@@ -188,14 +188,14 @@ public:
         if (fast_tf::cast<rmcs_description::OdomImu>(
                 rmcs_description::PitchLink::DirectionVector(), *tf_)
                 ->dot(*control_direction_)
-            >= 0.999 + fly_time * 0.002)
+            >= 0.9995)
             *fire_control_ = true && deadband && *fire_control_;
         else
             *fire_control_ = false && deadband && *fire_control_;
         if (fast_tf::cast<rmcs_description::OdomImu>(
                 rmcs_description::PitchLink::DirectionVector(), *tf_)
                 ->dot(*control_direction_)
-            < 0.9985 + fly_time * 0.002) {
+            < 0.9990) {
             fire_control_deadband_ = std::chrono::steady_clock::now();
         }
         // std::cerr << fast_tf::cast<rmcs_description::OdomImu>(
