@@ -30,7 +30,7 @@
 
 namespace rmcs_auto_aim::tracker::armor {
 class ArmorTracker : public ITracker {
-    using TFireController = rmcs_auto_aim::fire_controller::NoNameController;
+    using TFireController = rmcs_auto_aim::fire_controller::TrackerTestController;
 
 public:
     ArmorTracker()
