@@ -73,20 +73,20 @@ public:
                     return line3d.to_line_2d(tf).length_distance(image_line)
                          + line3d.to_line_2d(tf).length_distance(image_line1) * 0.1;
                 });
-            // target_yaw = util::optimizer::fibonacci(
-            //     target_yaw + std::numbers::pi / 6, target_yaw - std::numbers::pi / 6, 1e-4,
-            //     [&image_line, &image_line1, &light_bar, &rotation, &target_distance, &armor, &tf,
-            //      &camera_vec](const double& yaw) {
-            //         auto line_rotation = set_armor3d_angle(rotation, yaw);
-            //         LightBar3d line3d{*line_rotation, camera_vec * target_distance, light_bar};
-            //         Line3d line2d{
-            //             *line_rotation, camera_vec,
-            //             (armor.is_large_armor ? LargerArmorHeight : NormalArmorHeight) / 1000.0};
-            //         // util::ImageViewer::draw(line3d.to_line_2d(tf), {255, 255, 0});
-            //         return line3d.to_line_2d(tf).line_distance(image_line1)
-            //              + line3d.to_line_2d(tf).angle_distance(image_line1) * 1
-            //              + line2d.to_line_2d(tf).angle_distance(image_line) * 1;
-            //     });
+            target_yaw = util::optimizer::fibonacci(
+                target_yaw + std::numbers::pi / 6, target_yaw - std::numbers::pi / 6, 1e-4,
+                [&image_line, &image_line1, &light_bar, &rotation, &target_distance, &armor, &tf,
+                 &camera_vec](const double& yaw) {
+                    auto line_rotation = set_armor3d_angle(rotation, yaw);
+                    LightBar3d line3d{*line_rotation, camera_vec * target_distance, light_bar};
+                    Line3d line2d{
+                        *line_rotation, camera_vec,
+                        (armor.is_large_armor ? LargerArmorHeight : NormalArmorHeight) / 1000.0};
+                    // util::ImageViewer::draw(line3d.to_line_2d(tf), {255, 255, 0});
+                    return line3d.to_line_2d(tf).line_distance(image_line1)
+                         + line3d.to_line_2d(tf).angle_distance(image_line1) * 1
+                         + line2d.to_line_2d(tf).angle_distance(image_line) * 1;
+                });
             auto armor_angle = set_armor3d_angle(rotation, target_yaw);
             Line3d line3d{
                 *armor_angle, camera_vec * target_distance,
