@@ -19,6 +19,12 @@ public:
 
         auto armor3d_with_light_bar = rmcs_auto_aim::LightBarSolver::SolveAll(armors, tf);
         auto armor3d_with_ippe      = rmcs_auto_aim::ArmorPnPSolver::SolveAll(armors, tf);
+
+        if (armor3d_with_light_bar.size() != armor3d_with_ippe.size()) {
+            // FUCK QYX
+            return {};
+        }
+
         rmcs_auto_aim::transform_optimizer::armor_transform_optimize(armors, armor3d_with_ippe, tf);
         auto camera_x = fast_tf::cast<rmcs_description::OdomImu>(
             rmcs_description::CameraLink::DirectionVector(Eigen::Vector3d::UnitX()), tf);
