@@ -136,7 +136,7 @@ public:
                     armor_tracker.draw_armors(tf, {0, 0, 255});
                     util::ImageViewer::show_image();
                     if (fps.Count()) {
-                        RCLCPP_INFO(get_logger(), "FPS: %d", fps.GetFPS());
+                        // RCLCPP_INFO(get_logger(), "FPS: %d", fps.GetFPS());
                     }
                 }
             });
@@ -188,14 +188,14 @@ public:
         if (fast_tf::cast<rmcs_description::OdomImu>(
                 rmcs_description::PitchLink::DirectionVector(), *tf_)
                 ->dot(*control_direction_)
-            >= 0.9993 + fly_time * 0.002)
+            >= 0.999 + fly_time * 0.001)
             *fire_control_ = true && deadband && *fire_control_;
         else
             *fire_control_ = false && deadband && *fire_control_;
         if (fast_tf::cast<rmcs_description::OdomImu>(
                 rmcs_description::PitchLink::DirectionVector(), *tf_)
                 ->dot(*control_direction_)
-            < 0.999 + fly_time * 0.002) {
+            < 0.999 + fly_time * 0.001) {
             fire_control_deadband_ = std::chrono::steady_clock::now();
         }
         // std::cerr << fast_tf::cast<rmcs_description::OdomImu>(
