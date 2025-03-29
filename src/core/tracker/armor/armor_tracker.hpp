@@ -71,6 +71,11 @@ public:
         last_update_  = timestamp;
 
         get_grouped_armor(grouped_armor_, armors);
+        nearest_distance_ = 1e7;
+
+        rmcs_description::OdomImu::DirectionVector camera_forward =
+            fast_tf::cast<rmcs_description::OdomImu>(
+                rmcs_description::CameraLink::DirectionVector(Eigen::Vector3d::UnitX()), tf);
 
         for (const auto& [armorID, car] : car_trackers_) {
 
@@ -137,10 +142,18 @@ public:
                 car->update_z(
                     car_armor_height(0), car_armor_height(1), car_armor_height(2),
                     car_armor_height(3));
-                if ((car->get_car_position()->norm() > 2
+
+                Eigen::Vector3d armor_plate_normal =
+                    *grouped_armor_[armorID][nearest_armor_index_in_detected].rotation
+                    * Eigen::Vector3d::UnitX();
+                double len = armor_plate_normal.normalized().dot(*camera_forward);
+                if ((car->get_car_position()->norm() > 1
                      || car->get_car_position()->dot(*car->get_car_position(0.2)) > 0)
                     && car->get_car_position()->norm() < 6)
-                    target_.SetTracker(std::make_shared<CarTracker>(*car));
+                    if (nearest_distance_ > len) {
+                        nearest_distance_ = len;
+                        target_.SetTracker(std::make_shared<CarTracker>(*car));
+                    }
                 // std::cerr
                 //     << (*car->get_car_position() - *grouped_armor_[armorID][0].position).norm()
                 //     << '|' << car->get_car_position()->dot(*car->get_car_position(0.2)) << '|'
@@ -350,5 +363,6 @@ private:
     rmcs_msgs::ArmorID last_car_id_ = rmcs_msgs::ArmorID::Hero;
 
     TFireController target_;
+    double nearest_distance_ = 0.0;
 };
 } // namespace rmcs_auto_aim::tracker::armor
