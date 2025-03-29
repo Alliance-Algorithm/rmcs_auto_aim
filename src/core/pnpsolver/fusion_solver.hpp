@@ -2,8 +2,6 @@
 
 #include <algorithm>
 #include <cstddef>
-#include <iostream>
-#include <numbers>
 #include <vector>
 
 #include "core/identifier/armor/armor.hpp"
@@ -20,9 +18,8 @@ public:
         auto armor3d_with_light_bar = rmcs_auto_aim::LightBarSolver::SolveAll(armors, tf);
         auto armor3d_with_ippe      = rmcs_auto_aim::ArmorPnPSolver::SolveAll(armors, tf);
 
-        if (armor3d_with_light_bar.size() != armor3d_with_ippe.size()) {
-            // FUCK QYX
-            return {};
+        if (armor3d_with_ippe.size() != armor3d_with_light_bar.size()) {
+            return armor3d_with_ippe;
         }
 
         rmcs_auto_aim::transform_optimizer::armor_transform_optimize(armors, armor3d_with_ippe, tf);
