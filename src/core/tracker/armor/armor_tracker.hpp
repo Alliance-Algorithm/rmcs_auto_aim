@@ -147,8 +147,7 @@ public:
                     *grouped_armor_[armorID][nearest_armor_index_in_detected].rotation
                     * Eigen::Vector3d::UnitX();
                 double len = armor_plate_normal.normalized().dot(*camera_forward);
-                if ((car->get_car_position()->norm() > 1
-                     || car->get_car_position()->dot(*car->get_car_position(0.2)) > 0)
+                if ((car->get_car_position()->dot(*car->get_car_position(0.2)) > 0)
                     && car->get_car_position()->norm() < 6)
                     if (nearest_distance_ > len) {
                         nearest_distance_ = len;
