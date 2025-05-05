@@ -94,6 +94,29 @@ struct Quadrilateral3d::Impl {
         return Quadrilateral(ArmorPlate(std::move(imagePoints), armor3d.id, isLargeArmor));
     }
 
+    template <typename T>
+    requires std::is_base_of_v<fast_tf::Link<T>, T>
+    Quadrilateral ToDifferentView(const rmcs_description::Tf& tf, bool isLargeArmor) const {
+        const auto objectPoints = get_objective_point(tf, isLargeArmor);
+        std::vector<cv::Point3f> transformedPoints{};
+        transformedPoints.reserve(objectPoints.size());
+        for(const auto& point : objectPoints) {
+            auto transformedPoint = fast_tf::cast<T>(point, tf);
+            transformedPoints.emplace_back(transformedPoint.x(), transformedPoint.y(),
+                                           transformedPoint.z());
+        }
+        
+        const auto intrinsic_parameters  = util::Profile::get_intrinsic_parameters();
+        const auto distortion_parameters = util::Profile::get_distortion_parameters();
+
+        std::vector<cv::Point2f> imagePoints{};
+        cv::Mat t = cv::Mat::zeros(3, 1, CV_32F), r = cv::Mat::zeros(3, 1, CV_32F);
+        cv::projectPoints(
+            transformedPoints, t, r, intrinsic_parameters, distortion_parameters, imagePoints);
+
+        return Quadrilateral(ArmorPlate(std::move(imagePoints), armor3d.id, isLargeArmor));
+    }
+
     const ArmorPlate3d& armor3d;
 };
 
@@ -104,6 +127,13 @@ Quadrilateral3d::Quadrilateral3d(ArmorPlate3d const& armor3dRef) {
 Quadrilateral
     Quadrilateral3d::ToQuadrilateral(const rmcs_description::Tf& tf, bool isLargeArmor) const {
     return pimpl_->ToSquad(tf, isLargeArmor);
+}
+
+template <typename T>
+requires std::is_base_of_v<fast_tf::Link<T>, T>
+Quadrilateral
+    Quadrilateral3d::ToDifferentView(const rmcs_description::Tf& tf, bool isLargeArmor) const {
+    return pimpl_->ToDifferentView<T>(tf, isLargeArmor);
 }
 
 Quadrilateral3d::~Quadrilateral3d() = default;

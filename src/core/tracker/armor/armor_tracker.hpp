@@ -81,9 +81,8 @@ public:
 
             auto len = grouped_armor_[armorID].size();
 
-            int nearest_armor_index_in_detected;
-
             if (len > 0) {
+                int nearest_armor_index_in_detected;
                 double dt                = car->get_dt(timestamp);
                 auto last_detected_armor = car->get_armor();
                 auto armor_id            = calculate_armor_id(
@@ -281,12 +280,13 @@ private:
 
         const auto [detected_index, predicted_index] =
             calculate_nearest_armor_id(armors_detected, armors_predicted, camera_forward);
-
+        //这里如果没有扫描到可能出问题吧
         nearest_armor_id = detected_index;
 
         if (armors_detected.size() == 1)
             return {predicted_index};
 
+        // 这里（1 - detected_index）可能出问题吧
         const int predicted_index_2nd = calculate_nearest_armor_id(
             armors_detected[1 - detected_index], armors_predicted, predicted_index);
 

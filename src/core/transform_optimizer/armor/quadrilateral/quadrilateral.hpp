@@ -28,6 +28,7 @@ struct Quadrilateral final : util::IAutoAimDrawable {
 
     constexpr inline bool is_large_armor() const { return armor.is_large_armor; }
 
+    ArmorPlate get_armor() const { return armor; }
 private:
     ArmorPlate armor;
 };
@@ -37,6 +38,10 @@ struct Quadrilateral3d {
     ~Quadrilateral3d();
 
     Quadrilateral ToQuadrilateral(const rmcs_description::Tf& tf, bool isLargeArmor) const;
+
+    template <typename T>
+    requires std::is_base_of_v<fast_tf::Link<T>, T>
+    Quadrilateral ToDifferentView(const rmcs_description::Tf& tf, bool isLargeArmor) const;
 
 private:
     struct Impl;

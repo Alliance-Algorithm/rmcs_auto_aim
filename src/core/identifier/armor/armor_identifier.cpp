@@ -40,14 +40,13 @@ public:
         //     cv::drawContours(img, contours, i,cv::Scalar(0, 255, 0), 2);
 
         for (const auto& contour : contours) {
-            if (auto&& lightBarOpt = _solveToLightbar(img, contour, target_color)) {
+            if (auto&& lightBarOpt = _solveToLightbar(img, contour, target_color)) 
                 lightBars.push_back(*lightBarOpt);
-
-                std::sort(lightBars.begin(), lightBars.end(), [](LightBar& a, LightBar& b) {
-                    return a.top.x < b.top.x;
-                });
-            }
         }
+
+        std::sort(lightBars.begin(), lightBars.end(), [](LightBar& a, LightBar& b) {
+            return a.top.x < b.top.x;
+        });
 
         size_t&& lightBarsSize = lightBars.size();
         for (size_t i = 0; i < lightBarsSize; ++i) {
@@ -133,9 +132,8 @@ private:
             cv::Mat mask = cv::Mat::zeros(b_rect.size(), CV_8UC1);
             std::vector<cv::Point> mask_contour;
             mask_contour.reserve(contour.size());
-            for (const auto& p : contour) {
+            for (const auto& p : contour)
                 mask_contour.emplace_back(p - cv::Point(b_rect.x, b_rect.y));
-            }
             cv::fillPoly(mask, {mask_contour}, 255);
             std::vector<cv::Point> points;
             cv::findNonZero(mask, points);
@@ -162,9 +160,9 @@ private:
                 if (angle_k > 90) {
                     angle_k = 180 - angle_k;
                 }
-            }
-            if (angle_k > 70.0) {
-                return std::nullopt;
+                if (angle_k > 70.0) {
+                    return std::nullopt;
+                }
             }
 
             auto length = cv::norm(bottom - top);
@@ -176,25 +174,39 @@ private:
             }
             angle_k  = (float)(angle_k / 180 * CV_PI);
             auto tmp = LightBar{top, bottom, angle_k};
+
             if (0 <= b_rect.x && 0 <= b_rect.width && b_rect.x + b_rect.width <= img.cols
                 && 0 <= b_rect.y && 0 <= b_rect.height && b_rect.y + b_rect.height <= img.rows) {
-                int sum  = 0;
-                auto roi = img(b_rect);
-                for (int i = 0; i < roi.rows; i++) {
-                    for (int j = 0; j < roi.cols; j++) {
-                        if (cv::pointPolygonTest(
-                                contour, cv::Point2i(j + b_rect.x, i + b_rect.y), false)
-                            >= 0) {
-                            sum += roi.at<cv::Vec3b>(i, j)[0];
-                            sum -= roi.at<cv::Vec3b>(i, j)[2];
-                        }
-                    }
-                }
+                std::array<cv::Mat, 3> channels;
+                cv::Mat output;
+                cv::split(img, channels);
+                cv::subtract(channels[0], channels[1], output, cv::noArray(), CV_16S);
+                const auto sum = cv::sum(output).val[0];
                 if ((sum > 0 && target_color == rmcs_msgs::RobotColor::BLUE)
                     || (sum < 0 && target_color == rmcs_msgs::RobotColor::RED)) {
                     return tmp;
                 }
             }
+
+            // if (0 <= b_rect.x && 0 <= b_rect.width && b_rect.x + b_rect.width <= img.cols
+            //     && 0 <= b_rect.y && 0 <= b_rect.height && b_rect.y + b_rect.height <= img.rows) {
+            //     int sum  = 0;
+            //     auto roi = img(b_rect);
+            //     for (int i = 0; i < roi.rows; i++) {
+            //         for (int j = 0; j < roi.cols; j++) {
+            //             if (cv::pointPolygonTest(
+            //                     contour, cv::Point2i(j + b_rect.x, i + b_rect.y), false)
+            //                 >= 0) {
+            //                 sum += roi.at<cv::Vec3b>(i, j)[0];
+            //                 sum -= roi.at<cv::Vec3b>(i, j)[2];
+            //             }
+            //         }
+            //     }
+            //     if ((sum > 0 && target_color == rmcs_msgs::RobotColor::BLUE)
+            //         || (sum < 0 && target_color == rmcs_msgs::RobotColor::RED)) {
+            //         return tmp;
+            //     }
+            // }
         }
         return std::nullopt;
     }

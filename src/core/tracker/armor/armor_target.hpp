@@ -2,6 +2,7 @@
 
 #include "core/tracker/car/car_tracker.hpp"
 #include "core/tracker/target_interface.hpp"
+#include "util/math.hpp"
 
 namespace rmcs_auto_aim::tracker::armor {
 class ArmorTarget : public tracker::ITarget {

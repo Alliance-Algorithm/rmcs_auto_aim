@@ -77,16 +77,9 @@ static inline bool compute_yaw_pitch_from_point(
     double x_normalized = (undistortedPoint.x - cx) / fx;
     double y_normalized = (undistortedPoint.y - cy) / fy;
 
-    // 3. 构建方向向量
-    cv::Point3d directionVec(
-        x_normalized * assumedDepth, y_normalized * assumedDepth, assumedDepth);
-    // 4. 计算方向向量的模长并归一化
-    double norm = cv::norm(directionVec);
-    directionVec /= norm;
-
-    direction_vec = Eigen::Vector3d{directionVec.z, -directionVec.x, -directionVec.y};
-
-    direction_vec = direction_vec.normalized();
+    direction_vec =
+        Eigen::Vector3d{assumedDepth, -x_normalized * assumedDepth, -y_normalized * assumedDepth}
+            .normalized();
 
     return true;
 }

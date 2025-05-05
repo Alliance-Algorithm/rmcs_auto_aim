@@ -1,5 +1,6 @@
 #include <atomic>
 #include <chrono>
+#include <keyboard.hpp>
 #include <memory>
 #include <thread>
 #include <tuple>
@@ -40,6 +41,7 @@ public:
         register_input("/auto_aim/target_color", target_color_);
         register_input("/auto_aim/whitelist", whitelist_);
         register_input("/tf", tf_);
+        register_input("/remote/keyboard", keyboard_);
 
         hikcamera::ImageCapturer::CameraProfile profile;
         profile.invert_image  = get_parameter("invert_image").as_bool();
@@ -202,6 +204,8 @@ public:
         //                  rmcs_description::PitchLink::DirectionVector(), *tf_)
         //                  ->dot(*control_direction_)
         //           << std::endl;
+
+        last_keyboard_=*keyboard_;
     }
 
 private:
@@ -234,6 +238,10 @@ private:
     InputInterface<uint8_t> whitelist_;
     InputInterface<rmcs_msgs::RobotColor> target_color_;
     InputInterface<rmcs_description::Tf> tf_;
+
+    InputInterface<rmcs_msgs::Keyboard> keyboard_;
+    rmcs_msgs::Keyboard last_keyboard_;
+    std::atomic<bool> outpost_mode{false};
 
     OutputInterface<Eigen::Vector3d> control_direction_;
     OutputInterface<bool> fire_control_;

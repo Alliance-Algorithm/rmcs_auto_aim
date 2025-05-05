@@ -56,7 +56,7 @@ public:
         , length_(length) {}
 
     Line to_line_2d(const rmcs_description::Tf& tf) {
-        Eigen::Vector3d up_eigen   = Eigen::Vector3d::UnitZ() * length_ / 2.0;
+        Eigen::Vector3d up_eigen   = Eigen::Vector3d::UnitZ() * (length_ / 2.0);
         auto intrinsic_parameters  = util::Profile::get_intrinsic_parameters();
         auto distortion_parameters = util::Profile::get_distortion_parameters();
 
