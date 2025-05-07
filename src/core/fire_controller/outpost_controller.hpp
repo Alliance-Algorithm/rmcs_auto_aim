@@ -1,20 +1,20 @@
 #pragma once
-
 #include "./fire_controller.hpp"
 #include "core/tracker/car/car_tracker.hpp"
+#include "core/tracker/outpost/outpost_tracker.hpp"
 #include <memory>
 
 namespace rmcs_auto_aim::fire_controller {
-class OutPostController final : public rmcs_auto_aim::tracker::IFireController {
+class OutPostController {
 public:
     [[nodiscard]] std::tuple<bool, rmcs_description::OdomImu::Position>
-        UpdateController(double sec, const rmcs_description::Tf&) final;
+        UpdateController(double sec, const rmcs_description::Tf&);
 
-    void SetTracker(const std::shared_ptr<tracker::CarTracker>& tracker) final;
-    double get_omega() final;
+    void SetTracker(const std::shared_ptr<tracker::OutPostTracker>& tracker);
+    double get_omega();
     bool check();
 
-    std::chrono::steady_clock::time_point get_timestamp() final;
+    std::chrono::steady_clock::time_point get_timestamp();
 
     OutPostController();
 

@@ -7,15 +7,17 @@
 
 namespace rmcs_auto_aim::tracker {
 
-template <double angular_velocity>
-class FixedSpeedEKF final : public util::EKF<4, 4> {
+// x,y,yaw,rotate_velocity
+class OutPostKF final : public util::EKF<4, 3> {
 public:
-    FixedSpeedEKF()
+    OutPostKF()
         : EKF() {
-        // clang-format off
-        P_k.setIdentity();
-        P_k *= 0.1;
+        P_k <<  0.1, 0.0, 0.0, 0.0,   // x (0.5m误差)
+                0.0, 0.1, 0.0, 0.0,   // y 
+                0.0, 0.0, 0.1, 1.,   // yaw (0.2rad ~11度) 与 omega的协方差
+                0.0, 0.0, 1. , 10.;   // omega (0.3rad/s)
         // clang-format on
+
         x_.setZero();
         z_.setZero();
 
@@ -26,84 +28,67 @@ public:
         h_.setZero();
 
         v_.setIdentity();
-        r_.setIdentity();
-        q_.setIdentity();
-
-        r_ *= 0.01;
     };
 
     [[nodiscard]] ZVec process_z(const ZVec& z_k) override {
-        auto err = z_k(3) - X_k(3);
-        while (err >= std::numbers::pi)
+        auto err = z_k(2) - X_k(2);
+        while (err > std::numbers::pi)
             err -= std::numbers::pi * 2;
         while (err < -std::numbers::pi)
             err += std::numbers::pi * 2;
         ZVec z_new{};
         z_new << z_k;
-        z_new(3) = err + X_k(3);
+        z_new(2) = err + X_k(2);
         return z_new;
     }
     [[nodiscard]] XVec normalize_x(const XVec& x_k) override { return x_k; }
-    //     XVec x_new = x_k;
-
-    //     for (int i = 0; i < 8; i += 2) {
-    //         std::clamp(x_new(i + 1), -10., 10.);
-    //     }
-    //     return x_new;
-    // }
 
     [[nodiscard]] XVec f(const XVec& X_k, const UVec&, const WVec&, const double& dt) override {
-        return {X_k(0), X_k(1), X_k(2), X_k(3) + angular_velocity * dt};
+        x_ = X_k;
+        x_(2) += X_k(3) * dt;
+        return X_k;
     }
 
     [[nodiscard]] ZVec h(const XVec& X_k, const VVec&) override {
-        z_(0) = cos(X_k(0)) * cos(X_k(1)) * X_k(2);
-        z_(1) = sin(X_k(0)) * cos(X_k(1)) * X_k(2);
-        z_(2) = sin(X_k(1)) * X_k(2);
-        z_(3) = X_k(3);
-
+        z_ << X_k(0), X_k(1), X_k(2) + X_k(3) * dt_;
         return z_;
     }
 
-    [[nodiscard]] AMat A(const XVec&, const UVec&, const WVec&, const double&) override {
+    [[nodiscard]] AMat A(const XVec&, const UVec&, const WVec&, const double& dt) override {
+        a_.setIdentity();
+        a_(2, 3) = dt;
         return a_;
     }
 
     [[nodiscard]] WMat W(const XVec&, const UVec&, const WVec&) override { return w_; }
 
     [[nodiscard]] HMat H(const XVec&, const VVec&) override {
-        // clang-format off
-        h_ << -cos(X_k(1)) * sin(X_k(0)) * X_k(2)  , -sin(X_k(1)) * cos(X_k(0))* X_k(2) , cos(X_k(0)) * cos(X_k(1))  , 0,    //1
-             cos(X_k(1)) * cos(X_k(0)) * X_k(2)    , -sin(X_k(1)) * sin(X_k(0))* X_k(2) , sin(X_k(0)) * cos(X_k(1))  , 0,    //2
-             0                                     , cos(X_k(1))* X_k(2)                , sin(X_k(1))                , 0,    //3
-             0                                     , 0                                  , 0                          , 1;    //4
-
+        h_.setZero();
+        h_(0, 0) = 1.0;
+        h_(1, 1) = 1.0;
+        h_(2, 2) = 1.0;
         return h_;
-        // clang-format on
     }
 
     [[nodiscard]] VMat V(const XVec&, const VVec&) override { return v_; }
-    [[nodiscard]] QMat Q(const double&) override {
-        q_.diagonal() << 1, 1, 1, 1e-5;
+    [[nodiscard]] QMat Q(const double& dt) override {
+        const double t = dt, y = sigma2_q_yaw_;
+        const double q_y_y = pow(t, 4) / 4 * y, q_y_vy = pow(t, 3) / 2 * y, q_vy_vy = pow(t, 2) * y;
+
+        q_ << 1e-3, 0.0, 0.0, 0.0, 0.0, 1e-3, 0.0, 0.0, 0.0, 0.0, q_y_y, q_y_vy, 0.0, 0.0, q_y_vy,
+            q_vy_vy;
         return q_;
     }
-    [[nodiscard]]
-    RMat R(const ZVec&) override {
-        r_.diagonal() << 1e-5, 1e-5, 1e-2, 1;
+    [[nodiscard]] RMat R(const ZVec&) override {
+        r_.diagonal() << 0.1, // x观测
+            0.1,              // y观测
+            5;                // yaw观测
         return r_;
     }
 
 protected:
 private:
-    static constexpr inline const double conv_x     = 0.01;
-    static constexpr inline const double conv_y     = 0.01;
-    static constexpr inline const double conv_z     = 0.01;
-    static constexpr inline const double conv_theta = 0.01;
-    static constexpr inline const double conv_r     = 0.1;
-
-    static constexpr double sigma2_q_xyz_ = 200;
-    static constexpr double sigma2_q_yaw_ = 100.0;
-    static constexpr double sigma2_q_r_   = 800.0;
+    static constexpr double sigma2_q_yaw_ = 20;
 
     XVec x_{};
     ZVec z_{};
@@ -114,7 +99,5 @@ private:
     QMat q_{};
     RMat r_{};
 };
-
-using OutPostEKF = FixedSpeedEKF<0.8 * std::numbers::pi>;
 
 } // namespace rmcs_auto_aim::tracker

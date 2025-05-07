@@ -1,5 +1,6 @@
 #include "outpost_controller.hpp"
 #include "core/tracker/armor/armor_target.hpp"
+#include "core/tracker/armor/armor_target_for_outpost.hpp"
 #include "core/tracker/car/car_tracker.hpp"
 #include <Eigen/src/Core/Matrix.h>
 #include <Eigen/src/Geometry/AngleAxis.h>
@@ -22,32 +23,28 @@ public:
         if (tracker_ == nullptr)
             return {false, rmcs_description::OdomImu::Position(0, 0, 0)};
 
-        rmcs_description::OdomImu::Position ret_pos = rmcs_description::OdomImu::Position(0, 0, 0);
-        bool fire_permission                        = false;
-
-        ret_pos = tracker::armor::ArmorTarget{tracker::CarTracker(*tracker_)}.Predict(sec, tf);
+        const auto ret_pos =
+            tracker::armor::ArmorTargetForOutPost{tracker::OutPostTracker(*tracker_)}
+                .Predict(sec, tf);
 
         auto camera_x = fast_tf::cast<rmcs_description::OdomImu>(
             rmcs_description::CameraLink::DirectionVector(Eigen::Vector3d::UnitX()), tf);
 
-        auto armor_x = ret_pos;
+        auto len = camera_x->dot(Eigen::Vector3d(*ret_pos));
 
-        auto len = camera_x->dot(Eigen::Vector3d(*armor_x));
-
-        if (len < 0.97) {
-            fire_permission = false;
-        } else {
-            fire_permission = true;
-        }
-
-        return {fire_permission, ret_pos};
+        if (len < 0.97)
+            return {false, ret_pos};
+        else
+            return {true, ret_pos};
     }
 
-    void SetTracker(std::shared_ptr<tracker::CarTracker> tracker) { tracker_ = std::move(tracker); }
+    void SetTracker(std::shared_ptr<tracker::OutPostTracker> tracker) {
+        tracker_ = std::move(tracker);
+    }
     double get_omega() { return tracker_->omega(); }
 
 private:
-    std::shared_ptr<tracker::CarTracker> tracker_;
+    std::shared_ptr<tracker::OutPostTracker> tracker_;
 };
 
 [[nodiscard]] std::tuple<bool, rmcs_description::OdomImu::Position>
@@ -55,7 +52,7 @@ private:
     return pimpl_->UpdateController(sec, tf);
 }
 
-void OutPostController::SetTracker(const std::shared_ptr<tracker::CarTracker>& tracker) {
+void OutPostController::SetTracker(const std::shared_ptr<tracker::OutPostTracker>& tracker) {
     pimpl_->SetTracker(tracker);
 }
 

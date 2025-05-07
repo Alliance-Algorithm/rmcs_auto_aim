@@ -20,6 +20,7 @@
 #include "core/identifier/armor/armor_identifier.hpp"
 #include "core/pnpsolver/fusion_solver.hpp"
 #include "core/tracker/armor/armor_tracker.hpp"
+#include "core/tracker/outpost/armor_tracker_for_outpost.hpp"
 #include "core/trajectory/trajectory_solvor.hpp"
 #include "util/image_viewer/image_viewer.hpp"
 #include "util/math.hpp"
@@ -103,6 +104,7 @@ public:
                     ament_index_cpp::get_package_share_directory("rmcs_auto_aim")
                     + "/models/mlp.onnx");
                 auto armor_tracker = tracker::armor::ArmorTracker(); // TODO
+                auto outpost_tracker = tracker::armor::OutPostArmorTracker();
 
                 rmcs_auto_aim::util::FPSCounter fps;
 
@@ -119,6 +121,7 @@ public:
                     auto armor_plates =
                         armor_identifier->Identify(image, *target_color_, *whitelist_);
 
+                    // TODO:前哨站（-15）与车上装甲板（15）的旋转角度不一样
                     auto armor3d = FusionSolver::SolveAll(armor_plates, tf);
 
                     for (auto& armor2d_ : armor3d) {
@@ -129,13 +132,26 @@ public:
                         *debug_target_theta_ =
                             util::math::get_yaw_from_quaternion(*armor2d_.rotation);
                     }
-                    if (auto target = armor_tracker.Update(armor3d, timestamp, tf)) {
-                        armor_target_buffer_[!armor_target_index_.load()].target_ =
-                            std::move(target);
-                        armor_target_buffer_[!armor_target_index_.load()].timestamp_ = timestamp;
-                        armor_target_index_.store(!armor_target_index_.load());
+                    if (outpost_mode.load(std::memory_order::relaxed)) {
+                        auto target = outpost_tracker.Update(armor3d, timestamp, tf);
+                        if (target) {
+                            outpost_target_buffer_[!armor_target_index_.load()].target_ =
+                                std::move(target);
+                            outpost_target_buffer_[!armor_target_index_.load()].timestamp_ =
+                                timestamp;
+                        }
+                        outpost_tracker.draw_armors(tf, {0, 0, 255});
+                    } else {
+                        auto target = armor_tracker.Update(armor3d, timestamp, tf);
+                        if (target) {
+                            armor_target_buffer_[!armor_target_index_.load()].target_ =
+                                std::move(target);
+                            armor_target_buffer_[!armor_target_index_.load()].timestamp_ =
+                                timestamp;
+                            armor_target_index_.store(!armor_target_index_.load());
+                        }
+                        armor_tracker.draw_armors(tf, {0, 0, 255});
                     }
-                    armor_tracker.draw_armors(tf, {0, 0, 255});
                     util::ImageViewer::show_image();
                     if (fps.Count()) {
                         // RCLCPP_INFO(get_logger(), "FPS: %d", fps.GetFPS());
@@ -144,73 +160,148 @@ public:
             });
         }
 
-        auto frame = armor_target_buffer_[armor_target_index_.load()];
-        if (!frame.target_) {
-            *control_direction_ = Eigen::Vector3d::Zero();
-            return;
-        }
-        *debug_target_omega_ = frame.target_->get_omega();
-        auto offset          = fast_tf::cast<rmcs_description::OdomImu>(
-            rmcs_description::MuzzleLink::Position{0, 0, 0}, *tf_);
-
-        using namespace std::chrono_literals;
-        auto diff = std::chrono::steady_clock::now() - frame.timestamp_;
-        if (diff > std::chrono::milliseconds(500)) { // TODO
-            *control_direction_ = Eigen::Vector3d::Zero();
-            *fire_control_      = false;
+        if (!last_keyboard_.shift && keyboard_->shift) {
+            outpost_mode.store(
+                !outpost_mode.load(std::memory_order::relaxed), std::memory_order::relaxed);
             return;
         }
 
-        double fly_time = 0;
-        for (int i = 5; i-- > 0;) {
-            auto [firecontrol, pos] = frame.target_->UpdateController(
-                static_cast<std::chrono::duration<double>>(diff).count() + fly_time + predict_sec_,
-                *tf_);
-            *fire_control_        = firecontrol;
-            auto aiming_direction = *trajectory_.GetShotVector(
-                {pos->x() - offset->x(), pos->y() - offset->y(), pos->z() - offset->z()},
-                shoot_velocity_, fly_time);
+        if (outpost_mode.load(std::memory_order::relaxed)) {
+            auto frame = outpost_target_buffer_[outpost_target_index_.load()];
+            if (!frame.target_) {
+                *control_direction_ = Eigen::Vector3d::Zero();
+                return;
+            }
+            *debug_target_omega_ = frame.target_->get_omega();
+            auto offset          = fast_tf::cast<rmcs_description::OdomImu>(
+                rmcs_description::MuzzleLink::Position{0, 0, 0}, *tf_);
 
-            if (i == 0) {
-                auto yaw_axis = fast_tf::cast<rmcs_description::OdomImu>(
-                                    rmcs_description::PitchLink::DirectionVector(0, 0, 1), *tf_)
-                                    ->normalized();
-                auto pitch_axis = fast_tf::cast<rmcs_description::OdomImu>(
-                                      rmcs_description::PitchLink::DirectionVector(0, 1, 0), *tf_)
-                                      ->normalized();
-                auto delta_yaw      = Eigen::AngleAxisd{yaw_error_, yaw_axis};
-                auto delta_pitch    = Eigen::AngleAxisd{pitch_error_, pitch_axis};
-                aiming_direction    = delta_pitch * (delta_yaw * (aiming_direction));
-                *control_direction_ = aiming_direction;
-                break;
+            using namespace std::chrono_literals;
+            auto diff = std::chrono::steady_clock::now() - frame.timestamp_;
+            if (diff > std::chrono::milliseconds(500)) { // TODO
+                *control_direction_ = Eigen::Vector3d::Zero();
+                *fire_control_      = false;
+                return;
+            }
+
+            double fly_time = 0;
+            for (int i = 5; i-- > 0;) {
+                auto [firecontrol, pos] = frame.target_->UpdateController(
+                    static_cast<std::chrono::duration<double>>(diff).count() + fly_time
+                        + predict_sec_,
+                    *tf_);
+                *fire_control_        = firecontrol;
+                auto aiming_direction = *trajectory_.GetShotVector(
+                    {pos->x() - offset->x(), pos->y() - offset->y(), pos->z() - offset->z()},
+                    shoot_velocity_, fly_time);
+
+                if (i == 0) {
+                    auto yaw_axis = fast_tf::cast<rmcs_description::OdomImu>(
+                                        rmcs_description::PitchLink::DirectionVector(0, 0, 1), *tf_)
+                                        ->normalized();
+                    auto pitch_axis =
+                        fast_tf::cast<rmcs_description::OdomImu>(
+                            rmcs_description::PitchLink::DirectionVector(0, 1, 0), *tf_)
+                            ->normalized();
+                    auto delta_yaw      = Eigen::AngleAxisd{yaw_error_, yaw_axis};
+                    auto delta_pitch    = Eigen::AngleAxisd{pitch_error_, pitch_axis};
+                    aiming_direction    = delta_pitch * (delta_yaw * (aiming_direction));
+                    *control_direction_ = aiming_direction;
+                    break;
+                }
+            }
+            bool deadband = (std::chrono::steady_clock::now() - fire_control_deadband_)
+                          > std::chrono::milliseconds(50);
+            if (fast_tf::cast<rmcs_description::OdomImu>(
+                    rmcs_description::PitchLink::DirectionVector(), *tf_)
+                    ->dot(*control_direction_)
+                >= 0.9995)
+                *fire_control_ = true && deadband && *fire_control_;
+            else
+                *fire_control_ = false && deadband && *fire_control_;
+            if (fast_tf::cast<rmcs_description::OdomImu>(
+                    rmcs_description::PitchLink::DirectionVector(), *tf_)
+                    ->dot(*control_direction_)
+                < 0.9990) {
+                fire_control_deadband_ = std::chrono::steady_clock::now();
+            }
+        } else {
+            auto frame = armor_target_buffer_[armor_target_index_.load()];
+            if (!frame.target_) {
+                *control_direction_ = Eigen::Vector3d::Zero();
+                return;
+            }
+            *debug_target_omega_ = frame.target_->get_omega();
+            auto offset          = fast_tf::cast<rmcs_description::OdomImu>(
+                rmcs_description::MuzzleLink::Position{0, 0, 0}, *tf_);
+
+            using namespace std::chrono_literals;
+            auto diff = std::chrono::steady_clock::now() - frame.timestamp_;
+            if (diff > std::chrono::milliseconds(500)) { // TODO
+                *control_direction_ = Eigen::Vector3d::Zero();
+                *fire_control_      = false;
+                return;
+            }
+
+            double fly_time = 0;
+            for (int i = 5; i-- > 0;) {
+                auto [firecontrol, pos] = frame.target_->UpdateController(
+                    static_cast<std::chrono::duration<double>>(diff).count() + fly_time
+                        + predict_sec_,
+                    *tf_);
+                *fire_control_        = firecontrol;
+                auto aiming_direction = *trajectory_.GetShotVector(
+                    {pos->x() - offset->x(), pos->y() - offset->y(), pos->z() - offset->z()},
+                    shoot_velocity_, fly_time);
+
+                if (i == 0) {
+                    auto yaw_axis = fast_tf::cast<rmcs_description::OdomImu>(
+                                        rmcs_description::PitchLink::DirectionVector(0, 0, 1), *tf_)
+                                        ->normalized();
+                    auto pitch_axis =
+                        fast_tf::cast<rmcs_description::OdomImu>(
+                            rmcs_description::PitchLink::DirectionVector(0, 1, 0), *tf_)
+                            ->normalized();
+                    auto delta_yaw      = Eigen::AngleAxisd{yaw_error_, yaw_axis};
+                    auto delta_pitch    = Eigen::AngleAxisd{pitch_error_, pitch_axis};
+                    aiming_direction    = delta_pitch * (delta_yaw * (aiming_direction));
+                    *control_direction_ = aiming_direction;
+                    break;
+                }
+            }
+            bool deadband = (std::chrono::steady_clock::now() - fire_control_deadband_)
+                          > std::chrono::milliseconds(50);
+            if (fast_tf::cast<rmcs_description::OdomImu>(
+                    rmcs_description::PitchLink::DirectionVector(), *tf_)
+                    ->dot(*control_direction_)
+                >= 0.9995)
+                *fire_control_ = true && deadband && *fire_control_;
+            else
+                *fire_control_ = false && deadband && *fire_control_;
+            if (fast_tf::cast<rmcs_description::OdomImu>(
+                    rmcs_description::PitchLink::DirectionVector(), *tf_)
+                    ->dot(*control_direction_)
+                < 0.9990) {
+                fire_control_deadband_ = std::chrono::steady_clock::now();
             }
         }
-        bool deadband = (std::chrono::steady_clock::now() - fire_control_deadband_)
-                      > std::chrono::milliseconds(50);
-        if (fast_tf::cast<rmcs_description::OdomImu>(
-                rmcs_description::PitchLink::DirectionVector(), *tf_)
-                ->dot(*control_direction_)
-            >= 0.9995)
-            *fire_control_ = true && deadband && *fire_control_;
-        else
-            *fire_control_ = false && deadband && *fire_control_;
-        if (fast_tf::cast<rmcs_description::OdomImu>(
-                rmcs_description::PitchLink::DirectionVector(), *tf_)
-                ->dot(*control_direction_)
-            < 0.9990) {
-            fire_control_deadband_ = std::chrono::steady_clock::now();
-        }
+
         // std::cerr << fast_tf::cast<rmcs_description::OdomImu>(
         //                  rmcs_description::PitchLink::DirectionVector(), *tf_)
         //                  ->dot(*control_direction_)
         //           << std::endl;
 
-        last_keyboard_=*keyboard_;
+        last_keyboard_ = *keyboard_;
     }
 
 private:
     struct TargetFrame {
         std::shared_ptr<tracker::IFireController> target_;
+        std::chrono::steady_clock::time_point timestamp_;
+    };
+
+    struct OutPostTargetFrame {
+        std::shared_ptr<fire_controller::OutPostController> target_;
         std::chrono::steady_clock::time_point timestamp_;
     };
 
@@ -242,6 +333,9 @@ private:
     InputInterface<rmcs_msgs::Keyboard> keyboard_;
     rmcs_msgs::Keyboard last_keyboard_;
     std::atomic<bool> outpost_mode{false};
+
+    struct OutPostTargetFrame outpost_target_buffer_[2];
+    std::atomic<bool> outpost_target_index_{false};
 
     OutputInterface<Eigen::Vector3d> control_direction_;
     OutputInterface<bool> fire_control_;

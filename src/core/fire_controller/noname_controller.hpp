@@ -1,3 +1,4 @@
+#pragma once
 #include "./fire_controller.hpp"
 #include "core/tracker/car/car_tracker.hpp"
 #include <memory>

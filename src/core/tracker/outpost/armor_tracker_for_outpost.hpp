@@ -14,14 +14,13 @@
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_msgs/robot_id.hpp>
 
+#include "core/fire_controller/outpost_controller.hpp"
 #include "core/pnpsolver/armor/armor3d.hpp"
 
 #include "core/fire_controller/fire_controller.hpp"
-#include "core/fire_controller/noname_controller.hpp"
 #include "core/fire_controller/tracker_test_controller.hpp"
 #include "core/tracker/armor/filter/armor_ekf.hpp"
 
-#include "core/tracker/car/car_tracker.hpp"
 #include "core/tracker/outpost/filter/outpost_ekf.hpp"
 #include "core/tracker/outpost/outpost_tracker.hpp"
 #include "core/tracker/tracker_interface.hpp"
@@ -31,21 +30,99 @@
 #include "util/math.hpp"
 
 namespace rmcs_auto_aim::tracker::armor {
-class ArmorTracker : public ITracker {
+class OutPostArmorTracker {
     using TFireController = rmcs_auto_aim::fire_controller::TrackerTestController;
 
 public:
-    ArmorTracker()
+    OutPostArmorTracker()
         : target_() {}
 
-    std::shared_ptr<IFireController> Update(
+    std::shared_ptr<fire_controller::OutPostController> Update(
         const std::vector<ArmorPlate3d>& armors,
         const std::chrono::steady_clock::time_point& timestamp,
-        const rmcs_description::Tf& tf) override {
+        const rmcs_description::Tf& tf)  {
         target_.SetTracker(nullptr);
 
+        last_update_ = timestamp;
 
-        return target_.check() ? std::make_shared<TFireController>(target_) : nullptr;
+        const auto outpost_armors = get_outpost_armor(armors);
+        if (outpost_armors.size() > 0) {
+            nearest_distance_ = 1e7;
+
+            const rmcs_description::OdomImu::DirectionVector camera_forward =
+                fast_tf::cast<rmcs_description::OdomImu>(
+                    rmcs_description::CameraLink::DirectionVector(Eigen::Vector3d::UnitX()), tf);
+
+            int nearest_armor_index_in_detected;
+            double dt                = outpost_tracker_.get_dt(timestamp);
+            auto last_detected_armor = outpost_tracker_.get_armor();
+            auto armor_id            = calculate_armor_id(
+                outpost_armors, last_detected_armor, tf, nearest_armor_index_in_detected);
+
+            Eigen::Vector<double, 4> armor_z{};
+
+            Eigen::Vector3d armor_in_camera = *fast_tf::cast<rmcs_description::CameraLink>(
+                outpost_armors[nearest_armor_index_in_detected].position, tf);
+            armor_z << armor_in_camera,
+                util::math::get_yaw_from_quaternion(
+                    outpost_armors[nearest_armor_index_in_detected].rotation.quaternion);
+            armor_trackers_[armor_id[nearest_armor_index_in_detected]].Update(armor_z, {}, dt);
+
+            for (int i = 0; i < 3; i++) {
+                if (armor_id[0] == i)
+                    continue;
+
+                Eigen::Vector3d armor_in_camera = *fast_tf::cast<rmcs_description::CameraLink>(
+                    last_detected_armor[i].position, tf);
+                armor_z << armor_in_camera,
+                    util::math::get_yaw_from_quaternion(*last_detected_armor[i].rotation);
+                armor_trackers_[i].Update(armor_z, {}, dt);
+            }
+
+            if (armor_id.size() > 1) {
+                Eigen::Vector3d armor_in_camera = *fast_tf::cast<rmcs_description::CameraLink>(
+                    outpost_armors[1 - nearest_armor_index_in_detected].position, tf);
+                armor_z << armor_in_camera,
+                    util::math::get_yaw_from_quaternion(
+                        outpost_armors[1 - nearest_armor_index_in_detected].rotation.quaternion);
+                armor_trackers_[armor_id[1 - nearest_armor_index_in_detected]].Update(
+                    armor_z, {}, dt);
+            }
+
+            rmcs_description::OdomImu::Position outpost_pos = armor_to_outpost(
+                armor_trackers_[armor_id[nearest_armor_index_in_detected]], outpost_radius, tf);
+
+            outpost_tracker_.update_outpost(
+                {outpost_pos->x(), outpost_pos->y(),
+                 armor_trackers_[armor_id[nearest_armor_index_in_detected]].OutPut()(3)
+                     - armor_id[nearest_armor_index_in_detected] * std::numbers::pi / 2},
+                dt);
+
+            Eigen::Vector<double, 3> car_armor_height = outpost_tracker_.get_armor_height();
+            for (int i = 0; i < 3; i++)
+                if (i == armor_id[0] || (armor_id.size() > 1 ? (i == armor_id[1]) : false)) {
+                    car_armor_height(i) = armor_get_odom_z(armor_trackers_[i], tf);
+                }
+            outpost_tracker_.update_z(
+                car_armor_height(0), car_armor_height(1), car_armor_height(2));
+
+            Eigen::Vector3d armor_plate_normal =
+                *outpost_armors[nearest_armor_index_in_detected].rotation
+                * Eigen::Vector3d::UnitX();
+            double len = armor_plate_normal.normalized().dot(*camera_forward);
+
+            if ((outpost_tracker_.get_car_position()->norm() > 5
+                 || outpost_tracker_.get_car_position()->dot(
+                        *outpost_tracker_.get_car_position(0.2))
+                        > 0)
+                && outpost_tracker_.get_car_position()->norm() < 20)
+                if (nearest_distance_ > len) {
+                    nearest_distance_ = len;
+                    target_.SetTracker(std::make_shared<OutPostTracker>(outpost_tracker_));
+                }
+        }
+
+        return target_.check() ? std::make_shared<fire_controller::OutPostController>(target_) : nullptr;
     }
 
     void draw_armors(const rmcs_description::Tf& tf, const cv::Scalar& color) {
@@ -67,6 +144,16 @@ public:
     }
 
 private:
+    static inline std::vector<ArmorPlate3d>
+        get_outpost_armor(const std::vector<ArmorPlate3d>& armors) {
+        std::vector<ArmorPlate3d> outpost_armors;
+        for (const auto& armor : armors) {
+            if (armor.id == rmcs_msgs::ArmorID::Outpost) {
+                outpost_armors.emplace_back(armor);
+            }
+        }
+        return outpost_armors;
+    }
     ///
     /// return {index_detected, index_predicted};
     ///
@@ -123,14 +210,14 @@ private:
                     *armors_predicted[(index_predicted + 1) % 4].rotation));
         if (armor_angular_distance < min) {
             min   = armor_angular_distance;
-            index = (index_predicted + 1) % 4;
+            index = (index_predicted + 1) % 3;
         }
         armor_angular_distance =
             abs(util::math::get_yaw_from_quaternion(*armors_detected.rotation)
                 - util::math::get_yaw_from_quaternion(
                     *armors_predicted[(index_predicted + 3) % 4].rotation));
         if (armor_angular_distance < min) {
-            index = (index_predicted + 3) % 4;
+            index = (index_predicted + 2) % 3;
         }
         return index;
     }
@@ -140,13 +227,12 @@ private:
         const std::vector<ArmorPlate3d>& armors_predicted, const rmcs_description::Tf& tf,
         int& nearest_armor_id) {
 
-        rmcs_description::OdomImu::DirectionVector camera_forward =
+        const rmcs_description::OdomImu::DirectionVector camera_forward =
             fast_tf::cast<rmcs_description::OdomImu>(
                 rmcs_description::CameraLink::DirectionVector(Eigen::Vector3d::UnitX()), tf);
 
         const auto [detected_index, predicted_index] =
             calculate_nearest_armor_id(armors_detected, armors_predicted, camera_forward);
-        // 这里如果没有扫描到可能出问题吧
         nearest_armor_id = detected_index;
 
         if (armors_detected.size() == 1)
@@ -163,7 +249,7 @@ private:
     }
 
     static rmcs_description::OdomImu::Position
-        armor_to_car(ArmorEKF& ekf, const double& l, const auto& tf) {
+        armor_to_outpost(ArmorEKF& ekf, const double& l, const auto& tf) {
         ArmorEKF::ZVec z1 = ekf.h(ekf.OutPut(), {});
         return rmcs_description::OdomImu::Position(
             *fast_tf::cast<rmcs_description::OdomImu>(
@@ -183,17 +269,18 @@ private:
     };
 
     OutPostTracker outpost_tracker_;
-    std::vector<OutPostEKF> armor_trackers_;
+    std::vector<ArmorEKF> armor_trackers_;
     std::chrono::steady_clock::time_point last_update_;
 
     std::vector<ArmorPlate3d> last_armors1_;
     std::vector<ArmorPlate3d> last_armors2_;
-    std::vector<ArmorPlate3d> grouped_armor_;
 
     static constexpr double armor_tuple_angular_epsilon  = 1e-1;
     static constexpr double armor_tuple_distance_epsilon = 1e-1;
 
-    TFireController target_;
+    static constexpr double outpost_radius = 276.5;
+
+    fire_controller::OutPostController target_;
     double nearest_distance_ = 0.0;
 };
 } // namespace rmcs_auto_aim::tracker::armor

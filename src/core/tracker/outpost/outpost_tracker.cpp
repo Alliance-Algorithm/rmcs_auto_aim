@@ -25,21 +25,12 @@ namespace rmcs_auto_aim::tracker {
 class OutPostTracker::Impl {
 public:
     Impl()
-        : car_kf_()
-        , car_frame_kf_()
-        , car_movement_kf_()
-        , armors_() {
-        car_frame_kf_.Update({l1, l2}, {}, 0);
-    }
-    Eigen::Vector2d velocity() { return {car_kf_.OutPut()(1), car_kf_.OutPut()(3)}; }
+        : armors_() {}
     void update_self(const double& dt) {
         if (self_update_time_ > 0.3)
             return;
 
-        auto X  = Eigen::Vector3d{car_kf_.OutPut()(0), car_kf_.OutPut()(2), car_kf_.OutPut()(4)};
-
         self_update_time_ += dt;
-        last_acc_ << 0, 0;
     }
 
     double get_dt(const std::chrono::steady_clock::time_point& timestamp) {
@@ -51,87 +42,58 @@ public:
 
     bool check_armor_tracked() const { return self_update_time_ == 0; }
 
-    double omega() { return car_movement_kf_.OutPut()(2); }
+    static inline double omega() { return rotate_velocity_; }
 
-    void update_car(const CarPosKF::ZVec& zk, const double& dt) {
+    void update_outpost(const OutPostKF::ZVec& zk, const double& dt) {
         detected_yaw = zk(2);
-        last_acc_ << car_movement_kf_.OutPut()(0), car_movement_kf_.OutPut()(1);
-        last_vel_ << last_acc_;
-
-        car_kf_.Update(zk, {}, dt);
-        car_movement_kf_.Update(
-            {car_kf_.OutPut()(1), car_kf_.OutPut()(3), car_kf_.OutPut()(5)}, {}, dt);
-
-        last_acc_ << (car_movement_kf_.OutPut()(0) - last_acc_(0)) / dt,
-            (car_movement_kf_.OutPut()(1) - last_acc_(1)) / dt;
-        last_vel_ << (car_movement_kf_.OutPut()(0) + last_vel_(0)) / 2,
-            (car_movement_kf_.OutPut()(1) + last_vel_(1)) / 2;
+        outpost_kf_.Update(zk, {}, dt);
 
         self_update_time_ = 0;
     }
     std::vector<ArmorPlate3d> get_armor(double dt = 0) {
         armors_.clear();
-        auto X  = Eigen::Vector3d{car_kf_.OutPut()(0), car_kf_.OutPut()(2), car_kf_.OutPut()(4)};
-        auto Vx = car_movement_kf_.OutPut();
-        if (!check_armor_tracked())
-            last_acc_ << 0, 0;
+        if (!check_armor_tracked()) {}
 
-        Eigen::Vector3d center{
-            X(0) + last_vel_(0) * dt + last_acc_(0) * dt * dt / 2.0,
-            X(1) + last_vel_(1) * dt + last_acc_(1) * dt * dt / 2.0, 0};
+        const auto kf_output = outpost_kf_.OutPut();
 
-        if (last_acc_.norm() < 0.5)
-            center << X(0) + Vx(0) * dt, X(1) + Vx(1) * dt, 0;
+        Eigen::Vector3d center{kf_output(0), kf_output(1), 0};
 
-        auto angle = X(2) + dt * Vx(2);
+        auto angle = kf_output(2) + dt * rotate_velocity_;
         if (dt == 0)
             angle = detected_yaw;
 
-        add_armor(angle, z1, center, 276.5);
+        add_armor(angle, z1, center, radius_);
         angle += std::numbers::pi * 2 / 3;
-        add_armor(angle, z2, center, l2);
+        add_armor(angle, z2, center, radius_);
         angle += std::numbers::pi * 2 / 3;
-        add_armor(angle, z3, center, l1);
+        add_armor(angle, z3, center, radius_);
 
         return armors_;
     }
 
-    void update_frame(double l1, double l2) {
-        car_frame_kf_.Update(CarFrameKF::ZVec{l1, l2}, {}, 0);
-        auto frame = car_frame_kf_.OutPut();
-        this->l1   = std::clamp(frame(0), 0.1, 0.6);
-        this->l2   = std::clamp(frame(1), 0.1, 0.6);
-    };
-
-    void update_z(const double& z1, const double& z2, const double& z3, const double& z4) {
+    void update_z(const double& z1, const double& z2, const double& z3) {
 
         this->z1 = z1;
         this->z2 = z2;
         this->z3 = z3;
-        this->z4 = z4;
     };
-    Eigen::Vector<double, 4> get_z() const { return {z1, z2, z3, z4}; }
-    std::tuple<double, double> get_frame() { return {l1, l2}; }
+    Eigen::Vector<double, 3> get_z() const { return {z1, z2, z3}; }
     [[nodiscard]] rmcs_description::OdomImu::Position get_car_position(double dt = 0) {
         armors_.clear();
-        auto X  = Eigen::Vector3d{car_kf_.OutPut()(0), car_kf_.OutPut()(2), car_kf_.OutPut()(4)};
-        auto Vx = car_movement_kf_.OutPut();
-        if (!check_armor_tracked())
-            last_acc_ << 0, 0;
+        if (!check_armor_tracked()) {}
+        const auto kf_output = outpost_kf_.OutPut();
 
-        Eigen::Vector3d center{X(0) + last_vel_(0) * dt, X(1) + last_vel_(1) * dt, 0};
-
-        if (last_acc_.norm() < 0.5)
-            center << X(0) + Vx(0) * dt, X(1) + Vx(1) * dt, 0;
-        return rmcs_description::OdomImu::Position(center);
+        return rmcs_description::OdomImu::Position{kf_output(0), kf_output(1), 0};
     }
+
+    static std::tuple<double, double> get_frame() { return {radius_, radius_}; }
 
 private:
     void add_armor(double angle, double z, const Eigen::Vector3d& center, const double& l) {
         Eigen::Quaterniond forward_armor =
             Eigen::AngleAxisd(angle, Eigen::Vector3d::UnitZ())
             * Eigen::AngleAxisd(
-                15. / 180. * std::numbers::pi,
+                -15. / 180. * std::numbers::pi,
                 *rmcs_description::OdomImu::DirectionVector(Eigen::Vector3d::UnitY()));
 
         Eigen::Vector3d ccenter_{};
@@ -146,20 +108,15 @@ private:
             rmcs_msgs::ArmorID::Unknown, rmcs_description::OdomImu::Position(ccenter_),
             rmcs_description::OdomImu::Rotation(forward_armor));
     }
-    Eigen::Vector2d last_acc_ = {0, 0};
-    Eigen::Vector2d last_vel_ = {0, 0};
-    CarKF car_kf_;
-    CarFrameKF car_frame_kf_;
-    CarFrameZKF car_frame_z_kf_;
-    CarMovementKF car_movement_kf_;
-    double l1 = 0.3, l2 = 0.3;
-    double z1 = 0, z2 = 0, z3 = 0, z4 = 0;
+
+    OutPostKF outpost_kf_;
+    double z1 = 0, z2 = 0, z3 = 0;
     double detected_yaw = 0;
     std::chrono::steady_clock::time_point last_update_time_;
     double self_update_time_ = 10086;
 
-    constexpr static const double alpha_ = 1;
-    constexpr static const double rotate_radius_=276.5;
+    constexpr static const double radius_          = 276.5;
+    constexpr static const double rotate_velocity_ = 0.8 * std::numbers::pi;
 
     std::vector<ArmorPlate3d> armors_;
 };
@@ -176,28 +133,24 @@ bool OutPostTracker::check_armor_tracked() const { return pimpl_->check_armor_tr
 
 double OutPostTracker::omega() { return pimpl_->omega(); }
 
-void OutPostTracker::update_car(const Eigen::Vector<double, 3>& zk, const double& dt) {
-    pimpl_->update_car(zk, dt);
+void OutPostTracker::update_outpost(const OutPostKF::ZVec& zk, const double& dt) {
+    pimpl_->update_outpost(zk, dt);
 }
 
 std::vector<ArmorPlate3d> OutPostTracker::get_armor(double dt) { return pimpl_->get_armor(dt); }
 
-void OutPostTracker::update_frame(double l1, double l2) { return pimpl_->update_frame(l1, l2); }
+std::tuple<double, double> OutPostTracker::get_frame() { return pimpl_->get_frame(); }
 
-void OutPostTracker::update_z(
-    const double& z1, const double& z2, const double& z3, const double& z4) {
-    return pimpl_->update_z(z1, z2, z3, z4);
+void OutPostTracker::update_z(const double& z1, const double& z2, const double& z3) {
+    return pimpl_->update_z(z1, z2, z3);
 }
 
-Eigen::Vector<double, 4> OutPostTracker::get_armor_height() const { return pimpl_->get_z(); }
+Eigen::Vector<double, 3> OutPostTracker::get_armor_height() const { return pimpl_->get_z(); }
 
 [[nodiscard]] rmcs_description::OdomImu::Position OutPostTracker::get_car_position(double dt) {
     return pimpl_->get_car_position(dt);
 }
 
-std::tuple<double, double> OutPostTracker::get_frame() { return pimpl_->get_frame(); }
-
-Eigen::Vector2d OutPostTracker::velocity() { return pimpl_->velocity(); }
 OutPostTracker::~OutPostTracker() = default;
 
 double OutPostTracker::get_dt(const std::chrono::steady_clock::time_point& timestamp) {
