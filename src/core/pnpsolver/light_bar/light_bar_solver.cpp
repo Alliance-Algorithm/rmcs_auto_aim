@@ -25,15 +25,18 @@ using namespace rmcs_auto_aim;
 
 class LightBarSolver::StaticImpl {
 public:
-    static std::vector<ArmorPlate3d>
-        SolveAll(const std::vector<ArmorPlate>& armors, const rmcs_description::Tf& tf) {
+    static std::vector<ArmorPlate3d> SolveAll(
+        const std::vector<ArmorPlate>& armors, const rmcs_description::Tf& tf,
+        bool pitch_reverse = false) {
         auto camera_rotation_in_odom = fast_tf::cast<rmcs_description::OdomImu>(
             rmcs_description::CameraLink::Rotation(Eigen::Quaterniond::Identity()), tf);
         auto camera_yaw_in_odom = util::math::get_yaw_from_quaternion(*camera_rotation_in_odom);
 
+        const double reverse = pitch_reverse ? -1 : 1;
         const Eigen::AngleAxis rotation = Eigen::AngleAxis(
-            15. / 180.0 * std::numbers::pi,
+            reverse * 15. / 180.0 * std::numbers::pi,
             *rmcs_description::OdomImu::DirectionVector(Eigen::Vector3d::UnitY()));
+        
         std::vector<ArmorPlate3d> result;
         for (auto& armor : armors) {
             const auto& [top, button, light_bar, dir, top1, button1] = get_full_light_bar(armor);
@@ -158,6 +161,6 @@ private:
 };
 
 std::vector<ArmorPlate3d> LightBarSolver::SolveAll(
-    const std::vector<ArmorPlate>& armors, const rmcs_description::Tf& tf) {
-    return LightBarSolver::StaticImpl::SolveAll(armors, tf);
+    const std::vector<ArmorPlate>& armors, const rmcs_description::Tf& tf, bool pitch_reverse) {
+    return LightBarSolver::StaticImpl::SolveAll(armors, tf, pitch_reverse);
 }

@@ -13,9 +13,10 @@
 class FusionSolver {
 public:
     static std::vector<rmcs_auto_aim::ArmorPlate3d> SolveAll(
-        const std::vector<rmcs_auto_aim::ArmorPlate>& armors, const rmcs_description::Tf& tf) {
+        const std::vector<rmcs_auto_aim::ArmorPlate>& armors, const rmcs_description::Tf& tf,
+        bool pitch_reverse = false) {
 
-        auto armor3d_with_light_bar = rmcs_auto_aim::LightBarSolver::SolveAll(armors, tf);
+        auto armor3d_with_light_bar = rmcs_auto_aim::LightBarSolver::SolveAll(armors, tf,pitch_reverse);
         auto armor3d_with_ippe      = rmcs_auto_aim::ArmorPnPSolver::SolveAll(armors, tf);
 
         if (armor3d_with_ippe.size() != armor3d_with_light_bar.size()) {

@@ -121,8 +121,14 @@ public:
                     auto armor_plates =
                         armor_identifier->Identify(image, *target_color_, *whitelist_);
 
-                    // TODO:前哨站（-15）与车上装甲板（15）的旋转角度不一样
-                    auto armor3d = FusionSolver::SolveAll(armor_plates, tf);
+                    std::vector<rmcs_auto_aim::ArmorPlate3d> armor3d;
+
+                    const bool is_outpost_mode = outpost_mode.load(std::memory_order::relaxed);
+
+                    if (is_outpost_mode)
+                        armor3d = FusionSolver::SolveAll(armor_plates, tf, true);
+                    else
+                        armor3d = FusionSolver::SolveAll(armor_plates, tf,false);
 
                     for (auto& armor2d_ : armor3d) {
                         util::ImageViewer::draw(

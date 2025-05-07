@@ -20,7 +20,7 @@ namespace rmcs_auto_aim {
 class LightBarSolver {
 public:
     static std::vector<ArmorPlate3d>
-        SolveAll(const std::vector<ArmorPlate>& armors, const rmcs_description::Tf& tf);
+        SolveAll(const std::vector<ArmorPlate>& armors, const rmcs_description::Tf& tf,bool pitch_reverse = false);
 
 private:
     class StaticImpl;
