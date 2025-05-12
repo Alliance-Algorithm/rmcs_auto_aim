@@ -12,6 +12,7 @@ public:
     static void set_width_height(const int& width, const int& height);
     static const cv::Mat& get_intrinsic_parameters();
     static const cv::Mat& get_distortion_parameters();
+    static const cv::Mat& get_transmitter_intrinsic_parameters();
     static const std::tuple<int, int>& get_width_height();
 
 private:

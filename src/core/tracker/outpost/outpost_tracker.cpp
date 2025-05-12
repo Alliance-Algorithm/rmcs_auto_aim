@@ -13,12 +13,6 @@
 
 #include "core/pnpsolver/armor/armor3d.hpp"
 
-#include "core/tracker/car/filter/car_frame_kf.hpp"
-#include "core/tracker/car/filter/car_frame_z_kf.hpp"
-#include "core/tracker/car/filter/car_kf.hpp"
-#include "core/tracker/car/filter/car_movement_kf.hpp"
-#include "core/tracker/car/filter/car_pos_kf.hpp"
-
 #include "outpost_tracker.hpp"
 
 namespace rmcs_auto_aim::tracker {
@@ -50,6 +44,7 @@ public:
 
         self_update_time_ = 0;
     }
+    
     std::vector<ArmorPlate3d> get_armor(double dt = 0) {
         armors_.clear();
         if (!check_armor_tracked()) {}

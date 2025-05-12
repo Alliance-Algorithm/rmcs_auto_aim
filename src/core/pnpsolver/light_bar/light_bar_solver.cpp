@@ -32,7 +32,7 @@ public:
             rmcs_description::CameraLink::Rotation(Eigen::Quaterniond::Identity()), tf);
         auto camera_yaw_in_odom = util::math::get_yaw_from_quaternion(*camera_rotation_in_odom);
 
-        const double reverse = pitch_reverse ? -1 : 1;
+        const double reverse = pitch_reverse ? -1.0 : 1.0;
         const Eigen::AngleAxis rotation = Eigen::AngleAxis(
             reverse * 15. / 180.0 * std::numbers::pi,
             *rmcs_description::OdomImu::DirectionVector(Eigen::Vector3d::UnitY()));

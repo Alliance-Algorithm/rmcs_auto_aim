@@ -60,7 +60,6 @@ public:
                 outpost_armors, last_detected_armor, tf, nearest_armor_index_in_detected);
 
             Eigen::Vector<double, 4> armor_z{};
-
             Eigen::Vector3d armor_in_camera = *fast_tf::cast<rmcs_description::CameraLink>(
                 outpost_armors[nearest_armor_index_in_detected].position, tf);
             armor_z << armor_in_camera,
@@ -179,7 +178,7 @@ private:
         }
 
         min = 1e7;
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < 3; i++) {
             double dot_val =
                 abs(util::math::get_yaw_from_quaternion(*armors_detected[index_detected].rotation)
                     - util::math::get_yaw_from_quaternion(*armors_predicted[i].rotation));

@@ -14,6 +14,7 @@
 
 #include "core/identifier/armor/armor.hpp"
 #include "core/identifier/armor/number_identifier.hpp"
+#include "util/scanline.hpp"
 
 #include "armor_identifier.hpp"
 
@@ -39,8 +40,13 @@ public:
         // for (int i = 0; i < contours.size(); i++)
         //     cv::drawContours(img, contours, i,cv::Scalar(0, 255, 0), 2);
 
-        for (const auto& contour : contours) {
-            if (auto&& lightBarOpt = _solveToLightbar(img, contour, target_color)) 
+        const auto contour_points = get_contours_points(img, contours, -1);
+        if (contour_points.size() != contours.size())
+            return {};
+        const auto contour_num = contours.size();
+        for (int i = 0; i < contour_num; i++) {
+            if (const auto& lightBarOpt =
+                    _solveToLightbar(img, contours[i], contour_points[i], target_color))
                 lightBars.push_back(*lightBarOpt);
         }
 
@@ -124,19 +130,11 @@ private:
 
     static std::optional<LightBar> _solveToLightbar(
         const cv::Mat& img, const std::vector<cv::Point>& contour,
-        const rmcs_msgs::RobotColor& target_color) {
+        const std::vector<cv::Point>& points, const rmcs_msgs::RobotColor& target_color) {
         auto&& contourSize = contour.size();
         if (contourSize >= 5) {
             auto b_rect  = cv::boundingRect(contour);
             auto r_rect  = cv::minAreaRect(contour);
-            cv::Mat mask = cv::Mat::zeros(b_rect.size(), CV_8UC1);
-            std::vector<cv::Point> mask_contour;
-            mask_contour.reserve(contour.size());
-            for (const auto& p : contour)
-                mask_contour.emplace_back(p - cv::Point(b_rect.x, b_rect.y));
-            cv::fillPoly(mask, {mask_contour}, 255);
-            std::vector<cv::Point> points;
-            cv::findNonZero(mask, points);
             bool filled = (float)points.size() / (r_rect.size.width * r_rect.size.height) > 0.8;
             cv::Vec4f return_param;
             cv::fitLine(points, return_param, cv::DIST_L2, 0, 0.01, 0.01);
@@ -150,8 +148,7 @@ private:
                 angle_k = 0;
             } else {
                 auto k = return_param[1] / return_param[0];
-                auto b =
-                    (return_param[3] + (float)b_rect.y) - k * (return_param[2] + (float)b_rect.x);
+                auto b = return_param[3] - k * return_param[2];
                 top    = cv::Point2f(((float)b_rect.y - b) / k, (float)b_rect.y);
                 bottom = cv::Point2f(
                     ((float)b_rect.y + (float)b_rect.height - b) / k,
@@ -180,7 +177,7 @@ private:
                 std::array<cv::Mat, 3> channels;
                 cv::Mat output;
                 cv::split(img, channels);
-                cv::subtract(channels[0], channels[1], output, cv::noArray(), CV_16S);
+                cv::subtract(channels[0], channels[2], output, cv::noArray(), CV_16S);
                 const auto sum = cv::sum(output).val[0];
                 if ((sum > 0 && target_color == rmcs_msgs::RobotColor::BLUE)
                     || (sum < 0 && target_color == rmcs_msgs::RobotColor::RED)) {

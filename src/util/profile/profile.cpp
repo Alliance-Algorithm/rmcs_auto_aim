@@ -12,6 +12,7 @@ struct Profile::Impl {
 
     const cv::Mat intrinsic_parameters;
     const cv::Mat distortion_parameters;
+    const cv::Mat transmitter_intrinsic_parameters;
     std::tuple<int, int> width_height;
 };
 
