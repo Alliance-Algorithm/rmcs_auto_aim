@@ -329,7 +329,7 @@ private:
 
     // rmcs_auto_aim::Target target_;
     struct TargetFrame armor_target_buffer_[2];
-    std::atomic<bool> armor_target_index_{false};
+    std::atomic<bool> armor_target_index_{true};
 
     InputInterface<size_t> update_count_;
     InputInterface<uint8_t> whitelist_;

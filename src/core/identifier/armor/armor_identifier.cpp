@@ -14,7 +14,6 @@
 
 #include "core/identifier/armor/armor.hpp"
 #include "core/identifier/armor/number_identifier.hpp"
-#include "util/scanline.hpp"
 
 #include "armor_identifier.hpp"
 
@@ -37,22 +36,15 @@ public:
         std::vector<ArmorPlate> result;
         cv::findContours(imgThre, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_NONE);
 
-        // for (int i = 0; i < contours.size(); i++)
-        //     cv::drawContours(img, contours, i,cv::Scalar(0, 255, 0), 2);
-
-        const auto contour_points = get_contours_points(img, contours, -1);
-        if (contour_points.size() != contours.size())
-            return {};
-        const auto contour_num = contours.size();
-        for (int i = 0; i < contour_num; i++) {
-            if (const auto& lightBarOpt =
-                    _solveToLightbar(img, contours[i], contour_points[i], target_color))
+        for (const auto& contour : contours) {
+            if (auto&& lightBarOpt = _solveToLightbar(img, contour, target_color)) {
                 lightBars.push_back(*lightBarOpt);
-        }
 
-        std::sort(lightBars.begin(), lightBars.end(), [](LightBar& a, LightBar& b) {
-            return a.top.x < b.top.x;
-        });
+                std::sort(lightBars.begin(), lightBars.end(), [](LightBar& a, LightBar& b) {
+                    return a.top.x < b.top.x;
+                });
+            }
+        }
 
         size_t&& lightBarsSize = lightBars.size();
         for (size_t i = 0; i < lightBarsSize; ++i) {
@@ -81,12 +73,14 @@ public:
 
                 if (_numberIdentifier.Identify(img, armor, blacklist)) {
                     result.push_back(armor);
+
+                    // cv::rectangle(
+                    //     img, cv::Rect{armor.points[0], armor.points[2]}, cv::Scalar(0, 255, 0),
+                    //     2);
+                    // cv::putText(
+                    //     img, std::to_string((int)armor.id), armor.center(), 2, 2,
+                    //     cv::Scalar(0, 255, 0), 2);
                 }
-                // cv::rectangle(
-                //     img, cv::Rect{armor.points[0], armor.points[2]}, cv::Scalar(0, 255, 0), 2);
-                // cv::putText(
-                //     img, std::to_string((int)armor.id), armor.center(), 2, 2, cv::Scalar(0, 255,
-                //     0), 2);
             }
         }
         return result;
@@ -95,10 +89,10 @@ public:
 private:
     NumberIdentifier _numberIdentifier;
 
-    inline static constexpr const double maxArmorLightRatio = 4;
-    inline static constexpr const double maxdAngle          = 0.5;
-    inline static constexpr const double maxMalposition     = 0.6;
-    inline static constexpr const double maxLightDy         = 0.4;
+    inline static constexpr const double maxArmorLightRatio = 2;
+    inline static constexpr const double maxdAngle          = 9.5;
+    inline static constexpr const double maxMalposition     = 0.7;
+    inline static constexpr const double maxLightDy         = 0.9;
     inline static constexpr const double maxbigArmorDis     = 5.5;
     inline static constexpr const double minbigArmorDis     = 3.2;
     inline static constexpr const double maxsmallArmorDis   = 3.2;
@@ -130,11 +124,20 @@ private:
 
     static std::optional<LightBar> _solveToLightbar(
         const cv::Mat& img, const std::vector<cv::Point>& contour,
-        const std::vector<cv::Point>& points, const rmcs_msgs::RobotColor& target_color) {
+        const rmcs_msgs::RobotColor& target_color) {
         auto&& contourSize = contour.size();
         if (contourSize >= 5) {
             auto b_rect  = cv::boundingRect(contour);
             auto r_rect  = cv::minAreaRect(contour);
+            cv::Mat mask = cv::Mat::zeros(b_rect.size(), CV_8UC1);
+            std::vector<cv::Point> mask_contour;
+            mask_contour.reserve(contour.size());
+            for (const auto& p : contour) {
+                mask_contour.emplace_back(p - cv::Point(b_rect.x, b_rect.y));
+            }
+            cv::fillPoly(mask, {mask_contour}, 255);
+            std::vector<cv::Point> points;
+            cv::findNonZero(mask, points);
             bool filled = (float)points.size() / (r_rect.size.width * r_rect.size.height) > 0.8;
             cv::Vec4f return_param;
             cv::fitLine(points, return_param, cv::DIST_L2, 0, 0.01, 0.01);
@@ -148,7 +151,8 @@ private:
                 angle_k = 0;
             } else {
                 auto k = return_param[1] / return_param[0];
-                auto b = return_param[3] - k * return_param[2];
+                auto b =
+                    (return_param[3] + (float)b_rect.y) - k * (return_param[2] + (float)b_rect.x);
                 top    = cv::Point2f(((float)b_rect.y - b) / k, (float)b_rect.y);
                 bottom = cv::Point2f(
                     ((float)b_rect.y + (float)b_rect.height - b) / k,
@@ -157,21 +161,20 @@ private:
                 if (angle_k > 90) {
                     angle_k = 180 - angle_k;
                 }
-                if (angle_k > 70.0) {
-                    return std::nullopt;
-                }
+            }
+            if (angle_k > 70.0) {
+                return std::nullopt;
             }
 
             auto length = cv::norm(bottom - top);
             auto width  = (double)points.size() / length;
 
             auto ratio = width / length;
-            if (!(ratio > 0.01 && ratio < 0.4 && filled)) {
+            if (!(ratio > 0.1 && ratio < 0.4 && filled)) {
                 return std::nullopt;
             }
             angle_k  = (float)(angle_k / 180 * CV_PI);
             auto tmp = LightBar{top, bottom, angle_k};
-
             if (0 <= b_rect.x && 0 <= b_rect.width && b_rect.x + b_rect.width <= img.cols
                 && 0 <= b_rect.y && 0 <= b_rect.height && b_rect.y + b_rect.height <= img.rows) {
                 std::array<cv::Mat, 3> channels;
@@ -184,26 +187,6 @@ private:
                     return tmp;
                 }
             }
-
-            // if (0 <= b_rect.x && 0 <= b_rect.width && b_rect.x + b_rect.width <= img.cols
-            //     && 0 <= b_rect.y && 0 <= b_rect.height && b_rect.y + b_rect.height <= img.rows) {
-            //     int sum  = 0;
-            //     auto roi = img(b_rect);
-            //     for (int i = 0; i < roi.rows; i++) {
-            //         for (int j = 0; j < roi.cols; j++) {
-            //             if (cv::pointPolygonTest(
-            //                     contour, cv::Point2i(j + b_rect.x, i + b_rect.y), false)
-            //                 >= 0) {
-            //                 sum += roi.at<cv::Vec3b>(i, j)[0];
-            //                 sum -= roi.at<cv::Vec3b>(i, j)[2];
-            //             }
-            //         }
-            //     }
-            //     if ((sum > 0 && target_color == rmcs_msgs::RobotColor::BLUE)
-            //         || (sum < 0 && target_color == rmcs_msgs::RobotColor::RED)) {
-            //         return tmp;
-            //     }
-            // }
         }
         return std::nullopt;
     }
