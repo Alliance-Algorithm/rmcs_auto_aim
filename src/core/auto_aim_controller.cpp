@@ -127,13 +127,19 @@ public:
                         *debug_target_theta_ =
                             util::math::get_yaw_from_quaternion(*armor2d_.rotation);
                     }
-                    if (auto target = armor_tracker.Update(armor3d, timestamp, tf)) {
-                        armor_target_buffer_[!armor_target_index_.load()].target_ =
-                            std::move(target);
-                        armor_target_buffer_[!armor_target_index_.load()].timestamp_ = timestamp;
-                        armor_target_index_.store(!armor_target_index_.load());
+                    if (outpost_mode_) {
+                        
+                    }else {
+                        if (auto target = armor_tracker.Update(armor3d, timestamp, tf)) {
+                            armor_target_buffer_[!armor_target_index_.load()].target_ =
+                                std::move(target);
+                            armor_target_buffer_[!armor_target_index_.load()].timestamp_ =
+                                timestamp;
+                            armor_target_index_.store(!armor_target_index_.load());
+                        }
+                        armor_tracker.draw_armors(tf, {0, 0, 255});
                     }
-                    armor_tracker.draw_armors(tf, {0, 0, 255});
+                    
                     util::ImageViewer::show_image();
                     if (fps.Count()) {
                         // RCLCPP_INFO(get_logger(), "FPS: %d", fps.GetFPS());
@@ -242,6 +248,7 @@ private:
     OutputInterface<double> debug_target_theta_;
 
     std::chrono::time_point<std::chrono::steady_clock> fire_control_deadband_;
+    bool outpost_mode_{true};
 };
 } // namespace rmcs_auto_aim
 
