@@ -17,7 +17,6 @@
 #include "core/pnpsolver/armor/armor3d.hpp"
 
 #include "core/fire_controller/fire_controller.hpp"
-#include "core/fire_controller/noname_controller.hpp"
 #include "core/fire_controller/tracker_test_controller.hpp"
 #include "core/tracker/armor/filter/armor_ekf.hpp"
 
@@ -30,7 +29,7 @@
 
 namespace rmcs_auto_aim::tracker::armor {
 class ArmorTracker : public ITracker {
-    using TFireController = rmcs_auto_aim::fire_controller::TrackerTestController;
+    using FireControllerT = rmcs_auto_aim::fire_controller::TrackerTestController;
 
 public:
     ArmorTracker()
@@ -49,7 +48,7 @@ public:
         armor_trackers_[rmcs_msgs::ArmorID::InfantryV]   = std::vector<ArmorEKF>{};
         armor_trackers_[rmcs_msgs::ArmorID::Sentry]      = std::vector<ArmorEKF>{};
         armor_trackers_[rmcs_msgs::ArmorID::Outpost]     = std::vector<ArmorEKF>{};
-        for (int i = 0; i < 4; i++)
+        for (int i = 0; i < 3; i++)
             for (auto& [_, armors] : armor_trackers_)
                 armors.emplace_back();
         grouped_armor_[rmcs_msgs::ArmorID::Hero]        = {};
@@ -66,7 +65,6 @@ public:
         const std::chrono::steady_clock::time_point& timestamp,
         const rmcs_description::Tf& tf) override {
         target_.SetTracker(nullptr);
-
         last_armors1_ = car_trackers_[last_car_id_]->get_armor(0.15);
         last_update_  = timestamp;
 
@@ -101,7 +99,7 @@ public:
                         *grouped_armor_[armorID][nearest_armor_index_in_detected].rotation);
                 armor_trackers_[armorID][armor_id[nearest_armor_index_in_detected]].Update(
                     armor_z, {}, dt);
-                for (int i = 0; i < 4; i++) {
+                for (int i = 0; i < 3; i++) {
                     if (armor_id[0] == i || (armor_id.size() > 1 && armor_id[2] == i))
                         continue;
 
@@ -126,6 +124,7 @@ public:
                 rmcs_description::OdomImu::Position car_pos = armor_to_car(
                     armor_trackers_[armorID][armor_id[nearest_armor_index_in_detected]],
                     armor_id[nearest_armor_index_in_detected] % 2 ? l2 : l1, tf);
+                std::cerr << *car_pos << std::endl;
 
                 car->update_car(
                     {car_pos->x(), car_pos->y(),
@@ -133,14 +132,16 @@ public:
                          - armor_id[nearest_armor_index_in_detected] * std::numbers::pi / 2},
                     dt);
 
-                Eigen::Vector<double, 4> car_armor_height = car->get_armor_height();
-                for (int i = 0; i < 4; i++)
+                Eigen::Vector<double, 3> car_armor_height = car->get_armor_height();
+                for (int i = 0; i < 3; i++)
                     if (i == armor_id[0] || (armor_id.size() > 1 ? (i == armor_id[1]) : false)) {
                         car_armor_height(i) = armor_get_odom_z(armor_trackers_[armorID][i], tf);
                     }
-                car->update_z(
-                    car_armor_height(0), car_armor_height(1), car_armor_height(2),
-                    car_armor_height(3));
+
+                car->update_z(car_armor_height(0), car_armor_height(0), car_armor_height(0));
+                if (!armors.empty())
+                    car->update_z(
+                        armors[0].position->z(), armors[0].position->z(), armors[0].position->z());
 
                 Eigen::Vector3d armor_plate_normal =
                     *grouped_armor_[armorID][nearest_armor_index_in_detected].rotation
@@ -164,7 +165,7 @@ public:
         }
 
         last_armors2_ = car_trackers_[last_car_id_]->get_armor();
-        return target_.check() ? std::make_shared<TFireController>(target_) : nullptr;
+        return target_.check() ? std::make_shared<FireControllerT>(target_) : nullptr;
     }
 
     void draw_armors(const rmcs_description::Tf& tf, const cv::Scalar& color) {
@@ -174,7 +175,7 @@ public:
 
         for (const auto& armor3d : last_armors1_) {
             util::ImageViewer::draw(
-                transform_optimizer::Quadrilateral3d(armor3d).ToQuadrilateral(tf, false), color_);
+                transform_optimizer::Quadrilateral3d(armor3d).ToQuadrilateral(tf, false), color);
             color_ = color_ / 1.5;
         }
         color_ = {255 - color(0), 255 - color(1), 255 - color(2)};
@@ -226,7 +227,7 @@ private:
         }
 
         min = 1e7;
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < 3; i++) {
             double dot_val =
                 abs(util::math::get_yaw_from_quaternion(*armors_detected[index_detected].rotation)
                     - util::math::get_yaw_from_quaternion(*armors_predicted[i].rotation));
@@ -254,17 +255,17 @@ private:
         armor_angular_distance =
             abs(util::math::get_yaw_from_quaternion(*armors_detected.rotation)
                 - util::math::get_yaw_from_quaternion(
-                    *armors_predicted[(index_predicted + 1) % 4].rotation));
+                    *armors_predicted[(index_predicted + 1) % 3].rotation));
         if (armor_angular_distance < min) {
             min   = armor_angular_distance;
-            index = (index_predicted + 1) % 4;
+            index = (index_predicted + 1) % 3;
         }
         armor_angular_distance =
             abs(util::math::get_yaw_from_quaternion(*armors_detected.rotation)
                 - util::math::get_yaw_from_quaternion(
-                    *armors_predicted[(index_predicted + 3) % 4].rotation));
+                    *armors_predicted[(index_predicted + 2) % 3].rotation));
         if (armor_angular_distance < min) {
-            index = (index_predicted + 3) % 4;
+            index = (index_predicted + 2) % 3;
         }
         return index;
     }
@@ -280,7 +281,7 @@ private:
 
         const auto [detected_index, predicted_index] =
             calculate_nearest_armor_id(armors_detected, armors_predicted, camera_forward);
-        //这里如果没有扫描到可能出问题吧
+        // 这里如果没有扫描到可能出问题吧
         nearest_armor_id = detected_index;
 
         if (armors_detected.size() == 1)
@@ -362,7 +363,7 @@ private:
     // 改为多车 这是测试版本
     rmcs_msgs::ArmorID last_car_id_ = rmcs_msgs::ArmorID::Hero;
 
-    TFireController target_;
+    FireControllerT target_;
     double nearest_distance_ = 0.0;
 };
 } // namespace rmcs_auto_aim::tracker::armor

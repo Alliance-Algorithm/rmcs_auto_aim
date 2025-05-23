@@ -37,7 +37,7 @@ public:
     [[nodiscard]] double get_omega() final { return car.omega(); }
     [[nodiscard]] std::tuple<double, double> get_frame() final { return car.get_frame(); }
     [[nodiscard]] rmcs_description::OdomImu::Position get_car_position() final {
-        return car.get_car_position();
+        return car.get_outpost_position();
     }
 
 private:

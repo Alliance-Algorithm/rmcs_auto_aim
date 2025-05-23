@@ -33,8 +33,8 @@ public:
 
     void update_frame(double l1, double l2);
 
-    void update_z(const double& z1, const double& z2, const double& z3, const double& z4);
-    Eigen::Vector<double, 4> get_armor_height() const;
+    void update_z(const double& z1, const double& z2, const double& z3);
+    Eigen::Vector<double, 3> get_armor_height() const;
     std::tuple<double, double> get_frame();
     std::chrono::steady_clock::time_point get_timestamp();
 

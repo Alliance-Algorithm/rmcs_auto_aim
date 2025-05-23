@@ -17,7 +17,7 @@ public:
         auto armors   = car.get_armor(sec + 0.01);
         auto camera_x = fast_tf::cast<rmcs_description::OdomImu>(
             rmcs_description::CameraLink::DirectionVector(Eigen::Vector3d::UnitX()), tf);
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < 3; i++) {
             auto armor_x = fast_tf::cast<rmcs_description::OdomImu>(
                 rmcs_description::OdomImu::DirectionVector(
                     armors[i].rotation->toRotationMatrix() * Eigen::Vector3d::UnitX()),

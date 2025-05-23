@@ -100,12 +100,12 @@ struct Quadrilateral3d::Impl {
         const auto objectPoints = get_objective_point(tf, isLargeArmor);
         std::vector<cv::Point3f> transformedPoints{};
         transformedPoints.reserve(objectPoints.size());
-        for(const auto& point : objectPoints) {
+        for (const auto& point : objectPoints) {
             auto transformedPoint = fast_tf::cast<T>(point, tf);
-            transformedPoints.emplace_back(transformedPoint.x(), transformedPoint.y(),
-                                           transformedPoint.z());
+            transformedPoints.emplace_back(
+                transformedPoint.x(), transformedPoint.y(), transformedPoint.z());
         }
-        
+
         const auto intrinsic_parameters  = util::Profile::get_intrinsic_parameters();
         const auto distortion_parameters = util::Profile::get_distortion_parameters();
 
@@ -130,8 +130,7 @@ Quadrilateral
 }
 
 template <typename T>
-requires std::is_base_of_v<fast_tf::Link<T>, T>
-Quadrilateral
+requires std::is_base_of_v<fast_tf::Link<T>, T> Quadrilateral
     Quadrilateral3d::ToDifferentView(const rmcs_description::Tf& tf, bool isLargeArmor) const {
     return pimpl_->ToDifferentView<T>(tf, isLargeArmor);
 }

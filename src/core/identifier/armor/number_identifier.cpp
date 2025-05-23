@@ -71,7 +71,7 @@ bool NumberIdentifier::Identify(
     cv::Point class_id_point;
     minMaxLoc(softmax_prob.reshape(1, 1), nullptr, &confidence, nullptr, &class_id_point);
     int label_id = class_id_point.x;
-    if (confidence < 0.85)
+    if (confidence < 0.55)
         return false;
     switch (label_id) {
     case 8: return false;

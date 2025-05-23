@@ -23,7 +23,6 @@
 #include "core/tracker/outpost/armor_tracker_for_outpost.hpp"
 #include "core/trajectory/trajectory_solvor.hpp"
 #include "util/image_viewer/image_viewer.hpp"
-#include "util/math.hpp"
 #include "util/profile/profile.hpp"
 #include "util/utils.hpp"
 
@@ -103,8 +102,7 @@ public:
                 auto armor_identifier = std::make_unique<ArmorIdentifier>(
                     ament_index_cpp::get_package_share_directory("rmcs_auto_aim")
                     + "/models/mlp.onnx");
-                auto armor_tracker = tracker::armor::ArmorTracker(); // TODO
-                auto outpost_tracker = tracker::armor::OutPostArmorTracker();
+                auto armor_tracker = tracker::armor::OutPostArmorTracker(); // TODO
 
                 rmcs_auto_aim::util::FPSCounter fps;
 
@@ -118,36 +116,27 @@ public:
                     auto tf        = tf_buffer_[tf_index_.load()];
                     auto timestamp = std::chrono::steady_clock::now();
                     util::ImageViewer::load_image(image);
-                    auto armor_plates =
-                        armor_identifier->Identify(image, *target_color_, *whitelist_);
+                    auto armor_plates = armor_identifier->Identify(image, *target_color_, 0x40);
 
                     std::vector<rmcs_auto_aim::ArmorPlate3d> armor3d;
 
-                    const bool is_outpost_mode = outpost_mode.load(std::memory_order::relaxed);
+                    const bool is_outpost_mode = true;
 
                     if (is_outpost_mode)
-                        armor3d = FusionSolver::SolveAll(armor_plates, tf, true);
+                        armor3d = LightBarSolver::SolveAll(armor_plates, tf, true);
                     else
-                        armor3d = FusionSolver::SolveAll(armor_plates, tf,false);
+                        armor3d = FusionSolver::SolveAll(armor_plates, tf, false);
 
                     for (auto& armor2d_ : armor3d) {
                         util::ImageViewer::draw(
                             transform_optimizer::Quadrilateral3d(armor2d_).ToQuadrilateral(
-                                tf, true),
-                            {0, 255, 0});
-                        *debug_target_theta_ =
-                            util::math::get_yaw_from_quaternion(*armor2d_.rotation);
+                                tf, false),
+                            // transform_optimizer::Quadrilateral(armor2d_),
+                            {0, 0, 255});
+                        //     *debug_target_theta_ =
+                        //         util::math::get_yaw_from_quaternion(*armor2d_.rotation);
                     }
-                    if (outpost_mode.load(std::memory_order::relaxed)) {
-                        auto target = outpost_tracker.Update(armor3d, timestamp, tf);
-                        if (target) {
-                            outpost_target_buffer_[!armor_target_index_.load()].target_ =
-                                std::move(target);
-                            outpost_target_buffer_[!armor_target_index_.load()].timestamp_ =
-                                timestamp;
-                        }
-                        outpost_tracker.draw_armors(tf, {0, 0, 255});
-                    } else {
+                    if (is_outpost_mode) {
                         auto target = armor_tracker.Update(armor3d, timestamp, tf);
                         if (target) {
                             armor_target_buffer_[!armor_target_index_.load()].target_ =
@@ -166,13 +155,7 @@ public:
             });
         }
 
-        if (!last_keyboard_.shift && keyboard_->shift) {
-            outpost_mode.store(
-                !outpost_mode.load(std::memory_order::relaxed), std::memory_order::relaxed);
-            return;
-        }
-
-        if (outpost_mode.load(std::memory_order::relaxed)) {
+        if (!outpost_mode.load()) {
             auto frame = outpost_target_buffer_[outpost_target_index_.load()];
             if (!frame.target_) {
                 *control_direction_ = Eigen::Vector3d::Zero();
@@ -280,10 +263,11 @@ public:
             if (fast_tf::cast<rmcs_description::OdomImu>(
                     rmcs_description::PitchLink::DirectionVector(), *tf_)
                     ->dot(*control_direction_)
-                >= 0.9995)
+                >= 0.9995) {
                 *fire_control_ = true && deadband && *fire_control_;
-            else
+            } else {
                 *fire_control_ = false && deadband && *fire_control_;
+            }
             if (fast_tf::cast<rmcs_description::OdomImu>(
                     rmcs_description::PitchLink::DirectionVector(), *tf_)
                     ->dot(*control_direction_)
@@ -338,7 +322,7 @@ private:
 
     InputInterface<rmcs_msgs::Keyboard> keyboard_;
     rmcs_msgs::Keyboard last_keyboard_;
-    std::atomic<bool> outpost_mode{false};
+    std::atomic<bool> outpost_mode{true};
 
     struct OutPostTargetFrame outpost_target_buffer_[2];
     std::atomic<bool> outpost_target_index_{false};

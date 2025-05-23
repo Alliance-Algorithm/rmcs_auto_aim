@@ -13,12 +13,12 @@ public:
     CarKF()
         : EKF() {
         // clang-format off
-        P_k <<  .1, 1. , 0., 0. , 0., 0. ,  // 1
-                1., 10., 0., 0. , 0., 0. ,  // 2
-                0., 0. , .1, 1. , 0., 0. ,  // 3
-                0., 0. , 1., 10., 0., 0. ,  // 4
+        P_k <<  .1, 0. , 0., 0. , 0., 0. ,  // 1
+                0., 0., 0., 0. , 0., 0. ,  // 2
+                0., 0. , .1, 0. , 0., 0. ,  // 3
+                0., 0. , 0., 0., 0., 0. ,  // 4
                 0., 0. , 0., 0. , .1, 1. ,  // 5
-                0., 0. , 0., 0. , 1., 10.;  // 6
+                0., 0. , 0., 0. , 1., 0.;  // 6
         // clang-format on
 
         P_k *= 0.1;
@@ -51,6 +51,12 @@ protected:
             x_(i)     = X_k(i) + X_k(i + 1) * dt;
             x_(i + 1) = X_k(i + 1);
         }
+        x_(0) = X_k(0);
+        x_(1) = 0;
+        x_(2) = X_k(2);
+        x_(3) = 0;
+        x_(4) = X_k(4) - 0.8 * std::numbers::pi * dt;
+        x_(5) = X_k(5);
         return x_;
     }
 
@@ -87,18 +93,18 @@ protected:
         double q_y_y = pow(t, 4) / 4 * y, q_y_vy = pow(t, 3) / 2 * y, q_vy_vy = pow(t, 2) * y;
         // clang-format off
         //      xc      ,vxc        ,yc     ,vyc        ,theta  ,omega
-        q_ <<   q_x_x   ,q_x_vx     ,0      ,0          ,0      ,0      ,
-                q_x_vx  ,q_vx_vx    ,0      ,0          ,0      ,0      ,
-                0       ,0          ,q_x_x  ,q_x_vx     ,0      ,0      ,
-                0       ,0          ,q_x_vx ,q_vx_vx    ,0      ,0      ,
-                0       ,0          ,0      ,0          ,q_y_y  ,q_y_vy ,
-                0       ,0          ,0      ,0          ,q_y_vy ,q_vy_vy;
+        q_ <<   q_x_x   ,0     ,0      ,0          ,0      ,0      ,
+                0       ,0    ,0      ,0          ,0      ,0      ,
+                0       ,0          ,q_x_x  ,0     ,0      ,0      ,
+                0       ,0          ,0 ,0    ,0      ,0      ,
+                0       ,0          ,0      ,0          ,q_y_y  ,0.1 ,
+                0       ,0          ,0      ,0          ,0.1 ,0.1;
         // clang-format on
         return q_;
     }
     RMat R(const ZVec&) override {
         double x = r_xyz_factor_;
-        r_.diagonal() << x, x, r_ywq_factor_;
+        r_.diagonal() << 0.01, 0.01, 0.01;
         return r_;
     };
 

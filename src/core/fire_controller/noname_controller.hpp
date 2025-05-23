@@ -9,7 +9,7 @@ public:
     [[nodiscard]] std::tuple<bool, rmcs_description::OdomImu::Position>
         UpdateController(double sec, const rmcs_description::Tf&) final;
 
-    void SetTracker(const std::shared_ptr<tracker::CarTracker>& tracker) final;
+    void SetTracker(const std::shared_ptr<tracker::CarTracker>& tracker);
     double get_omega() final;
     bool check();
 

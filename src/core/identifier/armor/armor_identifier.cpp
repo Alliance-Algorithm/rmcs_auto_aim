@@ -26,7 +26,7 @@ public:
         : _numberIdentifier(std::forward<Args>(args)...) {}
 
     std::vector<ArmorPlate> Identify(
-        const cv::Mat& img, const rmcs_msgs::RobotColor& target_color, const uint8_t& blacklist) {
+        const cv::Mat& img, const rmcs_msgs::RobotColor& target_color, const uint8_t& whitelist) {
         cv::Mat imgThre, imgGray;
         cv::cvtColor(img, imgGray, cv::COLOR_BGR2GRAY);
         cv::threshold(imgGray, imgThre, 150, 255, cv::THRESH_BINARY);
@@ -36,6 +36,7 @@ public:
         std::vector<ArmorPlate> result;
         cv::findContours(imgThre, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_NONE);
 
+        // cv::drawContours(img, contours, -1, cv::Scalar{0, 255, 0}, 2);
         for (const auto& contour : contours) {
             if (auto&& lightBarOpt = _solveToLightbar(img, contour, target_color)) {
                 lightBars.push_back(*lightBarOpt);
@@ -52,37 +53,46 @@ public:
             cv::Point2f Icenter = (lightBars[i].top + lightBars[i].bottom) / 2;
             for (size_t j = i + 1; j < lightBarsSize; ++j) {
                 float Jsize = P2PDis(lightBars[j].top, lightBars[j].bottom);
-                if (fmax(Isize, Jsize) / fmin(Isize, Jsize) > maxArmorLightRatio)
+                if (fmax(Isize, Jsize) / fmin(Isize, Jsize) > maxArmorLightRatio) {
+                    //    std::cout << "one" << std::endl;
                     continue;
-                if (fabs(lightBars[i].angle - lightBars[j].angle) > maxdAngle)
+                }
+                if (fabs(lightBars[i].angle - lightBars[j].angle) > maxdAngle) {
+                    //    std::cout << "two" << std::endl;
                     continue;
-                if (malposition(lightBars[i], lightBars[j]) > maxMalposition)
+                }
+                if (malposition(lightBars[i], lightBars[j]) > maxMalposition) {
+                    //    std::cout << "three" << std::endl;
                     continue;
+                }
                 cv::Point2f Jcenter = (lightBars[j].top + lightBars[j].bottom) / 2;
-                if (fabs(Icenter.y - Jcenter.y) * 2 / (Isize + Jsize) > maxLightDy)
+                if (fabs(Icenter.y - Jcenter.y) * 2 / (Isize + Jsize) > maxLightDy) {
+                    //    std::cout << "for" << std::endl;
                     continue;
+                }
                 float lightBarDis = P2PDis(Icenter, Jcenter) * 2 / (Isize + Jsize);
 
                 if ((lightBarDis < minsmallArmorDis || lightBarDis > maxsmallArmorDis)
                     && (lightBarDis < minbigArmorDis || lightBarDis > maxbigArmorDis)) {
+                    // std::cout << "five" << std::endl;
                     continue;
                 }
-                ArmorPlate armor(
-                    lightBars[i], lightBars[j], rmcs_msgs::ArmorID::Unknown,
-                    lightBarDis > minbigArmorDis);
 
-                if (_numberIdentifier.Identify(img, armor, blacklist)) {
+                ArmorPlate armor(lightBars[i], lightBars[j], rmcs_msgs::ArmorID::Outpost);
+
+                if (_numberIdentifier.Identify(img, armor, whitelist)) {
                     result.push_back(armor);
-
-                    // cv::rectangle(
-                    //     img, cv::Rect{armor.points[0], armor.points[2]}, cv::Scalar(0, 255, 0),
-                    //     2);
-                    // cv::putText(
-                    //     img, std::to_string((int)armor.id), armor.center(), 2, 2,
-                    //     cv::Scalar(0, 255, 0), 2);
                 }
+
+                // cv::rectangle(
+                //     img, cv::Rect{armor.points[0], armor.points[2]}, cv::Scalar(0, 255, 0), 2);
+                // cv::putText(
+                //     img, std::to_string((int)armor.id), armor.center(), 2, 2, cv::Scalar(0, 255,
+                //     0), 2);
+                //}
             }
         }
+
         return result;
     }
 
@@ -182,8 +192,8 @@ private:
                 cv::split(img, channels);
                 cv::subtract(channels[0], channels[2], output, cv::noArray(), CV_16S);
                 const auto sum = cv::sum(output).val[0];
-                if ((sum > 0 && target_color == rmcs_msgs::RobotColor::BLUE)
-                    || (sum < 0 && target_color == rmcs_msgs::RobotColor::RED)) {
+                if ((sum > 0 && target_color == rmcs_msgs::RobotColor::RED)
+                    || (sum < 0 && target_color == rmcs_msgs::RobotColor::BLUE)) {
                     return tmp;
                 }
             }
@@ -196,8 +206,8 @@ ArmorIdentifier::ArmorIdentifier(const std::string& model_path)
     : pImpl_(new Impl{model_path}) {}
 
 std::vector<ArmorPlate> ArmorIdentifier::Identify(
-    const cv::Mat& img, const rmcs_msgs::RobotColor& target_color, uint8_t blacklist) {
-    return pImpl_->Identify(img, target_color, blacklist);
+    const cv::Mat& img, const rmcs_msgs::RobotColor& target_color, uint8_t whitelist) {
+    return pImpl_->Identify(img, target_color, whitelist);
 }
 
 ArmorIdentifier::~ArmorIdentifier() = default;
