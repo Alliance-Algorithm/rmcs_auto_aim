@@ -51,19 +51,18 @@ public:
             double dt                = outpost_tracker_.get_dt(timestamp);
             last_armors2_            = outpost_tracker_.get_armor(dt);
             auto last_detected_armor = outpost_tracker_.get_armor();
-            auto armor_id            = calculate_armor_id(outpost_armors, last_detected_armor, tf);
 
             Eigen::Vector<double, 4> armor_z{};
 
-            armor_z(0) = outpost_armors[0].position->x();
-            armor_z(1) = outpost_armors[0].position->y();
-            armor_z(2) = outpost_armors[0].position->z();
-            armor_z(3) = util::math::get_yaw_from_quaternion(*outpost_armors[0].rotation);
+            armor_z << *outpost_armors[0].position,
+                util::math::get_yaw_from_quaternion(*outpost_armors[0].rotation);
 
             rmcs_description::OdomImu::Position outpost_pos =
                 armor_to_outpost(armor_z, outpost_radius, tf);
             // std::cerr << armor_z << std::endl << *outpost_pos << std::endl << std::endl;
 
+            auto armor_id =
+                calculate_armor_id(outpost_armors, last_detected_armor, outpost_pos, tf);
             // if (outpost_tracker_.omega() > 0.) {
             outpost_tracker_.update_outpost(
                 {outpost_pos->x(), outpost_pos->y(), outpost_pos->z(),
@@ -79,8 +78,6 @@ public:
             //     {armor_z(0), armor_z(1), armor_z(2),
             //      armor_z(3) - armor_id * std::numbers::pi * 2 / 3},
             //     dt);
-            last_detected_armor_yaw_ = armor_z(3);
-            *last_detected_armor_pos_ << *outpost_armors[0].position;
 
             target_.SetTracker(std::make_shared<OutPostTracker>(outpost_tracker_));
         } else {
@@ -108,7 +105,7 @@ public:
         }
     }
 
-    double pos_error() const { return pos_error_; }
+    double pos_error() const { return last_cross_product_; }
 
 private:
     static inline std::vector<ArmorPlate3d>
@@ -198,30 +195,21 @@ private:
 
     int calculate_armor_id(
         const std::vector<ArmorPlate3d>& armors_detected,
-        const std::vector<ArmorPlate3d>& armors_predicted, const rmcs_description::Tf& tf) {
-
-        // const rmcs_description::OdomImu::DirectionVector camera_forward =
-        //     fast_tf::cast<rmcs_description::OdomImu>(
-        //         rmcs_description::CameraLink::DirectionVector(Eigen::Vector3d::UnitX()), tf);
-
-        // const auto [detected_index, predicted_index] =
-        //     calculate_nearest_armor_id(armors_detected, armors_predicted, camera_forward);
-
-        pos_error_ = std::abs((*last_detected_armor_pos_ - *armors_detected[0].position).norm());
-        // std::cout << "last:" << *armors_detected[0].position << std::endl;
-        // std::cout << "now:" << *last_detected_armor_pos_ << std::endl;
-        // std::cout << "error:" << pos_error_ << std::endl;
-        if (pos_error_ >= 0.3 && pos_error_ <= 0.8) {
-            std::cout << "debug" << std::endl;
-            const auto angle_error = std::abs(
-                util::math::get_yaw_from_quaternion(*armors_detected[0].rotation)
-                - last_detected_armor_yaw_);
-            if (angle_error >= 0.1) {
+        const std::vector<ArmorPlate3d>& armors_predicted,
+        const rmcs_description::OdomImu::Position& outpost_pos, const rmcs_description::Tf& tf) {
+        const auto cross_product = outpost_pos->cross(*armors_detected[0].position).z();
+        //>0左
+        if (last_cross_product_ < 0.0 && cross_product > 0.0) {
+            const auto pos_error =
+                (*armors_detected[0].position - *last_detected_armor_pos_).norm();
+            if (pos_error > 0.3) {
                 ++last_detected_armor_id_;
-                last_detected_armor_id_ = last_detected_armor_id_ % 3;
-                std::cout << "triggered" << std::endl;
+                last_detected_armor_id_ %= 3;
+                std::cout << "trigger" << std::endl;
             }
         }
+        last_cross_product_ = cross_product;
+        *last_detected_armor_pos_ << *armors_detected[0].position;
 
         return last_detected_armor_id_;
     }
@@ -250,6 +238,7 @@ private:
     int last_detected_armor_id_{0};
     int test{0};
     double pos_error_{0.};
+    double last_cross_product_{0.};
 
     rmcs_description::OdomImu::Position last_detected_armor_pos_{0, 0, 0};
 
