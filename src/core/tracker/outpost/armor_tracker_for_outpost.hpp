@@ -63,14 +63,23 @@ public:
             rmcs_description::OdomImu::Position outpost_pos =
                 armor_to_outpost(armor_z, outpost_radius, tf);
             // std::cerr << armor_z << std::endl << *outpost_pos << std::endl << std::endl;
-            outpost_tracker_.update_outpost(
-                {outpost_pos->x(), outpost_pos->y(), outpost_pos->z(),
-                 armor_z(3) - armor_id * std::numbers::pi * 2 / 3},
-                dt);
+
+            if (outpost_tracker_.omega() > 0.) {
+                outpost_tracker_.update_outpost(
+                    {outpost_pos->x(), outpost_pos->y(), outpost_pos->z(),
+                     armor_z(3) + armor_id * std::numbers::pi * 2 / 3},
+                    dt);
+            } else {
+                outpost_tracker_.update_outpost(
+                    {outpost_pos->x(), outpost_pos->y(), outpost_pos->z(),
+                     armor_z(3) - armor_id * std::numbers::pi * 2 / 3},
+                    dt);
+            }
             // outpost_tracker_.update_outpost(
             //     {armor_z(0), armor_z(1), armor_z(2),
             //      armor_z(3) - armor_id * std::numbers::pi * 2 / 3},
             //     dt);
+            last_detected_armor_yaw_ = armor_z(3);
 
             target_.SetTracker(std::make_shared<OutPostTracker>(outpost_tracker_));
         } else {
@@ -112,7 +121,7 @@ private:
     ///
     /// return {index_detected, index_predicted};
     ///
-    static std::tuple<int, int> calculate_nearest_armor_id(
+    std::tuple<int, int> calculate_nearest_armor_id(
         const std::vector<ArmorPlate3d>& armors_detected,
         const std::vector<ArmorPlate3d>& armors_predicted,
         rmcs_description::OdomImu::DirectionVector camera_forward) {
@@ -149,6 +158,7 @@ private:
                 continue;
             index_predicted = i;
         }
+
         return {index_detected, index_predicted};
     }
 
@@ -183,18 +193,29 @@ private:
     //     return index;
     // }
 
-    static int calculate_armor_id(
+    int calculate_armor_id(
         const std::vector<ArmorPlate3d>& armors_detected,
         const std::vector<ArmorPlate3d>& armors_predicted, const rmcs_description::Tf& tf) {
 
-        const rmcs_description::OdomImu::DirectionVector camera_forward =
-            fast_tf::cast<rmcs_description::OdomImu>(
-                rmcs_description::CameraLink::DirectionVector(Eigen::Vector3d::UnitX()), tf);
+        // const rmcs_description::OdomImu::DirectionVector camera_forward =
+        //     fast_tf::cast<rmcs_description::OdomImu>(
+        //         rmcs_description::CameraLink::DirectionVector(Eigen::Vector3d::UnitX()), tf);
 
-        const auto [detected_index, predicted_index] =
-            calculate_nearest_armor_id(armors_detected, armors_predicted, camera_forward);
+        // const auto [detected_index, predicted_index] =
+        //     calculate_nearest_armor_id(armors_detected, armors_predicted, camera_forward);
 
-        return predicted_index;
+        const auto angle_error =
+            std::abs(
+                util::math::get_yaw_from_quaternion(*armors_detected[0].rotation)
+                - last_detected_armor_yaw_)
+            >= std::numbers::pi / 2;
+        if (angle_error >= std::numbers::pi / 2 && angle_error <= std::numbers::pi) {
+            ++last_detected_armor_id_;
+            last_detected_armor_id_ = last_detected_armor_id_ % 3;
+            std::cout<<"triggered"<<std::endl;
+        }
+
+        return last_detected_armor_id_;
     }
 
     static rmcs_description::OdomImu::Position
@@ -217,11 +238,13 @@ private:
     OutPostTracker outpost_tracker_;
     std::chrono::steady_clock::time_point last_update_;
 
+    double last_detected_armor_yaw_{0.};
+    int last_detected_armor_id_{0};
+
     std::vector<ArmorPlate3d> last_armors1_;
     std::vector<ArmorPlate3d> last_armors2_;
 
-    static constexpr double armor_tuple_angular_epsilon  = 1e-1;
-    static constexpr double armor_tuple_distance_epsilon = 1e-1;
+    bool first_flag_{true};
 
     static constexpr double outpost_radius = 0.2765;
 

@@ -46,7 +46,6 @@ public:
                 });
             }
         }
-
         size_t&& lightBarsSize = lightBars.size();
         for (size_t i = 0; i < lightBarsSize; ++i) {
             float Isize         = P2PDis(lightBars[i].top, lightBars[i].bottom);
@@ -67,7 +66,7 @@ public:
                 }
                 cv::Point2f Jcenter = (lightBars[j].top + lightBars[j].bottom) / 2;
                 if (fabs(Icenter.y - Jcenter.y) * 2 / (Isize + Jsize) > maxLightDy) {
-                    //    std::cout << "for" << std::endl;
+                    // std::cout << "for" << std::endl;
                     continue;
                 }
                 float lightBarDis = P2PDis(Icenter, Jcenter) * 2 / (Isize + Jsize);
@@ -84,11 +83,11 @@ public:
                     result.push_back(armor);
                 }
 
-                // cv::rectangle(
-                //     img, cv::Rect{armor.points[0], armor.points[2]}, cv::Scalar(0, 255, 0), 2);
-                // cv::putText(
-                //     img, std::to_string((int)armor.id), armor.center(), 2, 2, cv::Scalar(0, 255,
-                //     0), 2);
+                cv::rectangle(
+                    img, cv::Rect{armor.points[0], armor.points[2]}, cv::Scalar(0, 255, 0), 2);
+                cv::putText(
+                    img, std::to_string((int)armor.id), armor.center(), 2, 2, cv::Scalar(0, 255, 0),
+                    2);
                 //}
             }
         }
@@ -192,12 +191,13 @@ private:
                 cv::split(img, channels);
                 cv::subtract(channels[0], channels[2], output, cv::noArray(), CV_16S);
                 const auto sum = cv::sum(output).val[0];
-                if ((sum > 0 && target_color == rmcs_msgs::RobotColor::RED)
-                    || (sum < 0 && target_color == rmcs_msgs::RobotColor::BLUE)) {
+                if ((sum > 0 && target_color == rmcs_msgs::RobotColor::BLUE)
+                    || (sum < 0 && target_color == rmcs_msgs::RobotColor::RED)) {
                     return tmp;
                 }
             }
         }
+
         return std::nullopt;
     }
 };
