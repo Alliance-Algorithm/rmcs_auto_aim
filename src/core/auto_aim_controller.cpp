@@ -70,6 +70,7 @@ public:
         register_output("/gimbal/auto_aim/fire_control", fire_control_, false);
         register_output("/debug/target_omega", debug_target_omega_, 0);
         register_output("/debug/target_theta_", debug_target_theta_, 0);
+        register_output("/debug", debug_, 0);
 
         yaw_error_      = get_parameter("yaw_error").as_double();
         pitch_error_    = get_parameter("pitch_error").as_double();
@@ -127,6 +128,10 @@ public:
                     else
                         armor3d = FusionSolver::SolveAll(armor_plates, tf, false);
 
+                    if (!armor3d.empty()) {
+                        *debug_ = util::math::get_yaw_from_quaternion(*armor3d[0].rotation);
+                    }
+
                     for (auto& armor2d_ : armor3d) {
                         util::ImageViewer::draw(
                             transform_optimizer::Quadrilateral3d(armor2d_).ToQuadrilateral(
@@ -149,7 +154,7 @@ public:
                     }
                     util::ImageViewer::show_image();
                     if (fps.Count()) {
-                        // RCLCPP_INFO(get_logger(), "FPS: %d", fps.GetFPS());
+                        RCLCPP_INFO(get_logger(), "FPS: %d", fps.GetFPS());
                     }
                 }
             });
@@ -329,6 +334,8 @@ private:
 
     OutputInterface<Eigen::Vector3d> control_direction_;
     OutputInterface<bool> fire_control_;
+
+    OutputInterface<double> debug_;
 
     OutputInterface<double> debug_target_omega_;
     OutputInterface<double> debug_target_theta_;

@@ -191,8 +191,8 @@ private:
                 cv::split(img, channels);
                 cv::subtract(channels[0], channels[2], output, cv::noArray(), CV_16S);
                 const auto sum = cv::sum(output).val[0];
-                if ((sum > 0 && target_color == rmcs_msgs::RobotColor::BLUE)
-                    || (sum < 0 && target_color == rmcs_msgs::RobotColor::RED)) {
+                if ((sum > 0 && target_color == rmcs_msgs::RobotColor::RED)
+                    || (sum < 0 && target_color == rmcs_msgs::RobotColor::BLUE)) {
                     return tmp;
                 }
             }
