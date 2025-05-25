@@ -37,6 +37,7 @@ public:
         }
         if (robot_msg_.ready()) {
             auto my_color = robot_msg_->color();
+            // RCLCPP_INFO(this->get_logger(), "%d",(int)my_color);
             if (my_color == rmcs_msgs::RobotColor::RED) {
                 *target_color_ = rmcs_msgs::RobotColor::BLUE;
             } else {
