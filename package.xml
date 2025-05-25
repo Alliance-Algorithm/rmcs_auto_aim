@@ -24,6 +24,7 @@
   <depend>rmcs_description</depend>
   <depend>fast_tf</depend>
   <depend>sensor_msgs</depend>
+  <depend>nav_msgs</depend>
   <depend>cv_bridge</depend>
 
   <export>

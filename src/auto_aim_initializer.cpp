@@ -1,5 +1,6 @@
 #include <cstddef>
 
+#include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 
 #include <rmcs_executor/component.hpp>
@@ -31,14 +32,6 @@ public:
         if (*update_count_ == 0) {
             // clang-format off
             *whitelist_ = // If target is not included in blacklist, it will be ignored.
-                rmcs_auto_aim::whitelist_code::Base         |
-                rmcs_auto_aim::whitelist_code::Engineer     |
-                rmcs_auto_aim::whitelist_code::Hero         |
-                rmcs_auto_aim::whitelist_code::InfantryIII  |
-                rmcs_auto_aim::whitelist_code::InfantryIV   |
-                rmcs_auto_aim::whitelist_code::InfantryV    |
-                rmcs_auto_aim::whitelist_code::Outpost      |
-                rmcs_auto_aim::whitelist_code::Sentry       |
                 0;
             // clang-format on
         }

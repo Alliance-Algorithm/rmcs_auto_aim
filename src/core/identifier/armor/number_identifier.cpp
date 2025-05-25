@@ -76,44 +76,44 @@ bool NumberIdentifier::Identify(
     switch (label_id) {
     case 8: return false;
     case 0:
-        if (!(whitelist & rmcs_auto_aim::whitelist_code::Hero)) {
+        if ((whitelist & rmcs_auto_aim::whitelist_code::Hero)) {
             return false;
         }
         armor.id             = rmcs_msgs::ArmorID::Hero;
         armor.is_large_armor = true;
         break;
     case 1:
-        if (!(whitelist & rmcs_auto_aim::whitelist_code::Engineer)) {
+        if ((whitelist & rmcs_auto_aim::whitelist_code::Engineer)) {
             return false;
         }
         armor.id = rmcs_msgs::ArmorID::Engineer;
         break;
     case 2:
-        if (!(whitelist & rmcs_auto_aim::whitelist_code::InfantryIII)) {
+        if ((whitelist & rmcs_auto_aim::whitelist_code::InfantryIII)) {
             return false;
         }
         armor.id = rmcs_msgs::ArmorID::InfantryIII;
         break;
     case 3:
-        if (!(whitelist & rmcs_auto_aim::whitelist_code::InfantryIV)) {
+        if ((whitelist & rmcs_auto_aim::whitelist_code::InfantryIV)) {
             return false;
         }
         armor.id = rmcs_msgs::ArmorID::InfantryIV;
         break;
     case 4:
-        if (!(whitelist & rmcs_auto_aim::whitelist_code::InfantryV)) {
+        if ((whitelist & rmcs_auto_aim::whitelist_code::InfantryV)) {
             return false;
         }
         armor.id = rmcs_msgs::ArmorID::InfantryV;
         break;
     case 5:
-        if (!(whitelist & rmcs_auto_aim::whitelist_code::Outpost)) {
+        if ((whitelist & rmcs_auto_aim::whitelist_code::Outpost)) {
             return false;
         }
         armor.id = rmcs_msgs::ArmorID::Outpost;
         break;
     case 6:
-        if (!(whitelist & rmcs_auto_aim::whitelist_code::Sentry)) {
+        if ((whitelist & rmcs_auto_aim::whitelist_code::Sentry)) {
             return false;
         }
         armor.id = rmcs_msgs::ArmorID::Sentry;

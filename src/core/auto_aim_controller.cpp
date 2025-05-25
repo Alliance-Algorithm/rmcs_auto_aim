@@ -100,7 +100,7 @@ public:
                 auto armor_identifier = std::make_unique<ArmorIdentifier>(
                     ament_index_cpp::get_package_share_directory("rmcs_auto_aim")
                     + "/models/mlp.onnx");
-                auto armor_tracker = tracker::armor::ArmorTracker(); // TODO
+                auto armor_tracker = tracker::armor::ArmorTracker(*this);
 
                 rmcs_auto_aim::util::FPSCounter fps;
 
@@ -108,11 +108,8 @@ public:
 
                     auto image       = capturer_->read();
                     thread_sync_clk_ = std::chrono::steady_clock::now();
-                    // image            = capturer_->read();
-                    // std::cerr << std::chrono::steady_clock::now() - thread_sync_clk_ <<
-                    // std::endl;
-                    auto tf        = tf_buffer_[tf_index_.load()];
-                    auto timestamp = std::chrono::steady_clock::now();
+                    auto tf          = tf_buffer_[tf_index_.load()];
+                    auto timestamp   = std::chrono::steady_clock::now();
                     util::ImageViewer::load_image(image);
                     auto armor_plates =
                         armor_identifier->Identify(image, *target_color_, *whitelist_);
@@ -188,14 +185,14 @@ public:
         if (fast_tf::cast<rmcs_description::OdomImu>(
                 rmcs_description::PitchLink::DirectionVector(), *tf_)
                 ->dot(*control_direction_)
-            >= 0.997 + fly_time * 0.001)
+            >= 0.99 + fly_time * 0.001)
             *fire_control_ = true && deadband && *fire_control_;
         else
             *fire_control_ = false && deadband && *fire_control_;
         if (fast_tf::cast<rmcs_description::OdomImu>(
                 rmcs_description::PitchLink::DirectionVector(), *tf_)
                 ->dot(*control_direction_)
-            < 0.997 + fly_time * 0.001) {
+            < 0.99 + fly_time * 0.001) {
             fire_control_deadband_ = std::chrono::steady_clock::now();
         }
         // std::cerr << fast_tf::cast<rmcs_description::OdomImu>(

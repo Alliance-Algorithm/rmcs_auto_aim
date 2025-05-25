@@ -1,12 +1,21 @@
 #pragma once
 
 #include <chrono>
+#include <cstdint>
 #include <map>
 #include <memory>
 #include <numbers>
+#include <rclcpp/logger.hpp>
+#include <rclcpp/logging.hpp>
 #include <tuple>
 #include <utility>
 #include <vector>
+
+#include <geometry_msgs/msg/pose_stamped.hpp>
+#include <nav_msgs/msg/path.hpp>
+#include <rclcpp/node.hpp>
+#include <rclcpp/publisher.hpp>
+#include <std_msgs/msg/u_int8.hpp>
 
 #include <Eigen/Eigen>
 
@@ -33,8 +42,9 @@ class ArmorTracker : public ITracker {
     using TFireController = rmcs_auto_aim::fire_controller::NoNameController;
 
 public:
-    ArmorTracker()
-        : target_() {
+    explicit ArmorTracker(rclcpp::Node& node)
+        : target_()
+        , node_(node) {
         car_trackers_[rmcs_msgs::ArmorID::Hero]          = std::make_shared<CarTracker>();
         car_trackers_[rmcs_msgs::ArmorID::Engineer]      = std::make_shared<CarTracker>();
         car_trackers_[rmcs_msgs::ArmorID::InfantryIII]   = std::make_shared<CarTracker>();
@@ -59,6 +69,12 @@ public:
         grouped_armor_[rmcs_msgs::ArmorID::InfantryV]   = {};
         grouped_armor_[rmcs_msgs::ArmorID::Sentry]      = {};
         grouped_armor_[rmcs_msgs::ArmorID::Outpost]     = {};
+        car_position_publisher_ =
+            node.create_publisher<nav_msgs::msg::Path>("/rmcs/auto_aim/car_positions", 10);
+        car_found_publisher =
+            node.create_publisher<std_msgs::msg::UInt8>("/rmcs/auto_aim/car_found", 10);
+        car_lock_publisher =
+            node.create_publisher<std_msgs::msg::UInt8>("/rmcs/auto_aim/car_lock", 10);
     }
 
     std::shared_ptr<IFireController> Update(
@@ -67,15 +83,14 @@ public:
         const rmcs_description::Tf& tf) override {
         target_.SetTracker(nullptr);
 
+        uint8_t foundCode = -1;
+        uint8_t lockCode  = -1;
+
         last_armors1_ = car_trackers_[last_car_id_]->get_armor(0.15);
         last_update_  = timestamp;
 
         get_grouped_armor(grouped_armor_, armors);
         nearest_distance_ = 1e7;
-
-        rmcs_description::OdomImu::DirectionVector camera_forward =
-            fast_tf::cast<rmcs_description::OdomImu>(
-                rmcs_description::CameraLink::DirectionVector(Eigen::Vector3d::UnitX()), tf);
 
         for (const auto& [armorID, car] : car_trackers_) {
 
@@ -84,6 +99,22 @@ public:
             int nearest_armor_index_in_detected;
 
             if (len > 0) {
+                if (car->get_state() == CarTrackerState::Track
+                    || car->get_state() == CarTrackerState::NearlyLost)
+                    switch (armorID) {
+                    case rmcs_msgs::ArmorID::Hero: foundCode |= 1 << 0; break;
+                    case rmcs_msgs::ArmorID::Engineer: foundCode |= 1 << 1; break;
+                    case rmcs_msgs::ArmorID::InfantryIII: foundCode |= 1 << 2; break;
+                    case rmcs_msgs::ArmorID::InfantryIV: foundCode |= 1 << 3; break;
+                    case rmcs_msgs::ArmorID::InfantryV: foundCode |= 1 << 4; break;
+                    case rmcs_msgs::ArmorID::Sentry: foundCode |= 1 << 5; break;
+                    case rmcs_msgs::ArmorID::Unknown:
+                    case rmcs_msgs::ArmorID::Aerial:
+                    case rmcs_msgs::ArmorID::Dart:
+                    case rmcs_msgs::ArmorID::Radar:
+                    case rmcs_msgs::ArmorID::Outpost:
+                    case rmcs_msgs::ArmorID::Base: break;
+                    }
                 double dt                = car->get_dt(timestamp);
                 auto last_detected_armor = car->get_armor();
                 auto armor_id            = calculate_armor_id(
@@ -143,27 +174,66 @@ public:
                     car_armor_height(0), car_armor_height(1), car_armor_height(2),
                     car_armor_height(3));
 
-                Eigen::Vector3d armor_plate_normal =
-                    *grouped_armor_[armorID][nearest_armor_index_in_detected].rotation
-                    * Eigen::Vector3d::UnitX();
-                double len = armor_plate_normal.normalized().dot(*camera_forward);
                 if ((car->get_car_position()->dot(*car->get_car_position(0.2)) > 0)
-                    && car->get_car_position()->norm() < 6)
-                    if (nearest_distance_ > len) {
-                        nearest_distance_ = len;
+                    && car->get_car_position()->norm() < 6) {
+                    // RCLCPP_INFO(rclcpp::get_logger("autoaim"), "%d", (int)car->get_state());
+                    switch (car->get_state()) {
+                    case CarTrackerState::Track:
+                    case CarTrackerState::NearlyTrack:
+                        last_car_id_ = armorID;
                         target_.SetTracker(std::make_shared<CarTracker>(*car));
-                    }
-                // std::cerr
-                //     << (*car->get_car_position() - *grouped_armor_[armorID][0].position).norm()
-                //     << '|' << car->get_car_position()->dot(*car->get_car_position(0.2)) << '|'
-                //     << std::endl;
-                last_car_id_ = armorID;
+                        switch (armorID) {
+                        case rmcs_msgs::ArmorID::Hero: lockCode = 1 << 0; break;
+                        case rmcs_msgs::ArmorID::Engineer: lockCode = 1 << 1; break;
+                        case rmcs_msgs::ArmorID::InfantryIII: lockCode = 1 << 2; break;
+                        case rmcs_msgs::ArmorID::InfantryIV: lockCode = 1 << 3; break;
+                        case rmcs_msgs::ArmorID::InfantryV: lockCode = 1 << 4; break;
+                        case rmcs_msgs::ArmorID::Sentry: lockCode = 1 << 5; break;
+                        case rmcs_msgs::ArmorID::Unknown:
+                        case rmcs_msgs::ArmorID::Aerial:
+                        case rmcs_msgs::ArmorID::Dart:
+                        case rmcs_msgs::ArmorID::Radar:
+                        case rmcs_msgs::ArmorID::Outpost:
+                        case rmcs_msgs::ArmorID::Base: break;
+                        }
+                        break;
+                    default:
+                    case CarTrackerState::Lost:
+                    case CarTrackerState::NearlyLost: break;
+                    };
+                }
             } else {
+                car->update_self(0);
                 continue;
             }
         }
 
         last_armors2_ = car_trackers_[last_car_id_]->get_armor();
+        nav_msgs::msg::Path path{};
+        path.header.frame_id = "map_link";
+        geometry_msgs::msg::PoseStamped hero{};
+        hero.header.frame_id = "map_link";
+        geometry_msgs::msg::PoseStamped engineer{};
+        engineer.header.frame_id = "map_link";
+        geometry_msgs::msg::PoseStamped infantryIII{};
+        infantryIII.header.frame_id = "map_link";
+        geometry_msgs::msg::PoseStamped infantryIV{};
+        infantryIV.header.frame_id = "map_link";
+        geometry_msgs::msg::PoseStamped infantryV{};
+        infantryV.header.frame_id = "map_link";
+        geometry_msgs::msg::PoseStamped sentry{};
+        infantryV.header.frame_id = "map_link";
+        path.poses                = {hero, engineer, infantryIII, infantryIV, infantryV, sentry};
+        car_position_publisher_->publish(path);
+
+        std_msgs::msg::UInt8 found{};
+        found.data = foundCode;
+        car_found_publisher->publish(found);
+
+        std_msgs::msg::UInt8 lock{};
+        lock.data = lockCode;
+        car_lock_publisher->publish(lock);
+
         return target_.check() ? std::make_shared<TFireController>(target_) : nullptr;
     }
 
@@ -362,6 +432,11 @@ private:
     rmcs_msgs::ArmorID last_car_id_ = rmcs_msgs::ArmorID::Hero;
 
     TFireController target_;
+
+    rclcpp ::Node& node_;
+    std::shared_ptr<rclcpp::Publisher<nav_msgs::msg::Path>> car_position_publisher_;
+    std::shared_ptr<rclcpp::Publisher<std_msgs::msg::UInt8>> car_found_publisher;
+    std::shared_ptr<rclcpp::Publisher<std_msgs::msg::UInt8>> car_lock_publisher;
     double nearest_distance_ = 0.0;
 };
 } // namespace rmcs_auto_aim::tracker::armor

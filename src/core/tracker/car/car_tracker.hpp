@@ -12,6 +12,7 @@
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_msgs/robot_id.hpp>
 
+#include "./car_tracker_state.hpp"
 #include "core/pnpsolver/armor/armor3d.hpp"
 
 namespace rmcs_auto_aim::tracker {
@@ -40,9 +41,13 @@ public:
 
     [[nodiscard]] rmcs_description::OdomImu::Position get_car_position(double dt = 0);
     [[nodiscard]] double get_dt(const std::chrono::steady_clock::time_point& timestamp);
+    [[nodiscard]] CarTrackerState get_state();
 
 private:
     class Impl;
     std::unique_ptr<Impl> pimpl_;
+    CarTrackerState state     = CarTrackerState::Lost;
+    int frameCount            = 0;
+    const int TrackFrameCount = 10;
 };
 } // namespace rmcs_auto_aim::tracker

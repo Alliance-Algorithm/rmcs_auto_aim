@@ -1,4 +1,5 @@
 
+#include <algorithm>
 #include <memory>
 #include <numbers>
 #include <tuple>
@@ -32,21 +33,6 @@ public:
         car_frame_kf_.Update({l1, l2}, {}, 0);
     }
     Eigen::Vector2d velocity() { return {car_kf_.OutPut()(1), car_kf_.OutPut()(3)}; }
-    void update_self(const double& dt) {
-        if (self_update_time_ > 0.3)
-            return;
-
-        auto X  = Eigen::Vector3d{car_kf_.OutPut()(0), car_kf_.OutPut()(2), car_kf_.OutPut()(4)};
-        auto Vx = car_movement_kf_.OutPut();
-
-        self_update_time_ += dt;
-        last_acc_ << 0, 0;
-
-        Eigen::Vector3d center{};
-        center << X(0) + Vx(0) * dt, X(1) + Vx(1) * dt, 0;
-
-        center(2) = X(2) + dt * Vx(2);
-    }
 
     double get_dt(const std::chrono::steady_clock::time_point& timestamp) {
         auto ret          = std::chrono::duration<double>(timestamp - last_update_time_).count();
@@ -177,13 +163,26 @@ CarTracker::CarTracker(const CarTracker& car_tracker) {
     pimpl_ = std::make_unique<Impl>(*car_tracker.pimpl_);
 }
 
-void CarTracker::update_self(const double& dt) { pimpl_->update_self(dt); }
+void CarTracker::update_self(const double&) {
+    frameCount -= 1;
+    if (frameCount <= 0)
+        state = CarTrackerState::Lost;
+    else if (state == CarTrackerState::Track)
+        state = CarTrackerState::NearlyTrack;
+    frameCount = std::clamp(frameCount, 0, TrackFrameCount);
+}
 
 bool CarTracker::check_armor_tracked() const { return pimpl_->check_armor_tracked(); }
 
 double CarTracker::omega() { return pimpl_->omega(); }
 
 void CarTracker::update_car(const Eigen::Vector<double, 3>& zk, const double& dt) {
+    frameCount += 1;
+    if (frameCount >= TrackFrameCount)
+        state = CarTrackerState::Track;
+    else if (state == CarTrackerState::Lost)
+        state = CarTrackerState::NearlyLost;
+    frameCount = std::clamp(frameCount, 0, TrackFrameCount);
     pimpl_->update_car(zk, dt);
 }
 
@@ -209,4 +208,5 @@ CarTracker::~CarTracker() = default;
 double CarTracker::get_dt(const std::chrono::steady_clock::time_point& timestamp) {
     return pimpl_->get_dt(timestamp);
 }
+CarTrackerState CarTracker::get_state() { return state; }
 } // namespace rmcs_auto_aim::tracker
