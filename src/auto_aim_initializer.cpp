@@ -23,7 +23,6 @@ public:
         register_input("/referee/id", robot_msg_, false);
 
         register_output("/auto_aim/target_color", target_color_);
-        register_output("/auto_aim/whitelist", whitelist_);
 
         RCLCPP_INFO(this->get_logger(), "AutoAimInitializer initialized.");
     }
@@ -31,8 +30,6 @@ public:
     void update() override {
         if (*update_count_ == 0) {
             // clang-format off
-            *whitelist_ = // If target is not included in blacklist, it will be ignored.
-                0;
             // clang-format on
         }
         if (robot_msg_.ready()) {

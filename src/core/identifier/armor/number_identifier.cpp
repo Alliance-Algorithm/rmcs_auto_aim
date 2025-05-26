@@ -107,6 +107,7 @@ bool NumberIdentifier::Identify(
         armor.id = rmcs_msgs::ArmorID::InfantryV;
         break;
     case 5:
+        return false;
         if ((whitelist & rmcs_auto_aim::whitelist_code::Outpost)) {
             return false;
         }
