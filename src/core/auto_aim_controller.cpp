@@ -111,8 +111,7 @@ public:
                     auto tf          = tf_buffer_[tf_index_.load()];
                     auto timestamp   = std::chrono::steady_clock::now();
                     util::ImageViewer::load_image(image);
-                    auto armor_plates =
-                        armor_identifier->Identify(image, *target_color_, *whitelist_);
+                    auto armor_plates = armor_identifier->Identify(image, *target_color_);
 
                     auto armor3d = FusionSolver::SolveAll(armor_plates, tf);
 
@@ -124,7 +123,7 @@ public:
                         *debug_target_theta_ =
                             util::math::get_yaw_from_quaternion(*armor2d_.rotation);
                     }
-                    if (auto target = armor_tracker.Update(armor3d, timestamp, tf)) {
+                    if (auto target = armor_tracker.Update(armor3d, timestamp, tf, *whitelist_)) {
                         armor_target_buffer_[!armor_target_index_.load()].target_ =
                             std::move(target);
                         armor_target_buffer_[!armor_target_index_.load()].timestamp_ = timestamp;

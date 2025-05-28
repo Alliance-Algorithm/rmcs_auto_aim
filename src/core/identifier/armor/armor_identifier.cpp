@@ -25,8 +25,8 @@ public:
     explicit Impl(Args&&... args)
         : _numberIdentifier(std::forward<Args>(args)...) {}
 
-    std::vector<ArmorPlate> Identify(
-        const cv::Mat& img, const rmcs_msgs::RobotColor& target_color, const uint8_t& blacklist) {
+    std::vector<ArmorPlate>
+        Identify(const cv::Mat& img, const rmcs_msgs::RobotColor& target_color) {
         cv::Mat imgThre, imgGray;
         cv::cvtColor(img, imgGray, cv::COLOR_BGR2GRAY);
         cv::threshold(imgGray, imgThre, 150, 255, cv::THRESH_BINARY);
@@ -74,7 +74,7 @@ public:
                     lightBars[i], lightBars[j], rmcs_msgs::ArmorID::Unknown,
                     lightBarDis > minbigArmorDis);
 
-                if (_numberIdentifier.Identify(img, armor, blacklist)) {
+                if (_numberIdentifier.Identify(img, armor)) {
                     result.push_back(armor);
                 }
                 // cv::rectangle(
@@ -203,9 +203,9 @@ private:
 ArmorIdentifier::ArmorIdentifier(const std::string& model_path)
     : pImpl_(new Impl{model_path}) {}
 
-std::vector<ArmorPlate> ArmorIdentifier::Identify(
-    const cv::Mat& img, const rmcs_msgs::RobotColor& target_color, uint8_t blacklist) {
-    return pImpl_->Identify(img, target_color, blacklist);
+std::vector<ArmorPlate>
+    ArmorIdentifier::Identify(const cv::Mat& img, const rmcs_msgs::RobotColor& target_color) {
+    return pImpl_->Identify(img, target_color);
 }
 
 ArmorIdentifier::~ArmorIdentifier() = default;

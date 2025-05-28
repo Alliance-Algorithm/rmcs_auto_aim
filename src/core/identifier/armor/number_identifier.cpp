@@ -17,8 +17,7 @@ NumberIdentifier::NumberIdentifier(const std::string& model_path) {
     }
 }
 
-bool NumberIdentifier::Identify(
-    const cv::Mat& imgGray, ArmorPlate& armor, const uint8_t& whitelist) {
+bool NumberIdentifier::Identify(const cv::Mat& imgGray, ArmorPlate& armor) {
 
     static const int light_length      = 12;
     static const int warp_height       = 28;
@@ -76,53 +75,19 @@ bool NumberIdentifier::Identify(
     switch (label_id) {
     case 8: return false;
     case 0:
-        if ((whitelist & rmcs_auto_aim::whitelist_code::Hero)) {
-            return false;
-        }
         armor.id             = rmcs_msgs::ArmorID::Hero;
         armor.is_large_armor = true;
         break;
-    case 1:
-        if ((whitelist & rmcs_auto_aim::whitelist_code::Engineer)) {
-            return false;
-        }
-        armor.id = rmcs_msgs::ArmorID::Engineer;
-        break;
-    case 2:
-        if ((whitelist & rmcs_auto_aim::whitelist_code::InfantryIII)) {
-            return false;
-        }
-        armor.id = rmcs_msgs::ArmorID::InfantryIII;
-        break;
-    case 3:
-        if ((whitelist & rmcs_auto_aim::whitelist_code::InfantryIV)) {
-            return false;
-        }
-        armor.id = rmcs_msgs::ArmorID::InfantryIV;
-        break;
-    case 4:
-        if ((whitelist & rmcs_auto_aim::whitelist_code::InfantryV)) {
-            return false;
-        }
-        armor.id = rmcs_msgs::ArmorID::InfantryV;
-        break;
+    case 1: armor.id = rmcs_msgs::ArmorID::Engineer; break;
+    case 2: armor.id = rmcs_msgs::ArmorID::InfantryIII; break;
+    case 3: armor.id = rmcs_msgs::ArmorID::InfantryIV; break;
+    case 4: armor.id = rmcs_msgs::ArmorID::InfantryV; break;
     case 5:
         return false;
-        if ((whitelist & rmcs_auto_aim::whitelist_code::Outpost)) {
-            return false;
-        }
         armor.id = rmcs_msgs::ArmorID::Outpost;
         break;
-    case 6:
-        if ((whitelist & rmcs_auto_aim::whitelist_code::Sentry)) {
-            return false;
-        }
-        armor.id = rmcs_msgs::ArmorID::Sentry;
-        break;
+    case 6: armor.id = rmcs_msgs::ArmorID::Sentry; break;
     case 7:
-        if (!(whitelist & rmcs_auto_aim::whitelist_code::Base)) {
-            return false;
-        }
         armor.id             = rmcs_msgs::ArmorID::Base;
         armor.is_large_armor = true;
         break;

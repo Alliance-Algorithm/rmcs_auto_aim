@@ -12,6 +12,7 @@ class ITracker {
 public:
     virtual std::shared_ptr<IFireController> Update(
         const std::vector<ArmorPlate3d>& armors,
-        const std::chrono::steady_clock::time_point& timestamp, const rmcs_description::Tf& tf) = 0;
+        const std::chrono::steady_clock::time_point& timestamp, const rmcs_description::Tf& tf,
+        const uint8_t& whitelist) = 0;
 };
 } // namespace rmcs_auto_aim::tracker::armor
