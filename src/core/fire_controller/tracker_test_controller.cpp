@@ -50,7 +50,7 @@ public:
         position.z() = armors[(index + 3) % 4].position->z();
         if (index % 2 == 0) {
             position.z() = armors[index].position->z();
-            if (max > 0.99)
+            if (max > 0.9)
                 fire_permission = true;
         }
         ret_pos = rmcs_description::OdomImu::Position(position);

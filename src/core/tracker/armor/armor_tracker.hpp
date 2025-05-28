@@ -103,12 +103,12 @@ public:
                 if (car->get_state() == CarTrackerState::Track
                     || car->get_state() == CarTrackerState::NearlyLost)
                     switch (armorID) {
-                    case rmcs_msgs::ArmorID::Hero: foundCode |= 1 << 0; break;
-                    case rmcs_msgs::ArmorID::Engineer: foundCode |= 1 << 1; break;
-                    case rmcs_msgs::ArmorID::InfantryIII: foundCode |= 1 << 2; break;
-                    case rmcs_msgs::ArmorID::InfantryIV: foundCode |= 1 << 3; break;
-                    case rmcs_msgs::ArmorID::InfantryV: foundCode |= 1 << 4; break;
-                    case rmcs_msgs::ArmorID::Sentry: foundCode |= 1 << 5; break;
+                    case rmcs_msgs::ArmorID::Hero: foundCode &= (~(1 << 0)); break;
+                    case rmcs_msgs::ArmorID::Engineer: foundCode &= (~(1 << 1)); break;
+                    case rmcs_msgs::ArmorID::InfantryIII: foundCode &= (~(1 << 2)); break;
+                    case rmcs_msgs::ArmorID::InfantryIV: foundCode &= (~(1 << 3)); break;
+                    case rmcs_msgs::ArmorID::InfantryV: foundCode &= (~(1 << 4)); break;
+                    case rmcs_msgs::ArmorID::Sentry: foundCode &= (~(1 << 5)); break;
                     case rmcs_msgs::ArmorID::Unknown:
                     case rmcs_msgs::ArmorID::Aerial:
                     case rmcs_msgs::ArmorID::Dart:
