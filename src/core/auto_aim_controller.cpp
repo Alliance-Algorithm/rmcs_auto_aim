@@ -14,6 +14,7 @@
 #include <hikcamera/image_capturer.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
+#include <rmcs_msgs/game_stage.hpp>
 
 #include "core/fire_controller/fire_controller.hpp"
 #include "core/identifier/armor/armor_identifier.hpp"
@@ -23,6 +24,7 @@
 #include "util/image_viewer/image_viewer.hpp"
 #include "util/math.hpp"
 #include "util/profile/profile.hpp"
+#include "util/recorder/recorder.hh"
 #include "util/utils.hpp"
 
 namespace rmcs_auto_aim {
@@ -38,6 +40,7 @@ public:
 
         register_input("/predefined/update_count", update_count_);
         register_input("/auto_aim/target_color", target_color_);
+        register_input("/referee/game/stage", game_stage_);
         register_input("/auto_aim/whitelist", whitelist_);
         register_input("/tf", tf_);
 
@@ -74,6 +77,8 @@ public:
         shoot_velocity_ = get_parameter("shoot_velocity").as_double();
         predict_sec_    = get_parameter("predict_sec").as_double();
         RCLCPP_INFO(get_logger(), "Armor Identifier Node Initialized");
+
+        recorder_ = std::make_unique<Recorder>(*this);
     }
 
     ~AutoAimController() override {
@@ -106,7 +111,11 @@ public:
 
                 while (rclcpp::ok()) {
 
-                    auto image       = capturer_->read();
+                    const auto image = capturer_->read();
+
+                    if (recorder_->ready_save(now()))
+                        recorder_->save_image(image);
+
                     thread_sync_clk_ = std::chrono::steady_clock::now();
                     auto tf          = tf_buffer_[tf_index_.load()];
                     auto timestamp   = std::chrono::steady_clock::now();
@@ -137,6 +146,21 @@ public:
                     }
                 }
             });
+        }
+
+        // 摄像头录制器状态切换
+        {
+            using namespace rmcs_msgs;
+            if (*game_stage_ == GameStage::STARTED && last_game_stage_ != GameStage::STARTED)
+                recorder_->set_record_status(true);
+
+            if (*game_stage_ == GameStage::SETTLING && last_game_stage_ != GameStage::SETTLING)
+                recorder_->set_record_status(false);
+
+            if (*game_stage_ == GameStage::UNKNOWN && last_game_stage_ != GameStage::UNKNOWN)
+                recorder_->set_record_status(false);
+
+            last_game_stage_ = *game_stage_;
         }
 
         auto frame = armor_target_buffer_[armor_target_index_.load()];
@@ -239,6 +263,13 @@ private:
     OutputInterface<double> debug_target_theta_;
 
     std::chrono::time_point<std::chrono::steady_clock> fire_control_deadband_;
+
+    using TimePoint = std::chrono::steady_clock::time_point;
+    static inline TimePoint now() { return std::chrono::steady_clock::now(); }
+
+    std::unique_ptr<Recorder> recorder_;
+    InputInterface<rmcs_msgs::GameStage> game_stage_;
+    rmcs_msgs::GameStage last_game_stage_;
 };
 } // namespace rmcs_auto_aim
 
