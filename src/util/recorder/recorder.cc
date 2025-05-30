@@ -8,6 +8,7 @@ using namespace rmcs_auto_aim;
 struct Recorder::Impl {
     std::atomic<bool> start_record = false;
     bool enable_record             = false;
+    bool enable_forced             = false;
     std::string record_folder_path;
     std::string record_item_path;
     std::chrono::milliseconds record_interval;
@@ -29,12 +30,17 @@ struct Recorder::Impl {
         };
 
         enable_record      = p("enable_record", bool{});
+        enable_forced      = p("enable_forced", bool{});
         record_folder_path = p("record_path", std::string{});
         record_interval    = std::chrono::milliseconds{p("record_interval", int{})};
 
         RCLCPP_INFO(logger, "AutoAim Enable Record: %d", enable_record);
+        RCLCPP_INFO(logger, "AutoAim Enable Forced: %d", enable_forced);
         RCLCPP_INFO(logger, "AutoAim Record Interval: %ldms", record_interval.count());
         RCLCPP_INFO(logger, "AutoAim Path: %s", record_folder_path.c_str());
+
+        if (enable_forced)
+            set_record_status(true);
     }
 
     void set_record_status(bool is_start) {
@@ -44,15 +50,15 @@ struct Recorder::Impl {
             if (!std::filesystem::exists(record_item_path))
                 std::filesystem::create_directories(record_item_path);
             RCLCPP_INFO(logger, "AutoAim Recorder Is Running Now: %s", record_item_path.c_str());
-        } else {
+        } else if (!enable_forced) {
             start_record.store(false, std::memory_order::relaxed);
             RCLCPP_INFO(logger, "AutoAim Recorder Is Stopping Now");
         }
     }
 
     void save_image(const cv::Mat& image) const {
-        const auto file = record_item_path + format_steady_time() + ".jpg";
-        // RCLCPP_INFO(logger, "Save Image Now: %s", file.c_str());
+        const auto file = record_item_path + format_steady_time() + ".png";
+        RCLCPP_INFO(logger, "Save Image Now: %s", file.c_str());
         cv::imwrite(file, image);
     }
 
@@ -72,11 +78,12 @@ Recorder::Recorder(rclcpp::Node& node)
 Recorder::~Recorder() = default;
 
 bool Recorder::ready_save(const TimePoint& now) {
-    if (!pimpl->start_record)
-        return false;
-
-    if (!pimpl->enable_record)
-        return false;
+    if (!pimpl->enable_forced) {
+        if (!pimpl->enable_record)
+            return false;
+        if (!pimpl->start_record)
+            return false;
+    }
 
     if (now - pimpl->last_time_point < pimpl->record_interval)
         return false;
