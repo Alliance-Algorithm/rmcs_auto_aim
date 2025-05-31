@@ -185,27 +185,33 @@ public:
                         uint8_t whitelist_code = 0x0;
                         switch (armorID) {
                         case rmcs_msgs::ArmorID::Hero:
-                            lockCode       = 1 << 0;
+                            lockCode = 1 << 0;
+                            foundCode &= (~(1 << 0));
                             whitelist_code = whitelist_code::Hero;
                             break;
                         case rmcs_msgs::ArmorID::Engineer:
-                            lockCode       = 1 << 1;
+                            lockCode = 1 << 1;
+                            foundCode &= (~(1 << 1));
                             whitelist_code = whitelist_code::Engineer;
                             break;
                         case rmcs_msgs::ArmorID::InfantryIII:
-                            lockCode       = 1 << 2;
+                            lockCode = 1 << 2;
+                            foundCode &= (~(1 << 2));
                             whitelist_code = whitelist_code::InfantryIII;
                             break;
                         case rmcs_msgs::ArmorID::InfantryIV:
-                            lockCode       = 1 << 3;
+                            lockCode = 1 << 3;
+                            foundCode &= (~(1 << 3));
                             whitelist_code = whitelist_code::InfantryIV;
                             break;
                         case rmcs_msgs::ArmorID::InfantryV:
-                            lockCode       = 1 << 4;
+                            lockCode = 1 << 4;
+                            foundCode &= (~(1 << 4));
                             whitelist_code = whitelist_code::InfantryV;
                             break;
                         case rmcs_msgs::ArmorID::Sentry:
-                            lockCode       = 1 << 5;
+                            lockCode = 1 << 5;
+                            foundCode &= (~(1 << 5));
                             whitelist_code = whitelist_code::Sentry;
                             break;
                         case rmcs_msgs::ArmorID::Unknown:
@@ -231,37 +237,37 @@ public:
         }
 
         last_armors2_ = car_trackers_[last_car_id_]->get_armor();
-        // nav_msgs::msg::Path path{};
-        // path.header.frame_id = "lidar_link";
-        // geometry_msgs::msg::PoseStamped hero{};
-        // hero.header.frame_id = "lidar_link";
-        // set_pose(hero, car_trackers_[rmcs_msgs::ArmorID::Hero]->get_car_position(), tf);
-        // geometry_msgs::msg::PoseStamped engineer{};
-        // engineer.header.frame_id = "lidar_link";
-        // set_pose(engineer, car_trackers_[rmcs_msgs::ArmorID::Engineer]->get_car_position(), tf);
-        // geometry_msgs::msg::PoseStamped infantryIII{};
-        // infantryIII.header.frame_id = "lidar_link";
-        // set_pose(
-        //     infantryIII, car_trackers_[rmcs_msgs::ArmorID::InfantryIII]->get_car_position(), tf);
-        // geometry_msgs::msg::PoseStamped infantryIV{};
-        // infantryIV.header.frame_id = "lidar_link";
-        // set_pose(infantryIV, car_trackers_[rmcs_msgs::ArmorID::InfantryIV]->get_car_position(),
-        // tf); geometry_msgs::msg::PoseStamped infantryV{}; infantryV.header.frame_id =
-        // "lidar_link"; set_pose(infantryV,
-        // car_trackers_[rmcs_msgs::ArmorID::InfantryV]->get_car_position(), tf);
-        // geometry_msgs::msg::PoseStamped sentry{};
-        // sentry.header.frame_id = "lidar_link";
-        // set_pose(sentry, car_trackers_[rmcs_msgs::ArmorID::Sentry]->get_car_position(), tf);
-        // path.poses = {hero, engineer, infantryIII, infantryIV, infantryV, sentry};
-        // car_position_publisher_->publish(path);
+        nav_msgs::msg::Path path{};
+        path.header.frame_id = "lidar_link";
+        geometry_msgs::msg::PoseStamped hero{};
+        hero.header.frame_id = "lidar_link";
+        set_pose(hero, car_trackers_[rmcs_msgs::ArmorID::Hero]->get_car_position(), tf);
+        geometry_msgs::msg::PoseStamped engineer{};
+        engineer.header.frame_id = "lidar_link";
+        set_pose(engineer, car_trackers_[rmcs_msgs::ArmorID::Engineer]->get_car_position(), tf);
+        geometry_msgs::msg::PoseStamped infantryIII{};
+        infantryIII.header.frame_id = "lidar_link";
+        set_pose(
+            infantryIII, car_trackers_[rmcs_msgs::ArmorID::InfantryIII]->get_car_position(), tf);
+        geometry_msgs::msg::PoseStamped infantryIV{};
+        infantryIV.header.frame_id = "lidar_link";
+        set_pose(infantryIV, car_trackers_[rmcs_msgs::ArmorID::InfantryIV]->get_car_position(), tf);
+        geometry_msgs::msg::PoseStamped infantryV{};
+        infantryV.header.frame_id = "lidar_link";
+        set_pose(infantryV, car_trackers_[rmcs_msgs::ArmorID::InfantryV]->get_car_position(), tf);
+        geometry_msgs::msg::PoseStamped sentry{};
+        sentry.header.frame_id = "lidar_link";
+        set_pose(sentry, car_trackers_[rmcs_msgs::ArmorID::Sentry]->get_car_position(), tf);
+        path.poses = {hero, engineer, infantryIII, infantryIV, infantryV, sentry};
+        car_position_publisher_->publish(path);
 
         std_msgs::msg::UInt8 found{};
         found.data = foundCode;
-        // car_found_publisher->publish(found);
+        car_found_publisher->publish(found);
 
         std_msgs::msg::UInt8 lock{};
         lock.data = lockCode;
-        // car_lock_publisher->publish(lock);
+        car_lock_publisher->publish(lock);
 
         return target_.check() ? std::make_shared<TFireController>(target_) : nullptr;
     }

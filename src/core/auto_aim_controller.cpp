@@ -132,7 +132,7 @@ public:
                     armor_tracker.draw_armors(tf, {0, 0, 255});
                     util::ImageViewer::show_image();
                     if (fps.Count()) {
-                        // RCLCPP_INFO(get_logger(), "FPS: %d", fps.GetFPS());
+                        RCLCPP_INFO(get_logger(), "FPS: %d", fps.GetFPS());
                     }
                 }
             });

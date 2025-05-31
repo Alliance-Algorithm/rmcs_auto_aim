@@ -178,23 +178,32 @@ private:
             auto tmp = LightBar{top, bottom, angle_k};
             if (0 <= b_rect.x && 0 <= b_rect.width && b_rect.x + b_rect.width <= img.cols
                 && 0 <= b_rect.y && 0 <= b_rect.height && b_rect.y + b_rect.height <= img.rows) {
-                int sum  = 0;
-                auto roi = img(b_rect);
-                for (int i = 0; i < roi.rows; i++) {
-                    for (int j = 0; j < roi.cols; j++) {
-                        if (cv::pointPolygonTest(
-                                contour, cv::Point2i(j + b_rect.x, i + b_rect.y), false)
-                            >= 0) {
-                            sum += roi.at<cv::Vec3b>(i, j)[0];
-                            sum -= roi.at<cv::Vec3b>(i, j)[2];
-                        }
-                    }
-                }
-                if ((sum > 0 && target_color == rmcs_msgs::RobotColor::BLUE)
-                    || (sum < 0 && target_color == rmcs_msgs::RobotColor::RED)) {
+                cv::Scalar img_channels_mean = cv::mean(img(b_rect));
+                const auto b_r_difference    = img_channels_mean[0] - img_channels_mean[2];
+                if ((b_r_difference > 0 && target_color == rmcs_msgs::RobotColor::BLUE)
+                    || (b_r_difference < 0 && target_color == rmcs_msgs::RobotColor::RED)) {
                     return tmp;
                 }
             }
+            // if (0 <= b_rect.x && 0 <= b_rect.width && b_rect.x + b_rect.width <= img.cols
+            //     && 0 <= b_rect.y && 0 <= b_rect.height && b_rect.y + b_rect.height <= img.rows) {
+            //     int sum  = 0;
+            //     auto roi = img(b_rect);
+            //     for (int i = 0; i < roi.rows; i++) {
+            //         for (int j = 0; j < roi.cols; j++) {
+            //             if (cv::pointPolygonTest(
+            //                     contour, cv::Point2i(j + b_rect.x, i + b_rect.y), false)
+            //                 >= 0) {
+            //                 sum += roi.at<cv::Vec3b>(i, j)[0];
+            //                 sum -= roi.at<cv::Vec3b>(i, j)[2];
+            //             }
+            //         }
+            //     }
+            //     if ((sum > 0 && target_color == rmcs_msgs::RobotColor::BLUE)
+            //         || (sum < 0 && target_color == rmcs_msgs::RobotColor::RED)) {
+            //         return tmp;
+            //     }
+            // }
         }
         return std::nullopt;
     }
