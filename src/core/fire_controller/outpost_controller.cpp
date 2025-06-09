@@ -22,20 +22,36 @@ public:
         UpdateController(double sec, const rmcs_description::Tf& tf) {
         if (tracker_ == nullptr)
             return {false, rmcs_description::OdomImu::Position(0, 0, 0)};
+        // std::cerr << tracker_->omega() << std::endl;
+        rmcs_description::OdomImu::Position ret_pos = rmcs_description::OdomImu::Position(0, 0, 0);
+        bool fire_permission                        = false;
+        auto [l1, l2]                               = tracker_->get_frame();
+        double min_l                                = std::min(l1, l2);
+        Eigen::Vector3d position                    = *tracker_->get_outpost_position();
+        position                                    = position - position.normalized() * min_l;
+        double max                                  = -1e7;
+        int index                                   = 0;
+        auto armors                                 = tracker_->get_armor(sec);
+        auto pos_norm = Eigen::Vector2d(position.x(), position.y()).normalized();
 
-        const auto ret_pos =
-            tracker::armor::ArmorTargetForOutPost{tracker::OutPostTracker(*tracker_)}
-                .Predict(sec, tf);
+        for (int i = 0; i < 3; i++) {
 
-        auto camera_x = fast_tf::cast<rmcs_description::OdomImu>(
-            rmcs_description::CameraLink::DirectionVector(Eigen::Vector3d::UnitX()), tf);
+            auto armor_x = (*armors[i].rotation * Eigen::Vector3d::UnitX());
+            auto len     = pos_norm.dot(Eigen::Vector2d(armor_x.x(), armor_x.y()).normalized());
+            if (len > max) {
+                index = i;
+                max   = len;
+            }
+        }
+        position.z() = armors[(index + 3) % 4].position->z();
+        if (index % 2 == 0) {
+            position.z() = armors[index].position->z();
+            if (max > 0.99)
+                fire_permission = true;
+        }
+        ret_pos = rmcs_description::OdomImu::Position(position);
 
-        auto len = camera_x->dot(Eigen::Vector3d(*ret_pos));
-
-        if (len < 0.97)
-            return {false, ret_pos};
-        else
-            return {true, ret_pos};
+        return {fire_permission, ret_pos};
     }
 
     void SetTracker(std::shared_ptr<tracker::OutPostTracker> tracker) {

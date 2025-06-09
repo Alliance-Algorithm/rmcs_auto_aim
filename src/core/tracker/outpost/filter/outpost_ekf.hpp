@@ -91,10 +91,10 @@ protected:
     };
 
 private:
-    static constexpr double sigma2_q_xy_  = 1e5;
+    static constexpr double sigma2_q_xy_  = 1e1;
     static constexpr double sigma2_q_yaw_ = 1e2;
     static constexpr double r_xyz_factor_ = 1e-1;
-    static constexpr double r_ywq_factor_ = 5;
+    static constexpr double r_ywq_factor_ = 1e3;
 
     XVec x_{};
     ZVec z_{};

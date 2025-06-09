@@ -35,6 +35,7 @@ public:
         auto result = rmcs_description::OdomImu::DirectionVector{
             cos(pitch) * cos(yaw), cos(pitch) * sin(yaw), -sin(pitch)};
 
+            
         fly_time = xt / (cos(pitch) * speed);
 
         return result;

@@ -83,11 +83,11 @@ public:
                     result.push_back(armor);
                 }
 
-                cv::rectangle(
-                    img, cv::Rect{armor.points[0], armor.points[2]}, cv::Scalar(0, 255, 0), 2);
-                cv::putText(
-                    img, std::to_string((int)armor.id), armor.center(), 2, 2, cv::Scalar(0, 255, 0),
-                    2);
+                // cv::rectangle(
+                //     img, cv::Rect{armor.points[0], armor.points[2]}, cv::Scalar(0, 255, 0), 2);
+                // cv::putText(
+                //     img, std::to_string((int)armor.id), armor.center(), 2, 2, cv::Scalar(0, 255, 0),
+                //     2);
                 //}
             }
         }
@@ -186,13 +186,13 @@ private:
             auto tmp = LightBar{top, bottom, angle_k};
             if (0 <= b_rect.x && 0 <= b_rect.width && b_rect.x + b_rect.width <= img.cols
                 && 0 <= b_rect.y && 0 <= b_rect.height && b_rect.y + b_rect.height <= img.rows) {
-                std::array<cv::Mat, 3> channels;
                 cv::Mat output;
-                cv::split(img, channels);
-                cv::subtract(channels[0], channels[2], output, cv::noArray(), CV_16S);
-                const auto sum = cv::sum(output).val[0];
-                if ((sum > 0 && target_color == rmcs_msgs::RobotColor::RED)
-                    || (sum < 0 && target_color == rmcs_msgs::RobotColor::BLUE)) {
+                const auto channels = cv::mean(img(b_rect));
+                // if (channels[1] > 200)
+                //     return std::nullopt;
+                const auto sum = channels[0] - channels[2];
+                if ((sum > 0 && target_color == rmcs_msgs::RobotColor::BLUE)
+                    || (sum < 0 && target_color == rmcs_msgs::RobotColor::RED)) {
                     return tmp;
                 }
             }
