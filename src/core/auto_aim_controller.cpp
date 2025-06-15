@@ -18,6 +18,7 @@
 
 #include "core/fire_controller/fire_controller.hpp"
 #include "core/identifier/armor/armor_identifier.hpp"
+#include "core/identifier/armor/rp_armor_identifier.hpp"
 #include "core/pnpsolver/fusion_solver.hpp"
 #include "core/tracker/armor/armor_tracker.hpp"
 #include "core/tracker/outpost/armor_tracker_for_outpost.hpp"
@@ -107,10 +108,11 @@ public:
             }
 
             threads_.emplace_back([this]() {
-                auto armor_identifier = std::make_unique<ArmorIdentifier>(
+                auto armor_identifier = std::make_unique<RPArmorIdentifier>(
                     ament_index_cpp::get_package_share_directory("rmcs_auto_aim")
-                    + "/models/mlp.onnx");
-                auto armor_tracker = tracker::armor::OutPostArmorTracker(); // TODO
+                        + "/models/0708.onnx",
+                    "AUTO");
+                auto armor_tracker = tracker::armor::ArmorTracker(); // TODO
 
                 rmcs_auto_aim::util::FPSCounter fps;
 
@@ -125,43 +127,46 @@ public:
                     util::ImageViewer::load_image(image);
                     auto armor_plates = armor_identifier->Identify(image, *target_color_, 0x40);
 
-                    std::vector<rmcs_auto_aim::ArmorPlate3d> armor3d;
+                    // std::vector<rmcs_auto_aim::ArmorPlate3d> armor3d;
 
-                    const bool is_outpost_mode = true;
+                    // const bool is_outpost_mode = true;
 
-                    if (is_outpost_mode)
-                        armor3d = LightBarSolver::SolveAll(armor_plates, tf, true);
-                    else
-                        armor3d = FusionSolver::SolveAll(armor_plates, tf, false);
+                    // // if (is_outpost_mode)
+                    // //     armor3d = LightBarSolver::SolveAll(armor_plates, tf, true);
+                    // // else
+                    // armor3d = FusionSolver::SolveAll(armor_plates, tf, false);
 
-                    for (auto& armor2d_ : armor3d) {
-                        util::ImageViewer::draw(
-                            transform_optimizer::Quadrilateral3d(armor2d_).ToQuadrilateral(
-                                tf, false),
-                            // transform_optimizer::Quadrilateral(armor2d_),
-                            {0, 0, 255});
-                        *debug_target_theta_ =
-                            util::math::get_yaw_from_quaternion(*armor2d_.rotation);
-                    }
-                    auto target = armor_tracker.Update(armor3d, timestamp, tf);
-                    if (target) {
-                        armor_target_buffer_[!armor_target_index_.load()].target_ =
-                            std::move(target);
-                        armor_target_buffer_[!armor_target_index_.load()].timestamp_ = timestamp;
-                        armor_target_index_.store(!armor_target_index_.load());
-                    }
-                    armor_tracker.draw_armors(tf, {0, 0, 255});
+                    // // for (auto& armor2d_ : armor3d) {
+                    // //     util::ImageViewer::draw(
+                    // //         transform_optimizer::Quadrilateral3d(armor2d_).ToQuadrilateral(
+                    // //             tf, false),
+                    // //         // transform_optimizer::Quadrilateral(armor2d_),
+                    // //         {0, 0, 255});
+                    // //     *debug_target_theta_ =
+                    // //         util::math::get_yaw_from_quaternion(*armor2d_.rotation);
+                    // // }
+                    // auto target = armor_tracker.Update(armor3d, timestamp, tf);
+                    // if (target) {
+                    //     armor_target_buffer_[!armor_target_index_.load()].target_ =
+                    //         std::move(target);
+                    //     armor_target_buffer_[!armor_target_index_.load()].timestamp_ = timestamp;
+                    //     armor_target_index_.store(!armor_target_index_.load());
+                    // }
+                    //     // armor_tracker.draw_armors(tf, {0, 0, 255});
 
-                    *debug_ = armor_tracker.pos_error();
-                    if (is_outpost_mode) {
-                        armor_tracker.set_rotate_direction(outpost_rotate_direction_for_multi_thread_.load(std::memory_order_relaxed));
-                        outpost_pos_[!outpost_pos_index_.load()] = armor_tracker.outpost_pos();
-                        outpost_pos_index_.store(!outpost_pos_index_.load());
-                    }
+                    //     // *debug_ = armor_tracker.pos_error();
+                    //     // if (is_outpost_mode) {
+                    //     //
+                    //     armor_tracker.set_rotate_direction(outpost_rotate_direction_for_multi_thread_.load(std::memory_order_relaxed));
+                    //     //     outpost_pos_[!outpost_pos_index_.load()] =
+                    //     //     armor_tracker.outpost_pos();
+                    //     //     outpost_pos_index_.store(!outpost_pos_index_.load());
+                    //     // }
 
                     util::ImageViewer::show_image();
                     if (fps.Count()) {
                         // RCLCPP_INFO(get_logger(), "FPS: %d", fps.GetFPS());
+                        std::cerr<<"fps:"<<fps.GetFPS()<<std::endl;
                     }
                 }
             });

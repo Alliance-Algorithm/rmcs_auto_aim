@@ -53,27 +53,22 @@ public:
             for (size_t j = i + 1; j < lightBarsSize; ++j) {
                 float Jsize = P2PDis(lightBars[j].top, lightBars[j].bottom);
                 if (fmax(Isize, Jsize) / fmin(Isize, Jsize) > maxArmorLightRatio) {
-                    //    std::cout << "one" << std::endl;
                     continue;
                 }
                 if (fabs(lightBars[i].angle - lightBars[j].angle) > maxdAngle) {
-                    //    std::cout << "two" << std::endl;
                     continue;
                 }
                 if (malposition(lightBars[i], lightBars[j]) > maxMalposition) {
-                    //    std::cout << "three" << std::endl;
                     continue;
                 }
                 cv::Point2f Jcenter = (lightBars[j].top + lightBars[j].bottom) / 2;
                 if (fabs(Icenter.y - Jcenter.y) * 2 / (Isize + Jsize) > maxLightDy) {
-                    // std::cout << "for" << std::endl;
                     continue;
                 }
                 float lightBarDis = P2PDis(Icenter, Jcenter) * 2 / (Isize + Jsize);
 
                 if ((lightBarDis < minsmallArmorDis || lightBarDis > maxsmallArmorDis)
                     && (lightBarDis < minbigArmorDis || lightBarDis > maxbigArmorDis)) {
-                    // std::cout << "five" << std::endl;
                     continue;
                 }
 
@@ -179,7 +174,7 @@ private:
             auto width  = (double)points.size() / length;
 
             auto ratio = width / length;
-            if (!(ratio > 0.1 && ratio < 0.4 && filled)) {
+            if (!(ratio > 0.1 && ratio < 0.8 && filled)) {
                 return std::nullopt;
             }
             angle_k  = (float)(angle_k / 180 * CV_PI);
@@ -192,9 +187,8 @@ private:
                 //     return std::nullopt;
                 const auto sum = channels[0] - channels[2];
                 if ((sum > 0 && target_color == rmcs_msgs::RobotColor::BLUE)
-                    || (sum < 0 && target_color == rmcs_msgs::RobotColor::RED)) {
+                    || (sum < 0 && target_color == rmcs_msgs::RobotColor::RED))
                     return tmp;
-                }
             }
         }
 

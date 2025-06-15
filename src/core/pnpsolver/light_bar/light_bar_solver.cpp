@@ -42,8 +42,8 @@ public:
             const auto& [top, button, light_bar, dir, top1, button1] = get_full_light_bar(armor);
             const Line image_line{top, button};
             const Line image_line1{top1, button1};
-            util::ImageViewer::draw(image_line, {0, 255, 0});
-            util::ImageViewer::draw(image_line1, {0, 255, 255});
+            // util::ImageViewer::draw(image_line, {0, 255, 0});
+            // util::ImageViewer::draw(image_line1, {0, 255, 255});
             Eigen::Vector3d camera_vec;
             util::compute_yaw_pitch_from_point(
                 (image_line.button_ + image_line.top_) / 2,

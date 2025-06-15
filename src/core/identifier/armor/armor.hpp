@@ -17,6 +17,7 @@
 
 #include <opencv2/core/types.hpp>
 
+#include "armor_info.hpp"
 #include <rmcs_msgs/msg/armor_plate.hpp>
 #include <rmcs_msgs/robot_id.hpp>
 
@@ -42,6 +43,17 @@ struct ArmorPlate {
         points.push_back(left.bottom);
         points.push_back(right.bottom);
         points.push_back(right.top);
+    }
+
+    explicit ArmorPlate(
+        const cv::Rect& rect, rmcs_msgs::ArmorID armorId = rmcs_msgs::ArmorID::Unknown,
+        bool isLargeArmor = false)
+        : id(armorId)
+        , is_large_armor(isLargeArmor) {
+        points.emplace_back(rect.x, rect.y);
+        points.emplace_back(rect.x, rect.y + rect.height);
+        points.emplace_back(rect.x + rect.width, rect.y);
+        points.emplace_back(rect.x + rect.width, rect.y+rect.height);
     }
 
     explicit ArmorPlate(
