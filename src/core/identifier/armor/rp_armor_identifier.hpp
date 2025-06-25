@@ -19,9 +19,9 @@ public:
     RPArmorIdentifier& operator=(const RPArmorIdentifier&) = delete;
 
     std::vector<ArmorPlate>
-        Identify(const cv::Mat& img, const rmcs_msgs::RobotColor& target_color, uint8_t blacklist);
+        Identify(const cv::Mat& img, const rmcs_msgs::RobotColor& target_color, uint8_t whitelist);
 
-    void draw_armors(const cv::Scalar& color);
+    void draw_armors(const cv::Mat& img, const cv::Scalar& color);
 
 private:
     class Impl;
