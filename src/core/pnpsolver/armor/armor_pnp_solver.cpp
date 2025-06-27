@@ -58,18 +58,14 @@ public:
         return armors3d;
     }
 
-    static ArmorPlate3dWithoutFrame Solve(
-        const ArmorPlate& armor, const double& fx, const double& fy, const double& cx,
-        const double& cy, const double& k1, const double& k2, const double& k3) {
+    static ArmorPlate3dWithoutFrame Solve(const ArmorPlate& armor) {
 
         cv::Mat rvec, tvec;
         auto& objectPoints =
             armor.is_large_armor ? LargeArmorObjectPoints : NormalArmorObjectPoints;
         if (cv::solvePnP(
-                objectPoints, armor.points,
-                (cv::Mat)(cv::Mat_<double>(3, 3) << fx, 0, cx, 0, fy, cy, 0, 0, 1),
-                (cv::Mat)(cv::Mat_<double>(1, 5) << k1, k2, 0, 0, k3), rvec, tvec, false,
-                cv::SOLVEPNP_IPPE)) {
+                objectPoints, armor.points, util::Profile::get_intrinsic_parameters(),
+                util::Profile::get_distortion_parameters(), rvec, tvec, false, cv::SOLVEPNP_IPPE)) {
 
             Eigen::Vector3d position = {
                 tvec.at<double>(2), -tvec.at<double>(0), -tvec.at<double>(1)};
@@ -112,8 +108,6 @@ std::vector<ArmorPlate3d> ArmorPnPSolver::SolveAll(
     return ArmorPnPSolver::StaticImpl::SolveAll(armors, tf);
 }
 
-ArmorPlate3dWithoutFrame ArmorPnPSolver::Solve(
-    const ArmorPlate& armor, const double& fx, const double& fy, const double& cx, const double& cy,
-    const double& k1, const double& k2, const double& k3) {
-    return ArmorPnPSolver::StaticImpl::Solve(armor, fx, fy, cx, cy, k1, k2, k3);
+ArmorPlate3dWithoutFrame ArmorPnPSolver::Solve(const ArmorPlate& armor) {
+    return ArmorPnPSolver::StaticImpl::Solve(armor);
 }

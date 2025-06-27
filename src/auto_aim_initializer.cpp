@@ -51,7 +51,7 @@ public:
             }
         } else {
             // RCLCPP_INFO(this->get_logger(), "Using information from the configuration file.");
-            *target_color_ = rmcs_msgs::RobotColor::RED;
+            *target_color_ = rmcs_msgs::RobotColor::BLUE;
         }
     }
 

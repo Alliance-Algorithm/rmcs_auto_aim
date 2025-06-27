@@ -15,6 +15,7 @@
 #include "core/identifier/armor/armor.hpp"
 #include "core/identifier/armor/armor_info.hpp"
 #include "openvino/openvino.hpp"
+#include "util/scanline.hpp"
 
 #include "rp_armor_identifier.hpp"
 
@@ -28,7 +29,7 @@ public:
 
         std::unique_ptr<ov::preprocess::PrePostProcessor> pre_post_processor_ =
             std::make_unique<ov::preprocess::PrePostProcessor>(model_);
-        ov::Shape input_shape_{1, image_height_, image_width_, 3};
+        ov::Shape input_shape_{1, model_image_height_, model_image_width_, 3};
         pre_post_processor_->input()
             .tensor()
             .set_element_type(ov::element::u8)
@@ -69,7 +70,7 @@ private:
     std::vector<ArmorInfo> model_infer(
         const cv::Mat& img, const rmcs_msgs::RobotColor& target_color, const uint8_t& whitelist) {
         cv::Mat resized_img;
-        cv::resize(img, resized_img, cv::Size(image_width_, image_height_));
+        cv::resize(img, resized_img, cv::Size(model_image_width_, model_image_height_));
         const auto input_tensor = ov::Tensor{
             compiled_model_.input().get_element_type(), compiled_model_.input().get_shape(),
             resized_img.data};
@@ -102,52 +103,60 @@ private:
             cv::minMaxLoc(classes_scores, nullptr, &score_num, nullptr, &class_id);
             cv::minMaxLoc(color_scores, nullptr, &score_color, nullptr, &color_id);
 
-            if (color_id.x >= 2 || (color_id.x == 1 && target_color == rmcs_msgs::RobotColor::RED)
-                || (color_id.x == 0 && target_color == rmcs_msgs::RobotColor::BLUE))
+            if (color_id.x >= 2 || (color_id.x == 1 && target_color == rmcs_msgs::RobotColor::BLUE)
+                || (color_id.x == 0 && target_color == rmcs_msgs::RobotColor::RED))
                 continue;
 
             ArmorInfo obj;
             if (class_id.x == 3) {
-                if (whitelist & rmcs_auto_aim::whitelist_code::InfantryIII)
+                if (whitelist & rmcs_auto_aim::whitelist_code::InfantryIII) {
                     obj.robot_id_ = rmcs_msgs::ArmorID::InfantryIII;
-                else
+                    // std::cerr << "InfantryIII" << std::endl;
+                } else
                     continue;
             } else if (class_id.x == 4) {
-                if (whitelist & rmcs_auto_aim::whitelist_code::InfantryIV)
+                if (whitelist & rmcs_auto_aim::whitelist_code::InfantryIV) {
                     obj.robot_id_ = rmcs_msgs::ArmorID::InfantryIV;
-                else
+                    // std::cerr << "InfantryIII" << std::endl;
+                } else
                     continue;
             } else if (class_id.x == 6) {
-                if (whitelist & rmcs_auto_aim::whitelist_code::Outpost)
+                if (whitelist & rmcs_auto_aim::whitelist_code::Outpost) {
                     obj.robot_id_ = rmcs_msgs::ArmorID::Outpost;
-                else
+                    // std::cerr << "Outpost" << std::endl;
+                } else
                     continue;
             } else if (class_id.x == 1) {
-                if (whitelist & rmcs_auto_aim::whitelist_code::Hero)
+                if (whitelist & rmcs_auto_aim::whitelist_code::Hero) {
                     obj.robot_id_ = rmcs_msgs::ArmorID::Hero;
-                else
+                    // std::cerr << "Hero" << std::endl;
+                } else
                     continue;
             } else if (class_id.x == 2) {
-                if (whitelist & rmcs_auto_aim::whitelist_code::Engineer)
+                if (whitelist & rmcs_auto_aim::whitelist_code::Engineer) {
                     obj.robot_id_ = rmcs_msgs::ArmorID::Engineer;
-                else
+                    // std::cerr << "Engineer" << std::endl;
+                } else
                     continue;
             } else if (class_id.x == 0) {
-                if (whitelist & rmcs_auto_aim::whitelist_code::Sentry)
+                if (whitelist & rmcs_auto_aim::whitelist_code::Sentry) {
                     obj.robot_id_ = rmcs_msgs::ArmorID::Sentry;
-                else
+                    // std::cerr << "Sentry" << std::endl;
+                } else
                     continue;
             } else if (class_id.x == 7) {
-                if (whitelist & rmcs_auto_aim::whitelist_code::Base)
+                if (whitelist & rmcs_auto_aim::whitelist_code::Base) {
                     obj.robot_id_ = rmcs_msgs::ArmorID::Base;
-                else
+                    // std::cerr << "Base" << std::endl;
+                } else
                     continue;
-            } else if (class_id.x == 5)
+            } else if (class_id.x == 5) {
                 obj.robot_id_ = rmcs_msgs::ArmorID::Aerial;
-            else
+                // std::cerr << "Aerial" << std::endl;
+            } else
                 continue;
 
-            obj.color_ = color_id.x == 1 ? rmcs_msgs::RobotColor::BLUE : rmcs_msgs::RobotColor::RED;
+            obj.color_ = color_id.x == 0 ? rmcs_msgs::RobotColor::BLUE : rmcs_msgs::RobotColor::RED;
             tmp_objects_.emplace_back(obj);
 
             std::array<cv::Point2f, 4> points{
@@ -170,6 +179,13 @@ private:
                 if (points[i].y > max_y)
                     max_y = points[i].y;
             }
+
+            // cv::rectangle(
+            //     img,
+            //     cv::Rect2d{
+            //         min_x * width_ratio_, min_y * height_ratio_, (max_x - min_x) * width_ratio_,
+            //         (max_y - min_y) * height_ratio_},
+            //     {255, 0, 0});
             boxes.emplace_back(
                 min_x * width_ratio_, min_y * height_ratio_, (max_x - min_x) * width_ratio_,
                 (max_y - min_y) * height_ratio_);
@@ -199,109 +215,138 @@ private:
     void matchPlate(const cv::Mat& img, const std::vector<ArmorInfo>& armor_plates) {
         cv::Mat gray_img;
         cv::cvtColor(img, gray_img, cv::COLOR_BGR2GRAY);
-        cv::threshold(gray_img, gray_img, 150, 255, cv::THRESH_BINARY);
+        cv::threshold(gray_img, gray_img, 20, 255, cv::THRESH_BINARY);
 
         for (const auto& armor : armor_plates) {
-            const auto roi = gray_img(
-                cv::Rect{
-                    cv::Point{
-                              static_cast<int>(
-                              armor.rect_.x
-                              - armor.rect_.width / 2. * (match_magnification_ratio_ - 1.)),
-                              static_cast<int>(
-                              armor.rect_.y
-                              - armor.rect_.height / 2. * (match_magnification_ratio_ - 1.))   },
-                    cv::Size{
-                              static_cast<int>(match_magnification_ratio_ * armor.rect_.width),
-                              static_cast<int>(match_magnification_ratio_ * armor.rect_.height)}
-            });
+            const auto offset = cv::Point{
+                std::clamp(
+                    static_cast<int>(
+                        armor.rect_.x - armor.rect_.width / 2. * (match_magnification_ratio_ - 1.)),
+                    0, 1440),
+                std::clamp(
+                    static_cast<int>(
+                        armor.rect_.y
+                        - armor.rect_.height / 2. * (match_magnification_ratio_ - 1.)),
+                    0, 1080)};
+
+            cv::Size rect_size{
+                std::clamp(
+                    static_cast<int>(armor.rect_.width * match_magnification_ratio_), 0,
+                    1440 - offset.x),
+                std::clamp(
+                    static_cast<int>(armor.rect_.height * match_magnification_ratio_), 0,
+                    1080 - offset.y)};
+
+            const auto armor_roi = gray_img(cv::Rect{offset, rect_size});
+
+            // cv::rectangle(gray_img, cv::Rect{left_top_point, rect_size}, {255});
+
             std::vector<std::vector<cv::Point>> contours;
-            cv::findContours(roi, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_NONE);
-            std::sort(
-                contours.begin(), contours.end(),
-                [](const std::vector<cv::Point>& a, const std::vector<cv::Point>& b) {
-                    return cv::contourArea(a, false) > cv::contourArea(b, false);
-                });
-            std::vector<LightBar> lightbars_;
-            for (const auto& contour : contours) {
-                auto r_rect = cv::minAreaRect(contour);
-                auto b_rect = cv::boundingRect(contour);
-                const auto roi =
-                    img(cv::Rect{
-                        cv::Point{armor.rect_.x + b_rect.x, armor.rect_.y + b_rect.y},
-                        b_rect.size()
-                });
-                const auto channels       = cv::mean(roi);
-                const auto b_r_difference = channels[0] - channels[2];
-                if ((armor.color_ == rmcs_msgs::RobotColor::RED && b_r_difference > 0)
-                    || (armor.color_ == rmcs_msgs::RobotColor::BLUE && b_r_difference < 0))
-                    continue;
-
-                // 可根据实际情况加一些形态学约束
-                //  if(){
-                //      continue; // 过滤掉不符合要求的矩形
-                //  }
-
-                cv::Point2f corners[4];
-                r_rect.points(corners);
-
-                std::vector<cv::Point2f> points(corners, corners + 4);
-
+            cv::findContours(armor_roi, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_NONE);
+            if (contours.size() >= 2) {
                 std::sort(
-                    points.begin(), points.end(),
-                    [](const cv::Point2f& a, const cv::Point2f& b) { return a.y < b.y; });
+                    contours.begin(), contours.end(),
+                    [](const std::vector<cv::Point>& a, const std::vector<cv::Point>& b) {
+                        return cv::contourArea(a, false) > cv::contourArea(b, false);
+                    });
 
-                cv::Point2f tl, tr;
-                if (points[0].x < points[1].x) {
-                    tl = points[0];
-                    tr = points[1];
-                } else {
-                    tl = points[1];
-                    tr = points[0];
+                std::vector<LightBar> lightbars_;
+                for (const auto& contour : contours) {
+                    auto b_rect = cv::boundingRect(contour);
+
+                    cv::Point roi_point{
+                        std::clamp(offset.x + b_rect.x, 0, 1440),
+                        std::clamp(offset.y + b_rect.y, 0, 1080)};
+                    cv::Size roi_size{
+                        std::clamp(b_rect.width, 0, 1440 - roi_point.x),
+                        std::clamp(b_rect.height, 0, 1080 - roi_point.y)};
+                    const auto light_bar_roi = img(cv::Rect{roi_point, roi_size});
+
+                    const auto channels       = cv::mean(light_bar_roi);
+                    const auto b_r_difference = channels[0] - channels[2];
+                    if ((armor.color_ == rmcs_msgs::RobotColor::RED && b_r_difference > 0)
+                        || (armor.color_ == rmcs_msgs::RobotColor::BLUE && b_r_difference < 0))
+                        continue;
+
+                    const auto points = ScanLine::get_points(armor_roi, contour);
+                    if (points.empty())
+                        continue;
+                    const auto [high_point, low_point] = perform_pca(points);
+                    // // 调试输出，生产环境可以移除或通过宏控制
+                    // std::cerr << "high:" << highest_point.x << " " << highest_point.y <<
+                    // std::endl; std::cerr << "low:" << lowest_point.x << " " << lowest_point.y <<
+                    // std::endl;
+
+                    lightbars_.emplace_back(
+                        high_point + offset, low_point + offset, cv::minAreaRect(contour).angle);
+
+                    if (lightbars_.size() == 2)
+                        break;
                 }
 
-                cv::Point2f bl, br;
-                if (points[2].x < points[3].x) {
-                    bl = points[2];
-                    br = points[3];
-                } else {
-                    bl = points[3];
-                    br = points[2];
-                }
-
-                lightbars_.emplace_back((tl + tr) / 2., (bl + br) / 2., r_rect.angle);
-            }
-
-            const auto lightbar_size_ = lightbars_.size();
-            if (lightbar_size_ >= 2) {
-                bool plate_matched{false};
-                for (std::size_t i = 0; i < lightbar_size_ - 1 && !plate_matched; ++i) {
-                    for (std::size_t j = i + 1; j < lightbar_size_ && !plate_matched; ++j) {
-                        const auto& first  = lightbars_[i];
-                        const auto& second = lightbars_[j];
-                        if ((std::max(first.top.x, first.bottom.x)
-                             < std::min(second.bottom.x, second.top.x))) {
-                            armor_plates_.emplace_back(first, second, armor.robot_id_);
-                            plate_matched = true;
-                        } else if ((std::max(second.top.x, second.bottom.x)
-                                    < std::min(first.bottom.x, first.top.x))) {
-                            armor_plates_.emplace_back(second, first, armor.robot_id_);
-                            plate_matched = true;
-                        }
+                const auto light_bar_size_ = lightbars_.size();
+                if (light_bar_size_ == 2) {
+                    const auto& first  = lightbars_[0];
+                    const auto& second = lightbars_[1];
+                    if ((std::max(first.top.x, first.bottom.x)
+                         < std::min(second.bottom.x, second.top.x))) {
+                        armor_plates_.emplace_back(first, second, armor.robot_id_);
+                    } else if ((std::max(second.top.x, second.bottom.x)
+                                < std::min(first.bottom.x, first.top.x))) {
+                        armor_plates_.emplace_back(second, first, armor.robot_id_);
                     }
                 }
             }
         }
     }
 
-    static constexpr int image_height_      = 640;
-    static constexpr int image_width_       = 640;
-    static constexpr double width_ratio_    = 1440. / image_width_;
-    static constexpr double height_ratio_   = 1080. / image_height_;
-    static constexpr double conf_threshold_ = 0.65;
-    static constexpr double nms_threshold_  = 0.45;
+    static inline std::tuple<cv::Point, cv::Point>
+        perform_pca(const std::vector<cv::Point>& points) {
+        const int points_num{static_cast<int>(points.size())};
+        cv::Mat data(points_num, 2, CV_32F);
+        for (int j = 0; j < points_num; ++j) {
+            data.at<float>(j, 0) = static_cast<float>(points[j].x);
+            data.at<float>(j, 1) = static_cast<float>(points[j].y);
+        }
 
-    static constexpr double match_magnification_ratio_ = 1.3;
+        cv::PCA pca(data, cv::Mat(), cv::PCA::DATA_AS_ROW);
+        cv::Vec2f principal_axis(
+            pca.eigenvectors.at<float>(0, 0), pca.eigenvectors.at<float>(0, 1));
+        cv::Point2f center(pca.mean.at<float>(0, 0), pca.mean.at<float>(0, 1));
+
+        float min_proj = std::numeric_limits<float>::max();
+        float max_proj = std::numeric_limits<float>::lowest();
+
+        for (const auto& p : points) {
+            float proj = (static_cast<cv::Point2f>(p) - center).dot(principal_axis);
+
+            if (proj < min_proj)
+                min_proj = proj;
+            if (proj > max_proj)
+                max_proj = proj;
+        }
+
+        const cv::Point reconstructed_min_point_local =
+            center + cv::Point2f{principal_axis * min_proj};
+        const cv::Point reconstructed_max_point_local =
+            center + cv::Point2f{principal_axis * max_proj};
+
+        if (reconstructed_min_point_local.y < reconstructed_max_point_local.y)
+            return {reconstructed_min_point_local, reconstructed_max_point_local};
+        else
+            return {reconstructed_max_point_local, reconstructed_min_point_local};
+
+        // return type {high,low}
+    }
+
+    static constexpr int model_image_height_ = 640;
+    static constexpr int model_image_width_  = 640;
+    static constexpr double width_ratio_     = 1440. / model_image_width_;
+    static constexpr double height_ratio_    = 1080. / model_image_height_;
+    static constexpr double conf_threshold_  = 0.65;
+    static constexpr double nms_threshold_   = 0.45;
+
+    static constexpr double match_magnification_ratio_ = 1.5;
 
     std::vector<ArmorPlate> armor_plates_;
     ov::CompiledModel compiled_model_;
