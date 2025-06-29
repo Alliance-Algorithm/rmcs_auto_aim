@@ -116,8 +116,26 @@ public:
                     // // std::cerr << std::chrono::steady_clock::now() - thread_sync_clk_ <<
                     // // std::endl;
                     // // auto tf        = tf_buffer_[tf_index_.load()];
-                    // auto timestamp = std::chrono::steady_clock::now();
-                    auto armor_plates = armor_identifier->Identify(image, *target_color_, 0xff);
+                    // auto timestamp = std::chrono::steady_clock::now();                    // 1.
+                    // 获取新的相机矩阵（可选，但推荐） alpha=0: 裁剪图像，无黑色边框 alpha=1:
+                    // 保留所有像素，可能有黑色边框
+                    cv::Mat newCameraMatrix = cv::getOptimalNewCameraMatrix(
+                        util::Profile::get_intrinsic_parameters(),
+                        util::Profile::get_distortion_parameters(), image.size(), 1, image.size(),
+                        nullptr);
+
+                    // 2. 计算映射表
+                    cv::Mat map1, map2;
+                    cv::initUndistortRectifyMap(
+                        util::Profile::get_intrinsic_parameters(),
+                        util::Profile::get_distortion_parameters(), cv::Mat(), newCameraMatrix,
+                        image.size(), CV_32FC1, map1, map2);
+
+                    cv::remap(image, image, map1, map2, cv::INTER_LINEAR);
+                    
+                    const auto armor_plates =
+                        armor_identifier->Identify(image, *target_color_, 0xff);
+
                     // RCLCPP_INFO(get_logger(), "armor_plates num:%zu", armor_plates.size());
 
                     // util::ImageViewer::load_image(image);
