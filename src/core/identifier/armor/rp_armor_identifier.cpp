@@ -215,7 +215,7 @@ private:
     void matchPlate(const cv::Mat& img, const std::vector<ArmorInfo>& armor_plates) {
         cv::Mat gray_img;
         cv::cvtColor(img, gray_img, cv::COLOR_BGR2GRAY);
-        cv::threshold(gray_img, gray_img, 20, 255, cv::THRESH_BINARY);
+        cv::threshold(gray_img, gray_img, 30, 255, cv::THRESH_BINARY);
 
         for (const auto& armor : armor_plates) {
             const auto offset = cv::Point{
@@ -238,6 +238,8 @@ private:
                     1080 - offset.y)};
 
             const auto armor_roi = gray_img(cv::Rect{offset, rect_size});
+
+            cv::rectangle(img,cv::Rect{offset, rect_size},{0,255,0});
 
             // cv::rectangle(gray_img, cv::Rect{left_top_point, rect_size}, {255});
 

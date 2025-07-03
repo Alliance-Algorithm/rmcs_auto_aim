@@ -69,7 +69,9 @@ public:
         register_output("/debug/target_omega", debug_target_omega_, 0);
         register_output("/debug/target_theta_", debug_target_theta_, 0);
         register_output("/debug", debug_, 0);
-        register_output("/auto_aim/outpost_rotate_direction", outpost_rotate_direction_, true);
+        register_output("/auto_aim/outpost_rotate_direction", outpost_rotate_direction_, true);\
+
+        register_output("/yaw/debug", yaw_debug);
 
         yaw_error_      = get_parameter("yaw_error").as_double();
         pitch_error_    = get_parameter("pitch_error").as_double();
@@ -119,19 +121,19 @@ public:
                     // auto timestamp = std::chrono::steady_clock::now();                    // 1.
                     // 获取新的相机矩阵（可选，但推荐） alpha=0: 裁剪图像，无黑色边框 alpha=1:
                     // 保留所有像素，可能有黑色边框
-                    cv::Mat newCameraMatrix = cv::getOptimalNewCameraMatrix(
-                        util::Profile::get_intrinsic_parameters(),
-                        util::Profile::get_distortion_parameters(), image.size(), 1, image.size(),
-                        nullptr);
+                    // cv::Mat newCameraMatrix = cv::getOptimalNewCameraMatrix(
+                    //     util::Profile::get_intrinsic_parameters(),
+                    //     util::Profile::get_distortion_parameters(), image.size(), 1, image.size(),
+                    //     nullptr);
 
-                    // 2. 计算映射表
-                    cv::Mat map1, map2;
-                    cv::initUndistortRectifyMap(
-                        util::Profile::get_intrinsic_parameters(),
-                        util::Profile::get_distortion_parameters(), cv::Mat(), newCameraMatrix,
-                        image.size(), CV_32FC1, map1, map2);
+                    // // 2. 计算映射表
+                    // cv::Mat map1, map2;
+                    // cv::initUndistortRectifyMap(
+                    //     util::Profile::get_intrinsic_parameters(),
+                    //     util::Profile::get_distortion_parameters(), cv::Mat(), newCameraMatrix,
+                    //     image.size(), CV_32FC1, map1, map2);
 
-                    cv::remap(image, image, map1, map2, cv::INTER_LINEAR);
+                    // cv::remap(image, image, map1, map2, cv::INTER_LINEAR);
                     
                     const auto armor_plates =
                         armor_identifier->Identify(image, *target_color_, 0xff);
@@ -154,8 +156,11 @@ public:
                                   << util::math::get_yaw_from_quaternion(armor3d.rotation)
                                          / std::numbers::pi * 180
                                   << std::endl;
+                        *yaw_debug = util::math::get_yaw_from_quaternion(armor3d.rotation)
+                        / std::numbers::pi * 180;
                     }
                     armor_identifier->draw_armors(image, {0, 0, 255});
+
                     cv::imshow("test", image);
                     cv::waitKey(1);
 
@@ -323,6 +328,9 @@ private:
 
     OutputInterface<double> debug_target_omega_;
     OutputInterface<double> debug_target_theta_;
+
+
+    OutputInterface<double> yaw_debug;
 
     // OutputInterface<bool> oy++rotate_direction_;
 
