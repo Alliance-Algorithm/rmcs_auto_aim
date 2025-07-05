@@ -34,6 +34,8 @@ public:
         K_t   = K_t.Zero();
         tmpK  = tmpK.Zero();
 
+        const auto processed_z = process_z(z_k);
+
         auto x_k_n = f(X_k, u_k, w_zero, dt);
         auto A_k   = A(X_k, u_k, w_zero, dt);
         auto W_k   = W(X_k, u_k, w_zero);
@@ -41,7 +43,7 @@ public:
         auto V_k   = V(x_k_n, v_zero);
 
         P_k_n << A_k * P_k * A_k.transpose() + W_k * Q(dt) * W_k.transpose();
-        y_k << process_z(z_k) - h(x_k_n, v_zero);
+        y_k << processed_z - h(x_k_n, v_zero);
         S_k << H_k * P_k_n * H_k.transpose() + V_k * R(z_k) * V_k.transpose();
         K_t << P_k_n * H_k.transpose() * S_k.inverse();
         X_k << x_k_n + K_t * y_k;

@@ -6,11 +6,28 @@ namespace rmcs_auto_aim::util::math {
 
 static inline double get_yaw_from_quaternion(const Eigen::Quaterniond& quaternion) {
 
-    double yaw = atan2(
+    const double yaw = atan2(
         2.0 * (quaternion.w() * quaternion.z() + quaternion.x() * quaternion.y()),
         1.0 - 2.0 * (quaternion.y() * quaternion.y() + quaternion.z() * quaternion.z()));
 
     return yaw;
+}
+
+static inline double get_pitch_from_quaternion(const Eigen::Quaterniond& quaternion) {
+    const double pitch =
+        std::asin(2.0 * (quaternion.w() * quaternion.y() - quaternion.x() * quaternion.z()));
+
+    return pitch;
+}
+
+static inline Eigen::Quaterniond
+    euler_to_quaternion(const double& yaw_rad, const double& pitch_rad, const double& roll_rad) {
+    Eigen::AngleAxisd rollAngle(roll_rad, Eigen::Vector3d::UnitX());
+    Eigen::AngleAxisd pitchAngle(pitch_rad, Eigen::Vector3d::UnitY());
+    Eigen::AngleAxisd yawAngle(yaw_rad, Eigen::Vector3d::UnitZ());
+
+    Eigen::Quaterniond q = yawAngle * pitchAngle * rollAngle;
+    return q;
 }
 
 static inline double

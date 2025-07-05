@@ -140,6 +140,7 @@ public:
                     Eigen::Vector3d armor_in_camera = *fast_tf::cast<rmcs_description::CameraLink>(
                         last_detected_armor[i].position, tf);
                     armor_z << armor_in_camera,
+                        
                         util::math::get_yaw_from_quaternion(*last_detected_armor[i].rotation);
                     armor_trackers_[armorID][i].Update(armor_z, {}, dt);
                 }
