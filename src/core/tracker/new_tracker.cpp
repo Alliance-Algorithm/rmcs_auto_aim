@@ -17,8 +17,11 @@ public:
             std::chrono::duration_cast<std::chrono::duration<double>>(timestamp - last_timestamp_)
                 .count();
         if (armors.empty()) {
+            if (track_state_ == TrackerState::Track)
+                predict(dt + 0.2);
             if (dt > 1.0)
                 track_state_ = TrackerState::Lost;
+            return nullptr;
         } else {
             if (track_state_ == TrackerState::Lost) {
                 last_timestamp_ = timestamp;
@@ -28,12 +31,12 @@ public:
                 // WARNING: PNP 解算时就要丢掉不合理的值,具体见 TrackerModel
                 input << util::math::get_yaw_from_quaternion(*armors[0].rotation),
                     util::math::get_pitch_from_quaternion(*armors[0].rotation),
-                    armors[0].position->norm();
+                    armors[0].position->norm(), armors[0].position->z();
                 tracker_model_.Update(input, {}, dt);
                 if (armors.size() >= 2) {
                     input << util::math::get_yaw_from_quaternion(*armors[1].rotation),
                         util::math::get_pitch_from_quaternion(*armors[1].rotation),
-                        armors[1].position->norm();
+                        armors[1].position->norm(), armors[1].position->z();
                     tracker_model_.Update(input, {}, 0);
                 }
             };
@@ -41,7 +44,8 @@ public:
 
         // 预测时长，这里主要是把各种延迟加上,包括计算延迟，卡弹延迟以及子弹飞行时间等
         if (track_state_ == TrackerState::Track)
-            predict(dt);
+            predict(0.2);
+
         last_timestamp_ = timestamp;
         return nullptr;
     };
@@ -52,10 +56,14 @@ public:
                 transform_optimizer::Quadrilateral3d(armor).ToQuadrilateral(tf, true), color);
     };
 
+    inline std::array<ArmorPlate3d, 4> get_armor() { return target_armors_; }
+
+    TrackerModel::XVec output() { return debug_; }
+
 private:
     void predict(const double& dt) {
         // 两种预测模型可选，一种是匀加速，一种是匀速
-        const auto model_output = tracker_model_.OutPut();
+        const auto model_output = debug_ = tracker_model_.OutPut();
 
         // 匀速预测如下
         // const double car_x = model_output(0) + model_output(1) * dt;
@@ -86,8 +94,11 @@ private:
         else
             odom_yaw -= 3. * std::numbers::pi / 2.;
 
-        const double pitch1 = 15. / 180. * std::numbers::pi - std::atan((car_z - z1) / r1);
-        const double pitch2 = 15. / 180. * std::numbers::pi - std::atan((car_z - z2) / r2);
+        // const double pitch1 = -15. / 180. * std::numbers::pi + std::atan((car_z - z1) / r1);
+        // const double pitch2 = -15. / 180. * std::numbers::pi + std::atan((car_z - z2) / r2);
+
+        const double pitch1 = -15. / 180. * std::numbers::pi;
+        const double pitch2 = -15. / 180. * std::numbers::pi;
 
         if (tracker_model_.get_side_flag_()) {
             *target_armors_[0].position << car_x - r1 * std::sin(model_yaw),
@@ -136,9 +147,10 @@ private:
         }
     };
 
+    TrackerModel::XVec debug_;
     std::chrono::steady_clock::time_point last_timestamp_{};
     TrackerModel tracker_model_;
-    std::array<ArmorPlate3d, 4> target_armors_;
+    std::array<ArmorPlate3d, 4> target_armors_{};
     TrackerState track_state_{TrackerState::Lost};
 };
 
@@ -151,4 +163,10 @@ std::shared_ptr<IFireController> NewTracker::Update(
 void NewTracker::draw_armors(const cv::Scalar& color, const rmcs_description::Tf& tf) {
     return pimpl_->draw_armors(color, tf);
 };
+
+std::array<ArmorPlate3d, 4> NewTracker::get_armors() { return pimpl_->get_armor(); };
+TrackerModel::XVec NewTracker::get_model_output() { return pimpl_->output(); };
+NewTracker::NewTracker()
+    : pimpl_(std::make_unique<Impl>()) {}
+NewTracker::~NewTracker() = default;
 } // namespace rmcs_auto_aim::tracker

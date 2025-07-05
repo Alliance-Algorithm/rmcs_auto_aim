@@ -21,7 +21,9 @@ struct ArmorPlate3d {
     rmcs_description::OdomImu::Position position;
     rmcs_description::OdomImu::Rotation rotation;
 
-    explicit ArmorPlate3d(
+    ArmorPlate3d() {};
+
+    ArmorPlate3d(
         rmcs_msgs::ArmorID id, rmcs_description::OdomImu::Position position,
         rmcs_description::OdomImu::Rotation rotation)
         : id(id)
@@ -32,6 +34,8 @@ struct ArmorPlate3d {
 struct ArmorPlate3dWithoutFrame {
     rmcs_msgs::ArmorID id;
     geometry_msgs::msg::Pose pose;
+    Eigen::Vector3d position;
+    Eigen::Quaterniond rotation;
 
     ArmorPlate3dWithoutFrame() = default;
     ArmorPlate3dWithoutFrame(
@@ -44,6 +48,8 @@ struct ArmorPlate3dWithoutFrame {
         pose.orientation.y = rotation.y();
         pose.orientation.z = rotation.z();
         pose.orientation.w = rotation.w();
+        this->position     = position;
+        this->rotation     = rotation;
     }
 };
 } // namespace rmcs_auto_aim

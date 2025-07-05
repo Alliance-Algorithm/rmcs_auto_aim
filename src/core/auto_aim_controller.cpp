@@ -1,10 +1,12 @@
 #include <atomic>
 #include <chrono>
+#include <keyboard.hpp>
 #include <memory>
 #include <thread>
 #include <tuple>
 #include <vector>
 
+#include "core/tracker/new_tracker.hpp"
 #include <ament_index_cpp/get_package_share_directory.hpp>
 #include <cv_bridge/cv_bridge.h>
 #include <opencv2/highgui.hpp>
@@ -16,12 +18,11 @@
 #include <rmcs_executor/component.hpp>
 
 #include "core/fire_controller/fire_controller.hpp"
-#include "core/identifier/armor/armor_identifier.hpp"
+#include "core/identifier/armor/rp_armor_identifier.hpp"
 #include "core/pnpsolver/fusion_solver.hpp"
 #include "core/tracker/armor/armor_tracker.hpp"
 #include "core/trajectory/trajectory_solvor.hpp"
 #include "util/image_viewer/image_viewer.hpp"
-#include "util/math.hpp"
 #include "util/profile/profile.hpp"
 #include "util/utils.hpp"
 
@@ -68,6 +69,22 @@ public:
         register_output("/gimbal/auto_aim/fire_control", fire_control_, false);
         register_output("/debug/target_omega", debug_target_omega_, 0);
         register_output("/debug/target_theta_", debug_target_theta_, 0);
+        // register_output("/debug", debug_, 0);
+        // register_output("/auto_aim/outpost_rotate_direction", outpost_rotate_direction_, true);
+
+        register_output("/debug/output_x", output_x_, 0.0);
+        register_output("/debug/output_v_x", output_v_x_, 0.0);
+        register_output("/debug/output_a_x", output_a_x_, 0.0);
+        register_output("/debug/output_y", output_y_, 0.0);
+        register_output("/debug/output_v_y", output_v_y_, 0.0);
+        register_output("/debug/output_a_y", output_a_y_, 0.0);
+        register_output("/debug/output_z", output_z_, 0.0);
+        register_output("/debug/output_z1", output_z1_, 0.0);
+        register_output("/debug/output_z2", output_z2_, 0.0);
+        register_output("/debug/output_r1", output_r1_, 0.0);
+        register_output("/debug/output_r2", output_r2_, 0.0);
+        register_output("/debug/output_yaw", output_yaw_, 0.0);
+        register_output("/debug/output_omega", output_omega_, 0.0);
 
         yaw_error_      = get_parameter("yaw_error").as_double();
         pitch_error_    = get_parameter("pitch_error").as_double();
@@ -86,9 +103,11 @@ public:
     }
 
     void update() override {
-
+        // keyboard_->ctrl+f
         tf_buffer_[!tf_index_.load()] = *tf_;
         tf_index_.store(!tf_index_.load());
+
+        // RCLCPP_INFO(get_logger(), "update");
 
         if (*update_count_ == 0) {
             if (!target_color_.ready()) {
@@ -97,108 +116,185 @@ public:
             }
 
             threads_.emplace_back([this]() {
-                auto armor_identifier = std::make_unique<ArmorIdentifier>(
+                auto armor_identifier = std::make_unique<RPArmorIdentifier>(
                     ament_index_cpp::get_package_share_directory("rmcs_auto_aim")
-                    + "/models/mlp.onnx");
-                auto armor_tracker = tracker::armor::ArmorTracker(*this);
+                        + "/models/0708.onnx",
+                    "AUTO");
+
+                tracker::NewTracker tracker;
+                // auto armor_tracker = tracker::armor::ArmorTracker(); // TODO
 
                 rmcs_auto_aim::util::FPSCounter fps;
 
                 while (rclcpp::ok()) {
-
                     auto image       = capturer_->read();
                     thread_sync_clk_ = std::chrono::steady_clock::now();
-                    auto tf          = tf_buffer_[tf_index_.load()];
-                    auto timestamp   = std::chrono::steady_clock::now();
-                    util::ImageViewer::load_image(image);
-                    auto armor_plates =
-                        armor_identifier->Identify(image, *target_color_, *whitelist_);
+                    image            = capturer_->read();
+                    // std::cerr << std::chrono::steady_clock::now() - thread_sync_clk_ <<
+                    // std::endl;
+                    auto tf        = tf_buffer_[tf_index_.load()];
+                    auto timestamp = std::chrono::steady_clock::now();
 
-                    auto armor3d = FusionSolver::SolveAll(armor_plates, tf);
+                    const auto armor_plates =
+                        armor_identifier->Identify(image, *target_color_, 0xff);
+
+                    // RCLCPP_INFO(get_logger(), "armor_plates num:%zu", armor_plates.size());
+
+                    util::ImageViewer::load_image(image);
+                    const auto armor3d = ArmorPnPSolver::SolveAll(armor_plates, tf);
+
+                    // const bool is_outpost_mode = true;
 
                     for (auto& armor2d_ : armor3d) {
                         util::ImageViewer::draw(
                             transform_optimizer::Quadrilateral3d(armor2d_).ToQuadrilateral(
-                                tf, true),
+                                tf, false),
+                            {0, 0, 255});
+                        // *debug_target_theta_ =
+                        //     util::math::get_pitch_from_quaternion(*armor2d_.rotation)
+                        //     / std::numbers::pi * 180;
+                        // std::cerr << " "
+                        //           << util::math::get_yaw_from_quaternion(*armor2d_.rotation)
+                        //                  / std::numbers::pi * 180
+                        //           << " "
+                        //           << util::math::get_pitch_from_quaternion(*armor2d_.rotation)
+                        //                  / std::numbers::pi * 180
+                        //           << std::endl;
+                    }
+
+                    tracker.Update(armor3d, timestamp, tf);
+                    const auto predict_armors = tracker.get_armors();
+                    for (const auto& predict_armor : predict_armors) {
+                        util::ImageViewer::draw(
+                            transform_optimizer::Quadrilateral3d(predict_armor)
+                                .ToQuadrilateral(tf, false),
+                            // transform_optimizer::Quadrilateral(armor2d_),
                             {0, 255, 0});
-                        *debug_target_theta_ =
-                            util::math::get_yaw_from_quaternion(*armor2d_.rotation);
                     }
-                    if (auto target = armor_tracker.Update(armor3d, timestamp, tf)) {
-                        armor_target_buffer_[!armor_target_index_.load()].target_ =
-                            std::move(target);
-                        armor_target_buffer_[!armor_target_index_.load()].timestamp_ = timestamp;
-                        armor_target_index_.store(!armor_target_index_.load());
-                    }
-                    armor_tracker.draw_armors(tf, {0, 0, 255});
+
+                    const auto output = tracker.get_model_output();
+                    *output_x_        = output(0);
+                    *output_v_x_      = output(1);
+                    *output_a_x_      = output(2);
+                    *output_y_        = output(3);
+                    *output_v_y_      = output(4);
+                    *output_a_y_      = output(5);
+                    *output_z_        = output(6);
+                    *output_z1_       = output(7);
+                    *output_z2_       = output(8);
+                    *output_r1_       = output(9);
+                    *output_r2_       = output(10);
+                    *output_yaw_      = output(11);
+                    *output_omega_    = output(12);
+
+                    // *debug_target_theta_ =
+                    //     util::math::get_yaw_from_quaternion(*predict_armors[0].rotation);
+
+                    // tracker.draw_armors({0, 255, 0}, tf);
+
+                    // auto target = armor_tracker.Update(armor3d, timestamp, tf);
+                    // if (target) {
+                    //     armor_target_buffer_[!armor_target_index_.load()].target_ =
+                    //         std::move(target);
+                    //     armor_target_buffer_[!armor_target_index_.load()].timestamp_ = timestamp;
+                    //     armor_target_index_.store(!armor_target_index_.load());
+                    // }
+                    //     // armor_tracker.draw_armors(tf, {0, 0, 255});
+
+                    //     // *debug_ = armor_tracker.pos_error();
+                    //     // if (is_outpost_mode) {
+                    //     //
+                    //     armor_tracker.set_rotate_direction(outpost_rotate_direction_for_multi_thread_.load(std::memory_order_relaxed));
+                    //     //     outpost_pos_[!outpost_pos_index_.load()] =
+                    //     //     armor_tracker.outpost_pos();
+                    //     //     outpost_pos_index_.store(!outpost_pos_index_.load());
+                    //     // }
+
                     util::ImageViewer::show_image();
-                    if (fps.Count()) {
-                        // RCLCPP_INFO(get_logger(), "FPS: %d", fps.GetFPS());
-                    }
+                    // if (fps.Count()) {
+                    //     RCLCPP_INFO(get_logger(), "FPS: %d", fps.GetFPS());
+                    // }
                 }
             });
         }
 
-        auto frame = armor_target_buffer_[armor_target_index_.load()];
-        if (!frame.target_) {
-            *control_direction_ = Eigen::Vector3d::Zero();
-            return;
-        }
-        *debug_target_omega_ = frame.target_->get_omega();
-        auto offset          = fast_tf::cast<rmcs_description::OdomImu>(
-            rmcs_description::MuzzleLink::Position{0, 0, 0}, *tf_);
+        // auto frame = armor_target_buffer_[armor_target_index_.load()];
+        // if (!frame.target_) {
+        //     *control_direction_ = Eigen::Vector3d::Zero();
+        //     return;
+        // }
+        // *debug_target_omega_ = frame.target_->get_omega();
+        // auto offset          = fast_tf::cast<rmcs_description::OdomImu>(
+        //     rmcs_description::MuzzleLink::Position{0, 0, 0}, *tf_);
 
-        using namespace std::chrono_literals;
-        auto diff = std::chrono::steady_clock::now() - frame.timestamp_;
-        if (diff > std::chrono::milliseconds(500)) { // TODO
-            *control_direction_ = Eigen::Vector3d::Zero();
-            *fire_control_      = false;
-            return;
-        }
+        // using namespace std::chrono_literals;
+        // auto diff = std::chrono::steady_clock::now() - frame.timestamp_;
+        // if (diff > std::chrono::milliseconds(500)) { // TODO
+        //     *control_direction_ = Eigen::Vector3d::Zero();
+        //     *fire_control_      = false;
+        //     return;
+        // }
 
-        double fly_time = 0;
-        for (int i = 5; i-- > 0;) {
-            auto [firecontrol, pos] = frame.target_->UpdateController(
-                static_cast<std::chrono::duration<double>>(diff).count() + fly_time + predict_sec_,
-                *tf_);
-            *fire_control_        = firecontrol;
-            auto aiming_direction = *trajectory_.GetShotVector(
-                {pos->x() - offset->x(), pos->y() - offset->y(), pos->z() - offset->z()},
-                shoot_velocity_, fly_time);
+        // double fly_time = 0;
+        // Eigen::Vector3d aiming_direction{0, 0, 0};
+        // Eigen::Vector3d control_direction_for_outpost_{0, 0, 0};
+        // for (int i = 5; i-- > 0;) {
+        //     auto [firecontrol, pos] = frame.target_->UpdateController(
+        //         static_cast<std::chrono::duration<double>>(diff).count() + fly_time +
+        //         predict_sec_, *tf_);
+        //     *fire_control_   = firecontrol;
+        //     aiming_direction = *trajectory_.GetShotVector(
+        //         {pos->x() - offset->x(), pos->y() - offset->y(), pos->z() - offset->z()},
+        //         shoot_velocity_, fly_time);
+        //     rmcs_description::OdomImu::Position outpost_pos =
+        //         outpost_pos_[outpost_pos_index_.load()];
+        //     outpost_pos_index_.store(!outpost_pos_index_.load());
+        //     if (outpost_mode) {
+        //         control_direction_for_outpost_ = *trajectory_.GetShotVector(
+        //             {outpost_pos->x() - offset->x(), outpost_pos->y() - offset->y(),
+        //              outpost_pos->z() - offset->z()},
+        //             shoot_velocity_, fly_time);
+        //     }
 
-            if (i == 0) {
-                auto yaw_axis = fast_tf::cast<rmcs_description::OdomImu>(
-                                    rmcs_description::PitchLink::DirectionVector(0, 0, 1), *tf_)
-                                    ->normalized();
-                auto pitch_axis = fast_tf::cast<rmcs_description::OdomImu>(
-                                      rmcs_description::PitchLink::DirectionVector(0, 1, 0), *tf_)
-                                      ->normalized();
-                auto delta_yaw      = Eigen::AngleAxisd{yaw_error_, yaw_axis};
-                auto delta_pitch    = Eigen::AngleAxisd{pitch_error_, pitch_axis};
-                aiming_direction    = delta_pitch * (delta_yaw * (aiming_direction));
-                *control_direction_ = aiming_direction;
-                break;
-            }
-        }
-        bool deadband = (std::chrono::steady_clock::now() - fire_control_deadband_)
-                      > std::chrono::milliseconds(50);
-        if (fast_tf::cast<rmcs_description::OdomImu>(
-                rmcs_description::PitchLink::DirectionVector(), *tf_)
-                ->dot(*control_direction_)
-            >= 0.996 + fly_time * 0.001)
-            *fire_control_ = true && deadband && *fire_control_;
-        else
-            *fire_control_ = false && deadband && *fire_control_;
-        if (fast_tf::cast<rmcs_description::OdomImu>(
-                rmcs_description::PitchLink::DirectionVector(), *tf_)
-                ->dot(*control_direction_)
-            < 0.996 + fly_time * 0.001) {
-            fire_control_deadband_ = std::chrono::steady_clock::now();
-        }
-        // std::cerr << fast_tf::cast<rmcs_description::OdomImu>(
-        //                  rmcs_description::PitchLink::DirectionVector(), *tf_)
-        //                  ->dot(*control_direction_)
-        //           << std::endl;
+        //     if (i == 0) {
+        //         auto yaw_axis = fast_tf::cast<rmcs_description::OdomImu>(
+        //                             rmcs_description::PitchLink::DirectionVector(0, 0, 1), *tf_)
+        //                             ->normalized();
+        //         auto pitch_axis = fast_tf::cast<rmcs_description::OdomImu>(
+        //                               rmcs_description::PitchLink::DirectionVector(0, 1, 0),
+        //                               *tf_)
+        //                               ->normalized();
+        //         auto delta_yaw   = Eigen::AngleAxisd{yaw_error_, yaw_axis};
+        //         auto delta_pitch = Eigen::AngleAxisd{pitch_error_, pitch_axis};
+        //         const auto debug = aiming_direction;
+        //         aiming_direction = delta_pitch * (delta_yaw * (aiming_direction));
+
+        //         *control_direction_ = aiming_direction;
+
+        //         break;
+        //     }
+        // }
+        // bool deadband = (std::chrono::steady_clock::now() - fire_control_deadband_)
+        //               > std::chrono::milliseconds(50);
+        // if (fast_tf::cast<rmcs_description::OdomImu>(
+        //         rmcs_description::PitchLink::DirectionVector(), *tf_)
+        //         ->dot(aiming_direction)
+        //     >= 0.998) {
+        //     *fire_control_ = true && deadband && *fire_control_;
+        // } else {
+        //     *fire_control_ = false;
+        // }
+        // if (fast_tf::cast<rmcs_description::OdomImu>(
+        //         rmcs_description::PitchLink::DirectionVector(), *tf_)
+        //         ->dot(aiming_direction)
+        //     < 0.998) {
+        //     fire_control_deadband_ = std::chrono::steady_clock::now();
+        // }
+
+        // // std::cerr << fast_tf::cast<rmcs_description::OdomImu>(
+        // //                  rmcs_description::PitchLink::DirectionVector(), *tf_)
+        // //                  ->dot(*control_direction_)
+        // //           << std::endl;
     }
 
 private:
@@ -223,20 +319,50 @@ private:
 
     std::unique_ptr<hikcamera::ImageCapturer> capturer_;
 
+    Eigen::Vector3d shoot_dir_;
+    std::vector<Eigen::Vector3d> shoot_vector_;
+    bool shoot_vector_ready_{false};
+
+    // std::atomic<rmcs_description::OdomImu::DirectionVector> outpost_pos_;
+    rmcs_description::OdomImu::Position outpost_pos_[2];
+    std::atomic<bool> outpost_pos_index_{false};
+
     // rmcs_auto_aim::Target target_;
     struct TargetFrame armor_target_buffer_[2];
-    std::atomic<bool> armor_target_index_{false};
+    std::atomic<bool> armor_target_index_{true};
 
     InputInterface<size_t> update_count_;
     InputInterface<uint8_t> whitelist_;
     InputInterface<rmcs_msgs::RobotColor> target_color_;
     InputInterface<rmcs_description::Tf> tf_;
 
+    std::atomic<bool> outpost_mode{true};
+
     OutputInterface<Eigen::Vector3d> control_direction_;
     OutputInterface<bool> fire_control_;
+    OutputInterface<bool> outpost_rotate_direction_;
+    std::atomic<bool> outpost_rotate_direction_for_multi_thread_{true};
+
+    OutputInterface<double> output_x_;
+    OutputInterface<double> output_v_x_;
+    OutputInterface<double> output_a_x_;
+    OutputInterface<double> output_y_;
+    OutputInterface<double> output_v_y_;
+    OutputInterface<double> output_a_y_;
+    OutputInterface<double> output_z_;
+    OutputInterface<double> output_z1_;
+    OutputInterface<double> output_z2_;
+    OutputInterface<double> output_r1_;
+    OutputInterface<double> output_r2_;
+    OutputInterface<double> output_yaw_;
+    OutputInterface<double> output_omega_;
+
+    OutputInterface<double> debug_;
 
     OutputInterface<double> debug_target_omega_;
     OutputInterface<double> debug_target_theta_;
+
+    // OutputInterface<bool> oy++rotate_direction_;
 
     std::chrono::time_point<std::chrono::steady_clock> fire_control_deadband_;
 };

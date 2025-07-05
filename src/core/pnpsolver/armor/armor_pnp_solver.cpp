@@ -7,6 +7,7 @@
 
 #include "armor_pnp_solver.hpp"
 #include "core/pnpsolver/armor/armor3d.hpp"
+#include "util/math.hpp"
 #include "util/profile/profile.hpp"
 
 using namespace rmcs_auto_aim;
@@ -44,6 +45,10 @@ public:
                     Eigen::AngleAxisd{rvec_eigen.norm(), rvec_eigen.normalized()}
                 };
 
+                const auto yaw = util::math::get_yaw_from_quaternion(rotation);
+                if (yaw <= std::numbers::pi / 2. && yaw >= -std::numbers::pi / 2.)
+                    continue;
+
                 armors3d.emplace_back(
                     armor.id,
                     fast_tf::cast<rmcs_description::OdomImu>(
@@ -58,18 +63,14 @@ public:
         return armors3d;
     }
 
-    static ArmorPlate3dWithoutFrame Solve(
-        const ArmorPlate& armor, const double& fx, const double& fy, const double& cx,
-        const double& cy, const double& k1, const double& k2, const double& k3) {
+    static ArmorPlate3dWithoutFrame Solve(const ArmorPlate& armor) {
 
         cv::Mat rvec, tvec;
         auto& objectPoints =
             armor.is_large_armor ? LargeArmorObjectPoints : NormalArmorObjectPoints;
         if (cv::solvePnP(
-                objectPoints, armor.points,
-                (cv::Mat)(cv::Mat_<double>(3, 3) << fx, 0, cx, 0, fy, cy, 0, 0, 1),
-                (cv::Mat)(cv::Mat_<double>(1, 5) << k1, k2, 0, 0, k3), rvec, tvec, false,
-                cv::SOLVEPNP_IPPE)) {
+                objectPoints, armor.points, util::Profile::get_intrinsic_parameters(),
+                util::Profile::get_distortion_parameters(), rvec, tvec, false, cv::SOLVEPNP_IPPE)) {
 
             Eigen::Vector3d position = {
                 tvec.at<double>(2), -tvec.at<double>(0), -tvec.at<double>(1)};
@@ -93,7 +94,7 @@ public:
 private:
     inline constexpr static const double MaxArmorDistance = 15.0;
 
-    inline constexpr static const double NormalArmorWidth = 134, NormalArmorHeight = 56,
+    inline constexpr static const double NormalArmorWidth = 133.37, NormalArmorHeight = 56.18,
                                          LargerArmorWidth = 230, LargerArmorHeight = 56;
     inline static const std::vector<cv::Point3d> LargeArmorObjectPoints = {
         cv::Point3d(-0.5 * LargerArmorWidth, 0.5 * LargerArmorHeight, 0.0f),
@@ -112,8 +113,6 @@ std::vector<ArmorPlate3d> ArmorPnPSolver::SolveAll(
     return ArmorPnPSolver::StaticImpl::SolveAll(armors, tf);
 }
 
-ArmorPlate3dWithoutFrame ArmorPnPSolver::Solve(
-    const ArmorPlate& armor, const double& fx, const double& fy, const double& cx, const double& cy,
-    const double& k1, const double& k2, const double& k3) {
-    return ArmorPnPSolver::StaticImpl::Solve(armor, fx, fy, cx, cy, k1, k2, k3);
+ArmorPlate3dWithoutFrame ArmorPnPSolver::Solve(const ArmorPlate& armor) {
+    return ArmorPnPSolver::StaticImpl::Solve(armor);
 }
