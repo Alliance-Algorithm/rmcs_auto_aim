@@ -20,7 +20,7 @@ private:
 
     //           0,   1,   2, 3,   4,   5, 6,   7,   8,  9, 10,11,12
     // x分别代表[ x, v_x, a_x, y, v_y, a_y, z, z_1, z_2, r1, r2, φ, ω ]
-    // z分别代表[ yaw, pitch, distance ]
+    // z分别代表[ φ, yaw, pitch, distance ]
     // side_flag_为true时更新 r1, z1，为false时更新 r2, z2 , 每当输入的 yaw 有一个跳变 side_flag_
     // 翻转一次
 
@@ -73,12 +73,12 @@ private:
 
         const double armor_x = x_k_n(0) - r * std::sin(x_k_n(11));
         const double armor_y = x_k_n(3) - r * std::cos(x_k_n(11));
-        const double yaw     = x_k_n(11);
+        const double yaw     = std::atan(armor_y / armor_x);
         // Warning: Pitch的观测误差要给大一点，因为这种观测方法本身一定的稳态误差,可以考虑根据
         // x_k_n的 z 进行简单的补偿
-        const double pitch    = -15.0 / 180.0 * std::numbers::pi + std::atan((x_k_n(6) - z) / r);
+        const double pitch    = -std::atan(z / armor_x);
         const double distance = std::sqrt(armor_x * armor_x + armor_y * armor_y + z * z);
-        h_ << yaw, pitch, distance, z;
+        h_ << x_k_n(11), yaw, pitch, distance;
         return h_;
     };
 
@@ -105,29 +105,27 @@ private:
 
     inline HMat H(const XVec& x_k_n, const VVec&) {
         if (side_flag_) {
-            const double d_x_2_6 =
-                1.0 / (1.0 + (x_k_n(6) - x_k_n(7)) * (x_k_n(6) - x_k_n(7)) / x_k_n(9) / x_k_n(9))
-                / x_k_n(9);
-            const double d_x_2_7 = -d_x_2_6;
-            const double d_x_2_9 = d_x_2_7 * (x_k_n(6) - x_k_n(7)) / x_k_n(9);
+            const double d_x_2_0  = ;
+            const double d_x_2_3  = ;
+            const double d_x_2_9  = ;
+            const double d_x_2_11 = ;
 
-            const double delta_x = x_k_n(9) * std::sin(x_k_n(11));
-            const double delta_y = x_k_n(9) * std::cos(x_k_n(11));
-            const double armor_x = x_k_n(0) - delta_x;
-            const double armor_y = x_k_n(3) - delta_y;
-            const double d_x_3_base =
-                1.0 / std::sqrt(armor_x * armor_x + armor_y * armor_y + x_k_n(7) * x_k_n(7));
-            const double d_x_3_0 = d_x_3_base * armor_x;
-            const double d_x_3_3 = d_x_3_base * armor_y;
-            const double d_x_3_7 = d_x_3_base * x_k_n(7);
-            const double d_x_3_9 =
-                d_x_3_base * (-std::sin(x_k_n(11)) * armor_x - std::cos(x_k_n(11)) * armor_y);
-            const double d_x_3_11 = d_x_3_base * (-armor_x * delta_y + armor_y * delta_x);
+            const double d_x_3_0  = ;
+            const double d_x_3_7  = ;
+            const double d_x_3_9  = ;
+            const double d_x_3_11 = ;
+
+            const double d_x_4_0  = ;
+            const double d_x_4_3  = ;
+            const double d_x_4_7  = ;
+            const double d_x_4_9  = ;
+            const double d_x_4_11 = ;
+
             // clang-format off
             H_ <<      0., 0., 0.,      0., 0., 0.,      0.,      0., 0.,      0., 0.,       1., 0.,
-                       0., 0., 0.,      0., 0., 0., d_x_2_6, d_x_2_7, 0., d_x_2_9, 0.,       0., 0., 
-                  d_x_3_0, 0., 0., d_x_3_3, 0., 0.,      0., d_x_3_7, 0., d_x_3_9, 0., d_x_3_11, 0.,
-                       0., 0., 0.,      0., 0., 0.,      0.,      1., 0.,      0., 0.,       0., 0.;
+                  d_x_2_0, 0., 0., d_x_2_3, 0., 0.,      0.,      0., 0., d_x_2_9, 0., d_x_2_11, 0., 
+                  d_x_3_0, 0., 0.,      0., 0., 0.,      0., d_x_3_7, 0., d_x_3_9, 0., d_x_3_11, 0.,
+                  d_x_4_0, 0., 0., d_x_4_3, 0., 0.,      0., d_x_4_7, 0., d_x_4_9, 0., d_x_4_11, 0.;
             // clang-format on
         } else {
             const double d_x_2_6 =
@@ -164,10 +162,10 @@ private:
     inline QMat Q(const double& dt) {
         // Q_.setIdentity();
         // clang-format off
-        Q_ << 5.*std::numbers::pi*std::cos(X_k(11)), 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
+        Q_ << 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
               0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
               0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
-              0., 0., 0., 5.*std::numbers::pi*std::sin(X_k(11)), 0., 0., 0., 0., 0., 0., 0., 0., 0.,
+              0., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
               0., 0., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0.,
               0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0.,
               0., 0., 0., 0., 0., 0., 0.01, 0., 0., 0., 0., 0., 0., 

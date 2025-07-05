@@ -50,11 +50,8 @@ public:
                     continue;
 
                 armors3d.emplace_back(
-                    armor.id,
-                    fast_tf::cast<rmcs_description::OdomImu>(
-                        rmcs_description::CameraLink::Position{position}, tf),
-                    fast_tf::cast<rmcs_description::OdomImu>(
-                        rmcs_description::CameraLink::Rotation{rotation}, tf));
+                    armor.id, rmcs_description::OdomImu::Position{position},
+                    rmcs_description::OdomImu::Rotation{rotation});
             } else {
                 continue;
             }
