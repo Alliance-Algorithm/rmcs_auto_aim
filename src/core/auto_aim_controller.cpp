@@ -40,7 +40,7 @@ public:
         register_input("/predefined/update_count", update_count_);
         register_input("/auto_aim/target_color", target_color_);
         register_input("/auto_aim/whitelist", whitelist_);
-        register_input("/tf", tf_);
+        // register_input("/tf", tf_);
 
         hikcamera::ImageCapturer::CameraProfile profile;
         profile.invert_image  = get_parameter("invert_image").as_bool();
@@ -74,10 +74,8 @@ public:
 
         register_output("/debug/output_x", output_x_, 0.0);
         register_output("/debug/output_v_x", output_v_x_, 0.0);
-        register_output("/debug/output_a_x", output_a_x_, 0.0);
         register_output("/debug/output_y", output_y_, 0.0);
         register_output("/debug/output_v_y", output_v_y_, 0.0);
-        register_output("/debug/output_a_y", output_a_y_, 0.0);
         register_output("/debug/output_z", output_z_, 0.0);
         register_output("/debug/output_z1", output_z1_, 0.0);
         register_output("/debug/output_z2", output_z2_, 0.0);
@@ -104,8 +102,8 @@ public:
 
     void update() override {
         // keyboard_->ctrl+f
-        tf_buffer_[!tf_index_.load()] = *tf_;
-        tf_index_.store(!tf_index_.load());
+        // tf_buffer_[!tf_index_.load()] = *tf_;
+        // tf_index_.store(!tf_index_.load());
 
         // RCLCPP_INFO(get_logger(), "update");
 
@@ -132,7 +130,7 @@ public:
                     image            = capturer_->read();
                     // std::cerr << std::chrono::steady_clock::now() - thread_sync_clk_ <<
                     // std::endl;
-                    auto tf        = tf_buffer_[tf_index_.load()];
+                    // auto tf        = tf_buffer_[tf_index_.load()];
                     auto timestamp = std::chrono::steady_clock::now();
 
                     const auto armor_plates =
@@ -140,15 +138,16 @@ public:
 
                     // RCLCPP_INFO(get_logger(), "armor_plates num:%zu", armor_plates.size());
 
+
                     util::ImageViewer::load_image(image);
-                    const auto armor3d = ArmorPnPSolver::SolveAll(armor_plates, tf);
+                    const auto armor3d = ArmorPnPSolver::SolveAll(armor_plates, {});
 
                     // const bool is_outpost_mode = true;
 
                     for (auto& armor2d_ : armor3d) {
                         util::ImageViewer::draw(
                             transform_optimizer::Quadrilateral3d(armor2d_).ToQuadrilateral(
-                                tf, false),
+                                {}, false),
                             {0, 0, 255});
                         // *debug_target_theta_ =
                         //     util::math::get_pitch_from_quaternion(*armor2d_.rotation)
@@ -162,12 +161,12 @@ public:
                         //           << std::endl;
                     }
 
-                    tracker.Update(armor3d, timestamp, tf);
+                    tracker.Update(armor3d, timestamp, {});
                     const auto predict_armors = tracker.get_armors();
                     for (const auto& predict_armor : predict_armors) {
                         util::ImageViewer::draw(
                             transform_optimizer::Quadrilateral3d(predict_armor)
-                                .ToQuadrilateral(tf, false),
+                                .ToQuadrilateral({}, false),
                             // transform_optimizer::Quadrilateral(armor2d_),
                             {0, 255, 0});
                     }
@@ -175,17 +174,15 @@ public:
                     const auto output = tracker.get_model_output();
                     *output_x_        = output(0);
                     *output_v_x_      = output(1);
-                    *output_a_x_      = output(2);
-                    *output_y_        = output(3);
-                    *output_v_y_      = output(4);
-                    *output_a_y_      = output(5);
-                    *output_z_        = output(6);
-                    *output_z1_       = output(7);
-                    *output_z2_       = output(8);
-                    *output_r1_       = output(9);
-                    *output_r2_       = output(10);
-                    *output_yaw_      = output(11);
-                    *output_omega_    = output(12);
+                    *output_y_        = output(2);
+                    *output_v_y_      = output(3);
+                    *output_z_        = output(4);
+                    *output_z1_       = output(5);
+                    *output_z2_       = output(6);
+                    *output_r1_       = output(7);
+                    *output_r2_       = output(8);
+                    *output_yaw_      = output(9) * 180. / std::numbers::pi;
+                    *output_omega_    = output(10);
 
                     // *debug_target_theta_ =
                     //     util::math::get_yaw_from_quaternion(*predict_armors[0].rotation);
@@ -211,6 +208,8 @@ public:
                     //     // }
 
                     util::ImageViewer::show_image();
+                    // cv::imshow("test", image);
+                    // cv::waitKey(1);
                     // if (fps.Count()) {
                     //     RCLCPP_INFO(get_logger(), "FPS: %d", fps.GetFPS());
                     // }
@@ -345,10 +344,8 @@ private:
 
     OutputInterface<double> output_x_;
     OutputInterface<double> output_v_x_;
-    OutputInterface<double> output_a_x_;
     OutputInterface<double> output_y_;
     OutputInterface<double> output_v_y_;
-    OutputInterface<double> output_a_y_;
     OutputInterface<double> output_z_;
     OutputInterface<double> output_z1_;
     OutputInterface<double> output_z2_;

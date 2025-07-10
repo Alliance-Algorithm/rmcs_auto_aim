@@ -42,13 +42,13 @@ static inline void armor_transform_optimize(
         auto angle = util::optimizer::fibonacci(
             yaw - std::numbers::pi / 5, yaw + std::numbers::pi / 5, epsilone,
             [&squad2d, &armor3d, &rotation, &tf](double angle) -> double {
-                armor3d.rotation = set_armor3d_angle(rotation, angle);
+                // armor3d.rotation = set_armor3d_angle(rotation, angle);
                 auto squad3d =
                     Quadrilateral3d(armor3d).ToQuadrilateral(tf, squad2d.is_large_armor());
                 return squad3d - squad2d;
             });
 
-        inOutArmor3d[i].rotation = set_armor3d_angle(rotation, angle);
+        // inOutArmor3d[i].rotation = set_armor3d_angle(rotation, angle);
         *inOutArmor3d[i].rotation =
             Eigen::AngleAxisd(
                 std::numbers::pi, *inOutArmor3d[i].rotation * Eigen::Vector3d::UnitX())

@@ -50,8 +50,8 @@ public:
                     continue;
 
                 armors3d.emplace_back(
-                    armor.id, rmcs_description::OdomImu::Position{position},
-                    rmcs_description::OdomImu::Rotation{rotation});
+                    armor.id, rmcs_description::CameraLink::Position{position},
+                    rmcs_description::CameraLink::Rotation{rotation});
             } else {
                 continue;
             }

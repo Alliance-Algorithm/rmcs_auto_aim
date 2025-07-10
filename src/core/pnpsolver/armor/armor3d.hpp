@@ -18,14 +18,14 @@
 namespace rmcs_auto_aim {
 struct ArmorPlate3d {
     rmcs_msgs::ArmorID id;
-    rmcs_description::OdomImu::Position position;
-    rmcs_description::OdomImu::Rotation rotation;
+    rmcs_description::CameraLink::Position position;
+    rmcs_description::CameraLink::Rotation rotation;
 
     ArmorPlate3d() {};
 
     ArmorPlate3d(
-        rmcs_msgs::ArmorID id, rmcs_description::OdomImu::Position position,
-        rmcs_description::OdomImu::Rotation rotation)
+        rmcs_msgs::ArmorID id, rmcs_description::CameraLink::Position position,
+        rmcs_description::CameraLink::Rotation rotation)
         : id(id)
         , position(std::move(position))
         , rotation(std::move(rotation)) {}

@@ -1,6 +1,8 @@
 #pragma once
 
 #include "eigen3/Eigen/Eigen"
+#include <iostream>
+#include <rmcs_description/tf_description.hpp>
 
 namespace rmcs_auto_aim::util {
 
@@ -25,7 +27,8 @@ public:
 
     [[nodiscard]] inline XVec OutPut() const { return X_k; }
 
-    inline void Update(const ZVec& z_k, const UVec& u_k, const double& dt) {
+    inline void
+        Update(const ZVec& z_k, const UVec& u_k, const double& dt, const rmcs_description::Tf& tf) {
         dt_   = dt;
         P_k_n = P_k_n.Zero();
         S_k   = S_k.Zero();
@@ -33,7 +36,7 @@ public:
         K_t   = K_t.Zero();
         tmpK  = tmpK.Zero();
 
-        const auto processed_z = static_cast<Derived*>(this)->process_z(z_k);
+        const auto processed_z = static_cast<Derived*>(this)->process_z(z_k, tf);
 
         auto x_k_n = static_cast<Derived*>(this)->f(X_k, u_k, w_zero, dt);
         auto A_k   = static_cast<Derived*>(this)->A(X_k, u_k, w_zero, dt);
@@ -43,12 +46,13 @@ public:
 
         P_k_n << A_k * P_k * A_k.transpose()
                      + W_k * static_cast<Derived*>(this)->Q(dt) * W_k.transpose();
+
         y_k << processed_z - static_cast<Derived*>(this)->h(x_k_n, v_zero);
         S_k << H_k * P_k_n * H_k.transpose()
-                   + V_k * static_cast<Derived*>(this)->R(z_k) * V_k.transpose();
+                   + V_k * static_cast<Derived*>(this)->R(processed_z) * V_k.transpose();
         K_t << P_k_n * H_k.transpose() * S_k.inverse();
         X_k << x_k_n + K_t * y_k;
-        X_k << static_cast<Derived*>(this)->normalize_x(X_k);
+        X_k << static_cast<Derived*>(this)->normalize_x(X_k, tf);
         tmpK << Eye_K - K_t * H_k;
         P_k << tmpK * P_k_n;
     }
