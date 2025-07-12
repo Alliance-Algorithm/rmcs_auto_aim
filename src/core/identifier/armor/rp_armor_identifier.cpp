@@ -25,6 +25,7 @@ class RPArmorIdentifier::Impl {
 public:
     explicit Impl(const std::string& model_path, const std::string& device) {
         ov::Core core_;
+        const auto adevice = core_.get_available_devices();
         auto model_ = core_.read_model(model_path);
 
         std::unique_ptr<ov::preprocess::PrePostProcessor> pre_post_processor_ =
@@ -215,7 +216,7 @@ private:
     void matchPlate(const cv::Mat& img, const std::vector<ArmorInfo>& armor_plates) {
         cv::Mat gray_img;
         cv::cvtColor(img, gray_img, cv::COLOR_BGR2GRAY);
-        cv::threshold(gray_img, gray_img, 60, 255, cv::THRESH_BINARY);
+        cv::threshold(gray_img, gray_img, 30, 255, cv::THRESH_BINARY);
 
         for (const auto& armor : armor_plates) {
             const auto offset = cv::Point{
@@ -250,6 +251,7 @@ private:
                         return cv::contourArea(a, false) > cv::contourArea(b, false);
                     });
 
+                double first_area{0.};
                 std::vector<LightBar> lightbars_;
                 for (const auto& contour : contours) {
                     auto b_rect = cv::boundingRect(contour);
@@ -272,13 +274,15 @@ private:
                     if (points.empty())
                         continue;
                     const auto [high_point, low_point] = perform_pca(points);
-                    // // 调试输出，生产环境可以移除或通过宏控制
-                    // std::cerr << "high:" << highest_point.x << " " << highest_point.y <<
-                    // std::endl; std::cerr << "low:" << lowest_point.x << " " << lowest_point.y <<
-                    // std::endl;
 
-                    lightbars_.emplace_back(
-                        high_point + offset, low_point + offset, cv::minAreaRect(contour).angle);
+                    if (lightbars_.empty()) {
+                        first_area = cv::contourArea(contour);
+                        lightbars_.emplace_back(high_point + offset, low_point + offset, 0.);
+                    } else {
+                        const auto area_ratio = first_area / cv::contourArea(contour);
+                        if (area_ratio < 10. && area_ratio > 1. / 10.)
+                            lightbars_.emplace_back(high_point + offset, low_point + offset, 0.);
+                    }
 
                     if (lightbars_.size() == 2)
                         break;

@@ -125,26 +125,38 @@ public:
                 rmcs_auto_aim::util::FPSCounter fps;
 
                 while (rclcpp::ok()) {
+                    auto timestamp   = std::chrono::steady_clock::now();
                     auto image       = capturer_->read();
-                    thread_sync_clk_ = std::chrono::steady_clock::now();
-                    image            = capturer_->read();
                     // std::cerr << std::chrono::steady_clock::now() - thread_sync_clk_ <<
                     // std::endl;
                     // auto tf        = tf_buffer_[tf_index_.load()];
-                    auto timestamp = std::chrono::steady_clock::now();
 
+                    // const auto time = std::chrono::steady_clock::now();
                     const auto armor_plates =
                         armor_identifier->Identify(image, *target_color_, 0xff);
-
+                    // std::cerr << std::chrono::duration_cast<std::chrono::duration<double>>(
+                    //                  std::chrono::steady_clock::now() - time)
+                    //                  .count()
+                    //           << std::endl;
                     // RCLCPP_INFO(get_logger(), "armor_plates num:%zu", armor_plates.size());
-
 
                     util::ImageViewer::load_image(image);
                     const auto armor3d = ArmorPnPSolver::SolveAll(armor_plates, {});
 
                     // const bool is_outpost_mode = true;
 
-                    for (auto& armor2d_ : armor3d) {
+                    for (auto armor2d_ : armor3d) {
+                        // std::cerr << "yaw:"
+                        //           << util::math::get_yaw_from_quaternion(*armor2d_.rotation) << "
+                        //           "
+                        //           << "pitch:"
+                        //           << util::math::get_pitch_from_quaternion(*armor2d_.rotation)
+                        //           << " " << "roll:"
+                        //           << util::math::get_roll_from_quaternion(*armor2d_.rotation)
+                        //           << std::endl;
+
+                        // armor2d_.rotation =
+                        // fast_tf::cast<rmcs_description::OdomImu>(*armor2d_.rotation,tf);
                         util::ImageViewer::draw(
                             transform_optimizer::Quadrilateral3d(armor2d_).ToQuadrilateral(
                                 {}, false),
@@ -181,7 +193,7 @@ public:
                     *output_z2_       = output(6);
                     *output_r1_       = output(7);
                     *output_r2_       = output(8);
-                    *output_yaw_      = output(9) * 180. / std::numbers::pi;
+                    *output_yaw_      = output(9);
                     *output_omega_    = output(10);
 
                     // *debug_target_theta_ =
@@ -210,9 +222,10 @@ public:
                     util::ImageViewer::show_image();
                     // cv::imshow("test", image);
                     // cv::waitKey(1);
-                    // if (fps.Count()) {
-                    //     RCLCPP_INFO(get_logger(), "FPS: %d", fps.GetFPS());
-                    // }
+                    if (fps.Count()) {
+                        RCLCPP_INFO(get_logger(), "FPS: %d", fps.GetFPS());
+                    }
+                    // std::cerr<<"time:"<<std::chrono::steady_clock::now()-timestamp<<std::endl;
                 }
             });
         }

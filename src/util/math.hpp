@@ -20,6 +20,14 @@ static inline double get_pitch_from_quaternion(const Eigen::Quaterniond& quatern
     return pitch;
 }
 
+static inline double get_roll_from_quaternion(const Eigen::Quaterniond& quaternion) {
+    const double roll = std::atan2(
+        2.0 * (quaternion.w() * quaternion.x() + quaternion.y() * quaternion.z()),
+        1.0 - 2.0 * (quaternion.x() * quaternion.x() + quaternion.y() * quaternion.y()));
+
+    return roll;
+}
+
 static inline Eigen::Quaterniond
     euler_to_quaternion(const double& yaw_rad, const double& pitch_rad, const double& roll_rad) {
     Eigen::AngleAxisd rollAngle(roll_rad, Eigen::Vector3d::UnitX());

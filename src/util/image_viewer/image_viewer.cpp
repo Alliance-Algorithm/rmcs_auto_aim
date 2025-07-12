@@ -59,7 +59,7 @@ public:
     void load_image(const cv::Mat& image) final { this->image = image.clone(); };
 
     void show_image() final {
-        cv::imshow(name_, image);
+        cv::imshow("debug", image);
         cv::waitKey(1);
     };
 

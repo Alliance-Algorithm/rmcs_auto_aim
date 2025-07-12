@@ -28,7 +28,7 @@ public:
     [[nodiscard]] inline XVec OutPut() const { return X_k; }
 
     inline void
-        Update(const ZVec& z_k, const UVec& u_k, const double& dt, const rmcs_description::Tf& tf) {
+        Update(const ZVec& z_k, const UVec& u_k, const double& dt) {
         dt_   = dt;
         P_k_n = P_k_n.Zero();
         S_k   = S_k.Zero();
@@ -36,7 +36,7 @@ public:
         K_t   = K_t.Zero();
         tmpK  = tmpK.Zero();
 
-        const auto processed_z = static_cast<Derived*>(this)->process_z(z_k, tf);
+        const auto processed_z = static_cast<Derived*>(this)->process_z(z_k);
 
         auto x_k_n = static_cast<Derived*>(this)->f(X_k, u_k, w_zero, dt);
         auto A_k   = static_cast<Derived*>(this)->A(X_k, u_k, w_zero, dt);
@@ -52,7 +52,7 @@ public:
                    + V_k * static_cast<Derived*>(this)->R(processed_z) * V_k.transpose();
         K_t << P_k_n * H_k.transpose() * S_k.inverse();
         X_k << x_k_n + K_t * y_k;
-        X_k << static_cast<Derived*>(this)->normalize_x(X_k, tf);
+        X_k << static_cast<Derived*>(this)->normalize_x(X_k);
         tmpK << Eye_K - K_t * H_k;
         P_k << tmpK * P_k_n;
     }

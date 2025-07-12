@@ -7,23 +7,22 @@ namespace rmcs_auto_aim::tracker {
 class TrackerModel : public util::EkfCrtp<11, 4, TrackerModel> {
 public:
     TrackerModel() {
-        X_k << 2.0, 0.0, 0.0, 0.0, 0.15, 0.15, 0.15, 0.2, 0.2, std::numbers::pi, 0.0;
+        X_k << 2.0, 0.0, 0.0, 0.0, -0.3, -0.3, -0.3, 0.2, 0.2, std::numbers::pi, 0.0;
 
-        P_k.diagonal() << 1.0, 0.01, 1.0, 0.01, 0.005, 0.005, 0.1, 0.05, 0.05, 0.1, 0.1;
+        P_k.diagonal() << 1., 1., 1., 1., 0., 0., 0., 1., 1., 1., 1.;
     }
-    inline void set_side_flag_(bool side_flag) { side_flag_ = side_flag; }
+    inline bool side_flag() const { return side_flag_; }
 
-    inline void set_z_r(const double& z1, const double z2, const double& r1, const double& r2) {
-        X_k(5) = z1;
-        X_k(6) = z2;
-        X_k(7) = r1;
-        X_k(8) = r2;
-    }
+    inline void test() { two_armor_flag = true; }
 
-    inline void set_theta_offset(const double& theta_offset) { theta_offset_ = theta_offset; }
+    // inline void set_z_r(const double& z1, const double z2, const double& r1, const double& r2) {
+    //     X_k(5) = z1;
+    //     X_k(6) = z2;
+    //     X_k(7) = r1;
+    //     X_k(8) = r2;
+    // }
 
-    // 头是会快速摆动的，由于滤波器的状态变量是在相机系下，所以我们要处理掉前后帧的偏移,状态变量在normalize_x时转换到OdomLink，在process_z时转换到CameraLink
-    inline void process_yaw_offset(const Eigen::Quaterniond& transform) { transform_ = transform; }
+    // inline void set_theta_offset(const double& theta_offset) { theta_offset_ = theta_offset; }
 
 private:
     friend class util::EkfCrtp<11, 4, TrackerModel>;
@@ -36,78 +35,42 @@ private:
 
     // std::size_t flag{0};
 
-    inline ZVec process_z(const ZVec& z_k, const rmcs_description::Tf& tf) {
-        X_k(9) += theta_offset_;
+    inline ZVec process_z(const ZVec& z_k) {
+        ZVec processed_z{z_k};
+        if (z_k(0) < 0.)
+            processed_z(0) += std::numbers::pi * 2.;
 
-        const auto camera_car_pos = fast_tf::cast<rmcs_description::CameraLink>(
-            rmcs_description::OdomImu::Position{
-                Eigen::Vector3d{X_k(0), X_k(2), X_k(4)}
-        },
-            tf);
-        const auto camera_v = fast_tf::cast<rmcs_description::CameraLink>(
-            rmcs_description::OdomImu::Position{
-                Eigen::Vector3d{X_k(1), X_k(3), 0.}
-        },
-            tf);
-        X_k(0) = camera_car_pos->x();
-        if (X_k(0) <= 0) {
-            X_k(0) = 1.5;
-        }
-        X_k(1) = camera_v->x();
-        X_k(2) = camera_car_pos->y();
-        X_k(3) = camera_v->y();
-        X_k(5) = camera_car_pos->z() / X_k(4) * X_k(5);
-        X_k(6) = camera_car_pos->z() / X_k(4) * X_k(6);
-        X_k(4) = camera_car_pos->z();
-        // std::cerr<<"xz:" <<X_k
-        auto camera_yaw = X_k(9);
-        if (camera_yaw >= 0.)
-            camera_yaw -= std::numbers::pi / 2.;
+        double offset{processed_z(0) - last_theta_};
+        if (std::abs(offset) >= switch_angle_difference_) {
+            // std::cerr << "trigger" << std::endl;
+            side_flag_ = !side_flag_;
+        } else
+            offset = 0.;
+
+        last_theta_ = processed_z(0);
+
+        if (side_flag_)
+            X_k(5) = z_k(3) * std::cos(z_k(1)) * -std::sin(z_k(2));
         else
-            camera_yaw += 3. * std::numbers::pi / 2.;
-        X_k(9) = util::math::get_yaw_from_quaternion(*fast_tf::cast<rmcs_description::CameraLink>(
-            rmcs_description::OdomImu::Rotation{
-                Eigen::AngleAxisd{camera_yaw, Eigen::Vector3d::UnitZ()}
-        },
-            tf));
+            X_k(6) = z_k(3) * std::cos(z_k(1)) * -std::sin(z_k(2));
 
-        return z_k;
+        if (X_k(9) < 0.)
+            X_k(9) += std::numbers::pi * 2.;
+
+        X_k(9) += offset;
+        return processed_z;
     };
 
-    inline XVec normalize_x(const XVec& x_k, const rmcs_description::Tf& tf) {
-        const auto odom_car_pos = fast_tf::cast<rmcs_description::OdomImu>(
-            rmcs_description::CameraLink::Position{
-                Eigen::Vector3d{x_k(0), x_k(2), x_k(4)}
-        },
-            tf);
-
-        const auto odom_v = fast_tf::cast<rmcs_description::OdomImu>(
-            rmcs_description::CameraLink::Position{
-                Eigen::Vector3d{x_k(1), x_k(3), 0.}
-        },
-            tf);
-
+    inline XVec normalize_x(const XVec& x_k) {
         normalized_x    = x_k;
-        normalized_x(0) = odom_car_pos->x();
-        normalized_x(1) = odom_v->x();
-        normalized_x(2) = odom_car_pos->y();
-        normalized_x(3) = odom_v->y();
-        normalized_x(4) = odom_car_pos->z();
-        normalized_x(5) = odom_car_pos->z() / x_k(4) * x_k(5);
-        normalized_x(6) = odom_car_pos->z() / x_k(4) * x_k(6);
         auto camera_yaw = x_k(9);
-        if (camera_yaw <= std::numbers::pi / 2.)
-            camera_yaw += std::numbers::pi / 2.;
-        else
-            camera_yaw -= 3. * std::numbers::pi / 2.;
-        normalized_x(9) =
-            util::math::get_yaw_from_quaternion(*fast_tf::cast<rmcs_description::OdomImu>(
-                rmcs_description::CameraLink::Rotation{
-                    Eigen::AngleAxisd{camera_yaw, Eigen::Vector3d::UnitZ()}
-        },
-                tf));
+        while (camera_yaw < 0.)
+            camera_yaw += 2 * std::numbers::pi;
+        while (camera_yaw >= 2 * std::numbers::pi)
+            camera_yaw -= 2 * std::numbers::pi;
 
-        return x_k;
+        normalized_x(9) = camera_yaw;
+        return normalized_x;
     };
 
     inline XVec f(const XVec& X_k, const UVec&, const WVec&, const double& dt) {
@@ -132,8 +95,8 @@ private:
         }
 
         const double theta    = x_k_n(9);
-        const double armor_x  = x_k_n(0) - r * std::sin(theta);
-        const double armor_y  = x_k_n(2) + r * std::cos(theta);
+        const double armor_x  = x_k_n(0) + r * std::cos(theta);
+        const double armor_y  = x_k_n(2) + r * std::sin(theta);
         const double yaw      = std::atan(armor_y / armor_x);
         const double pitch    = -std::atan(z / armor_x);
         const double distance = std::sqrt(armor_x * armor_x + armor_y * armor_y + z * z);
@@ -165,8 +128,8 @@ private:
         if (side_flag_) {
             const double r         = x_k_n(7);
             const double z         = x_k_n(5);
-            const double armor_x   = x_k_n(0) - r * std::sin(theta);
-            const double armor_y   = x_k_n(2) + r * std::cos(theta);
+            const double armor_x   = x_k_n(0) + r * std::cos(theta);
+            const double armor_y   = x_k_n(2) + r * std::sin(theta);
             const double armor_x_2 = armor_x * armor_x;
             const double armor_y_2 = armor_y * armor_y;
 
@@ -174,25 +137,25 @@ private:
             const double d_x_2_0    = -d_x_2_base * armor_y / armor_x_2;
             const double d_x_2_2    = d_x_2_base / armor_x;
             const double d_x_2_7 =
-                d_x_2_base * (armor_y / armor_x_2 * std::sin(theta) + std::cos(theta) / armor_x);
+                d_x_2_base * (-armor_y / armor_x_2 * std::cos(theta) + std::sin(theta) / armor_x);
             const double d_x_2_9 =
                 d_x_2_base * r
-                * (std::cos(theta) * armor_y / armor_x_2 - std::sin(theta) / armor_x);
+                * (std::sin(theta) * armor_y / armor_x_2 + std::cos(theta) / armor_x);
 
-            const double d_x_3_base = -1.0 / armor_x_2 / (1.0 + z * z / armor_x_2);
-            const double d_x_3_0    = -d_x_3_base * z;
-            const double d_x_3_5    = d_x_3_base * armor_x;
-            const double d_x_3_7    = -d_x_3_0 * sin(theta);
-            const double d_x_3_9    = -d_x_3_0 * r * std::cos(theta);
+            const double d_x_3_base = 1.0 / armor_x_2 / (1.0 + z * z / armor_x_2);
+            const double d_x_3_0    = d_x_3_base * z;
+            const double d_x_3_5    = -d_x_3_base * armor_x;
+            const double d_x_3_7    = d_x_3_0 * std::cos(theta);
+            const double d_x_3_9    = -d_x_3_0 * r * std::sin(theta);
 
             const double d_x_4_base = 1.0 / std::sqrt(z * z + armor_x_2 + armor_y_2);
             const double d_x_4_0    = d_x_4_base * armor_x;
             const double d_x_4_2    = d_x_4_base * armor_y;
             const double d_x_4_5    = d_x_4_base * z;
             const double d_x_4_7 =
-                d_x_4_base * (std::cos(theta) * armor_y - std::sin(theta) * armor_x);
+                d_x_4_base * (std::sin(theta) * armor_y + std::cos(theta) * armor_x);
             const double d_x_4_9 =
-                -d_x_4_base * r * (std::sin(theta) * armor_y + std::cos(theta) * armor_x);
+                d_x_4_base * r * (std::cos(theta) * armor_y - std::sin(theta) * armor_x);
 
             // clang-format off
             H_ <<      0., 0.,      0., 0., 0.,      0., 0.,      0., 0.,      1., 0.,
@@ -204,8 +167,8 @@ private:
         } else {
             const double r         = x_k_n(8);
             const double z         = x_k_n(6);
-            const double armor_x   = x_k_n(0) - r * std::sin(theta);
-            const double armor_y   = x_k_n(2) + r * std::cos(theta);
+            const double armor_x   = x_k_n(0) + r * std::cos(theta);
+            const double armor_y   = x_k_n(2) + r * std::sin(theta);
             const double armor_x_2 = armor_x * armor_x;
             const double armor_y_2 = armor_y * armor_y;
 
@@ -213,25 +176,25 @@ private:
             const double d_x_2_0    = -d_x_2_base * armor_y / armor_x_2;
             const double d_x_2_2    = d_x_2_base / armor_x;
             const double d_x_2_8 =
-                d_x_2_base * (armor_y / armor_x_2 * std::sin(theta) + std::cos(theta) / armor_x);
+                d_x_2_base * (-armor_y / armor_x_2 * std::cos(theta) + std::sin(theta) / armor_x);
             const double d_x_2_9 =
                 d_x_2_base * r
-                * (std::cos(theta) * armor_y / armor_x_2 - std::sin(theta) / armor_x);
+                * (std::sin(theta) * armor_y / armor_x_2 + std::cos(theta) / armor_x);
 
-            const double d_x_3_base = -1.0 / armor_x_2 / (1.0 + z * z / armor_x_2);
-            const double d_x_3_0    = -d_x_3_base * z;
-            const double d_x_3_6    = d_x_3_base * armor_x;
-            const double d_x_3_8    = -d_x_3_0 * sin(theta);
-            const double d_x_3_9    = -d_x_3_0 * r * std::cos(theta);
+            const double d_x_3_base = 1.0 / armor_x_2 / (1.0 + z * z / armor_x_2);
+            const double d_x_3_0    = d_x_3_base * z;
+            const double d_x_3_6    = -d_x_3_base * armor_x;
+            const double d_x_3_8    = d_x_3_0 * std::cos(theta);
+            const double d_x_3_9    = -d_x_3_0 * r * std::sin(theta);
 
             const double d_x_4_base = 1.0 / std::sqrt(z * z + armor_x_2 + armor_y_2);
             const double d_x_4_0    = d_x_4_base * armor_x;
             const double d_x_4_2    = d_x_4_base * armor_y;
             const double d_x_4_6    = d_x_4_base * z;
             const double d_x_4_8 =
-                d_x_4_base * (std::cos(theta) * armor_y - std::sin(theta) * armor_x);
+                d_x_4_base * (std::sin(theta) * armor_y + std::cos(theta) * armor_x);
             const double d_x_4_9 =
-                -d_x_4_base * r * (std::sin(theta) * armor_y + std::cos(theta) * armor_x);
+                d_x_4_base * r * (std::cos(theta) * armor_y - std::sin(theta) * armor_x);
 
             // clang-format off
             H_ <<      0., 0.,      0., 0., 0., 0.,      0., 0.,      0.,      1., 0.,
@@ -249,40 +212,47 @@ private:
         // Q_.setIdentity();
         if (side_flag_) {
             // clang-format off
-            Q_ << 0.0001, 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
-                  0., 0.01, 0., 0., 0., 0., 0., 0., 0., 0., 0.,
-                  0., 0., 0.0001, 0., 0., 0., 0., 0., 0., 0., 0.,
-                  0., 0., 0.,  0.01, 0., 0., 0., 0., 0., 0., 0.,
-                  0., 0., 0., 0.,  0.0001, 0., 0., 0., 0., 0., 0.,
+            Q_ << 0.1, 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
+                  0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
+                  0., 0., 0.1, 0., 0., 0., 0., 0., 0., 0., 0.,
+                  0., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0.,
                   0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
                   0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
                   0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
+                  0., 0., 0., 0., 0., 0., 0., 0.000001, 0., 0., 0.,
                   0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
-                  0., 0., 0., 0., 0., 0., 0., 0., 0.,  0.0001, 0.,
-                  0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,  0.01;
+                  0., 0., 0., 0., 0., 0., 0., 0., 0., 0.1, 0.,
+                  0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.3;
             // clang-format on
         } else {
             // clang-format off
-            Q_ <<  0.0001, 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
-                  0.,  0.01, 0., 0., 0., 0., 0., 0., 0., 0., 0.,
-                  0., 0.,  0.0001, 0., 0., 0., 0., 0., 0., 0., 0.,
-                  0., 0., 0.,  0.01, 0., 0., 0., 0., 0., 0., 0.,
-                  0., 0., 0., 0.,  0.0001, 0., 0., 0., 0., 0., 0.,
+            Q_ << 0.1, 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
+                  0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
+                  0., 0., 0.1, 0., 0., 0., 0., 0., 0., 0., 0.,
+                  0., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0.,
                   0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
                   0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
                   0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
                   0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
-                  0., 0., 0., 0., 0., 0., 0., 0., 0.,  0.0001, 0.,
-                  0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,  0.01;
+                  0., 0., 0., 0., 0., 0., 0., 0., 0.000001, 0., 0.,
+                  0., 0., 0., 0., 0., 0., 0., 0., 0., 0.1, 0.,
+                  0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.3;
             // clang-format on
         }
         return Q_;
     };
 
     inline RMat R(const ZVec& z) {
-        // 加 0.01 的偏置量主要是为了防止求不出逆矩阵
-        const double yaw_center_difference_ = std::abs(z(0) - std::numbers::pi / 2) + 0.01;
-        R_.diagonal() << 0.000001, 0.000001, 0.000001, 0.001;
+        const double yaw_center_difference_ = std::abs(std::sin(z(0))) + 1.;
+        if (two_armor_flag) {
+            two_armor_flag = false;
+            R_.diagonal() << 9999999999999, yaw_center_difference_ * r_theta_yaw_,
+                yaw_center_difference_ * r_theta_pitch_, yaw_center_difference_ * r_theta_distance_;
+        } else {
+            R_.diagonal() << yaw_center_difference_ * r_theta_theta_,
+                yaw_center_difference_ * r_theta_yaw_, yaw_center_difference_ * r_theta_pitch_,
+                yaw_center_difference_ * r_theta_distance_;
+        }
         return R_;
     };
 
@@ -296,13 +266,14 @@ private:
     RMat R_{};
     XVec normalized_x{};
 
-    double theta_offset_{0.};
-    static constexpr double r_theta_theta_    = 0.5;
-    static constexpr double r_theta_yaw_      = 0.5;
-    static constexpr double r_theta_pitch_    = 0.5;
-    static constexpr double r_theta_distance_ = 1.0;
+    double last_theta_{std::numbers::pi};
+    static constexpr double switch_angle_difference_ = std::numbers::pi * 70. / 180.;
+    static constexpr double r_theta_theta_           = 0.005;
+    static constexpr double r_theta_yaw_             = 0.5;
+    static constexpr double r_theta_pitch_           = 0.5;
+    static constexpr double r_theta_distance_        = 5.;
 
-    Eigen::Quaterniond transform_;
     bool side_flag_{true};
+    bool two_armor_flag{false};
 };
 } // namespace rmcs_auto_aim::tracker
