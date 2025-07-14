@@ -228,7 +228,7 @@ private:
                     static_cast<int>(
                         armor.rect_.y
                         - armor.rect_.height / 2. * (match_magnification_ratio_ - 1.)),
-                    0, 1080)};
+                    0, 720)};
 
             cv::Size rect_size{
                 std::clamp(
@@ -236,7 +236,7 @@ private:
                     1440 - offset.x),
                 std::clamp(
                     static_cast<int>(armor.rect_.height * match_magnification_ratio_), 0,
-                    1080 - offset.y)};
+                    720 - offset.y)};
 
             const auto armor_roi = gray_img(cv::Rect{offset, rect_size});
 
@@ -258,10 +258,10 @@ private:
 
                     cv::Point roi_point{
                         std::clamp(offset.x + b_rect.x, 0, 1440),
-                        std::clamp(offset.y + b_rect.y, 0, 1080)};
+                        std::clamp(offset.y + b_rect.y, 0, 720)};
                     cv::Size roi_size{
                         std::clamp(b_rect.width, 0, 1440 - roi_point.x),
-                        std::clamp(b_rect.height, 0, 1080 - roi_point.y)};
+                        std::clamp(b_rect.height, 0, 720 - roi_point.y)};
                     const auto light_bar_roi = img(cv::Rect{roi_point, roi_size});
 
                     const auto channels       = cv::mean(light_bar_roi);
@@ -346,7 +346,7 @@ private:
     static constexpr int model_image_height_ = 640;
     static constexpr int model_image_width_  = 640;
     static constexpr double width_ratio_     = 1440. / model_image_width_;
-    static constexpr double height_ratio_    = 1080. / model_image_height_;
+    static constexpr double height_ratio_    = 720. / model_image_height_;
     static constexpr double conf_threshold_  = 0.65;
     static constexpr double nms_threshold_   = 0.45;
 

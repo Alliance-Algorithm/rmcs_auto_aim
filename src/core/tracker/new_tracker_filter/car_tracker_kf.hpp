@@ -209,34 +209,41 @@ private:
     inline VMat V(const XVec&, const VVec&) const { return V_; };
 
     inline QMat Q(const double& dt) {
+        double vx = X_k(1), vy = X_k(3);
+        double dx = pow(pow(vx, 2) + pow(vy, 2), 0.5);
+        Eigen::MatrixXd q(9, 9);
+        double x, y;
+        x            = 100;
+        double t     = dt;
+        double q_x_x = pow(t, 4) / 4 * x, q_x_vx = pow(t, 3) / 2 * x, q_vx_vx = pow(t, 2) * x;
         // Q_.setIdentity();
         if (side_flag_) {
             // clang-format off
-            Q_ << 0.1, 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
-                  0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
-                  0., 0., 0.1, 0., 0., 0., 0., 0., 0., 0., 0.,
-                  0., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0.,
+            Q_ << q_x_x, q_x_vx, 0., 0., 0., 0., 0., 0., 0., 0., 0.,
+                  q_x_vx, q_vx_vx, 0., 0., 0., 0., 0., 0., 0., 0., 0.,
+                  0., 0., q_x_x, q_x_vx, 0., 0., 0., 0., 0., 0., 0.,
+                  0., 0., q_x_vx, q_vx_vx, 0., 0., 0., 0., 0., 0., 0.,
                   0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
                   0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
                   0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
-                  0., 0., 0., 0., 0., 0., 0., 0.000001, 0., 0., 0.,
+                  0., 0., 0., 0., 0., 0., 0., 1e-5, 0., 0., 0.,
                   0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
                   0., 0., 0., 0., 0., 0., 0., 0., 0., 0.1, 0.,
-                  0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.3;
+                  0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 3.0;
             // clang-format on
         } else {
             // clang-format off
-            Q_ << 0.1, 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
-                  0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
-                  0., 0., 0.1, 0., 0., 0., 0., 0., 0., 0., 0.,
-                  0., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0.,
+            Q_ << q_x_x, q_x_vx, 0., 0., 0., 0., 0., 0., 0., 0., 0.,
+                  q_x_vx, q_vx_vx, 0., 0., 0., 0., 0., 0., 0., 0., 0.,
+                  0., 0., q_x_x, q_x_vx, 0., 0., 0., 0., 0., 0., 0.,
+                  0., 0., q_x_vx, q_vx_vx, 0., 0., 0., 0., 0., 0., 0.,
                   0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
                   0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
                   0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
                   0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
-                  0., 0., 0., 0., 0., 0., 0., 0., 0.000001, 0., 0.,
+                  0., 0., 0., 0., 0., 0., 0., 0., 1e-5, 0., 0.,
                   0., 0., 0., 0., 0., 0., 0., 0., 0., 0.1, 0.,
-                  0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.3;
+                  0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 3.0;
             // clang-format on
         }
         return Q_;
@@ -268,10 +275,10 @@ private:
 
     double last_theta_{std::numbers::pi};
     static constexpr double switch_angle_difference_ = std::numbers::pi * 70. / 180.;
-    static constexpr double r_theta_theta_           = 0.005;
-    static constexpr double r_theta_yaw_             = 0.5;
-    static constexpr double r_theta_pitch_           = 0.5;
-    static constexpr double r_theta_distance_        = 5.;
+    static constexpr double r_theta_theta_           = 0.1;
+    static constexpr double r_theta_yaw_             = 1e-3;
+    static constexpr double r_theta_pitch_           = 1e-3;
+    static constexpr double r_theta_distance_        = 1.;
 
     bool side_flag_{true};
     bool two_armor_flag{false};

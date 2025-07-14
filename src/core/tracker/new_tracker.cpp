@@ -70,7 +70,7 @@ public:
 
         // 预测时长，这里主要是把各种延迟加上,包括计算延迟，卡弹延迟以及子弹飞行时间等
         if (track_state_ == TrackerState::Track)
-            predict(0.5);
+            predict(0);
 
         last_timestamp_ = timestamp;
         return nullptr;
@@ -94,8 +94,8 @@ private:
         ay            = model_output(3) - last_vy;
         last_vx       = model_output(1);
         last_vy       = model_output(3);
-        const auto vx = model_output(1) + ax * dt;
-        const auto vy = model_output(3) + ay * dt;
+        const auto vx = model_output(1);
+        const auto vy = model_output(3);
 
         const double car_x = model_output(0) + vx * dt;
         const double car_y = model_output(2) + vy * dt;
